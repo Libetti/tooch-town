@@ -2,21 +2,21 @@
 	const projects = [
 		{
 			name: 'Tooch Town',
-			description: 'A home base for experiments, builds, and polished side projects.',
+			description: 'TODO',
 			href: '#',
-			label: 'Case study in progress'
+			label: 'TODO'
 		},
 		{
-			name: 'Project Atlas',
-			description: 'A private tool for organizing ideas into action-ready plans.',
+			name: 'TODO',
+			description: 'TODO',
 			href: '#',
-			label: 'Prototype'
+			label: 'TODO'
 		},
 		{
-			name: 'Neighborhood Notes',
-			description: 'A simple way to collect local recommendations and share them fast.',
+			name: 'TODO',
+			description: 'TODO',
 			href: '#',
-			label: 'Launching soon'
+			label: 'TODO'
 		}
 	];
 
@@ -34,6 +34,14 @@
 		content="Personal landing page for Anthony Libetti and the projects being built in Tooch Town."
 	/>
 </svelte:head>
+
+<iframe
+	src="/windwaker-great-sea.html"
+	class="sea-frame"
+	title="Animated Great Sea Background"
+	loading="eager"
+	aria-hidden="true"
+></iframe>
 
 <main class="landing">
 	<section class="hero">
@@ -72,19 +80,30 @@
 <style>
 	:global(body) {
 		margin: 0;
-		background:
-			radial-gradient(circle at 15% 20%, #fdd59f 0%, transparent 42%),
-			radial-gradient(circle at 85% 0%, #ffd8c6 0%, transparent 36%),
-			linear-gradient(150deg, #f3f4ef 0%, #fffaf4 58%, #f6efe6 100%);
+		background: #5aa4e6;
 		color: #1f2530;
 		font-family: 'Avenir Next', Avenir, 'Segoe UI', sans-serif;
 	}
 
+	.sea-frame {
+		position: fixed;
+		inset: 0;
+		z-index: 0;
+		width: 100vw;
+		height: 100vh;
+		display: block;
+		border: 0;
+		pointer-events: none;
+	}
+
 	.landing {
-		--panel: rgba(255, 255, 255, 0.72);
-		--line: rgba(31, 37, 48, 0.15);
+		--panel: rgba(255, 255, 255, 0.82);
+		--line: rgba(18, 54, 78, 0.2);
 		--headline: #11161f;
 		--accent: #c0571a;
+		position: relative;
+		z-index: 1;
+		isolation: isolate;
 		max-width: 68rem;
 		margin: 0 auto;
 		padding: 4rem 1.25rem 5rem;

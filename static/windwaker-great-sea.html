@@ -1,0 +1,563 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Wind Waker Great Sea Canvas</title>
+		<style>
+			html,
+			body {
+				margin: 0;
+				min-height: 100%;
+				background: #0a7bff;
+			}
+
+			canvas#sea {
+				position: fixed;
+				inset: 0;
+				z-index: -1;
+				width: 100vw;
+				height: 100vh;
+				display: block;
+				pointer-events: none;
+			}
+		</style>
+	</head>
+	<body>
+		<canvas id="sea" aria-hidden="true"></canvas>
+
+		<script>
+			'use strict';
+
+			const CONFIG = {
+				seed: 1337,
+				dprMax: 2,
+				sampleStep: 10,
+				palette: {
+					skyTop: '#55B9FF',
+					skyHorizon: '#B8F0FF',
+					oceanBase: '#0A7BFF',
+					oceanMid: '#0E8BFF',
+					waveLight: '#7FD6FF',
+					crestWhite: 'rgba(255,255,255,0.8)',
+					haze: 'rgba(255,255,255,0.35)',
+					cellLine: 'rgba(170, 239, 255, 0.32)'
+				},
+				horizonY: 0.56,
+				windBandAlpha: 0.12,
+				cloud: {
+					driftPx: 28,
+					speed: 0.08,
+					opacity: 0.9
+				},
+				waves: {
+					bandCount: 8,
+					crestThresholdBase: 0.74,
+					overlapBandOffset: 0.022
+				},
+				cells: {
+					rows: 6,
+					cols: 12,
+					yStart: 0.74,
+					driftX: 4.4,
+					driftY: 1.8,
+					jitter: 0.26
+				},
+				boat: {
+					anchorX: 0.56,
+					anchorY: 0.86,
+					widthMin: 190,
+					widthMax: 380,
+					widthRatio: 0.3
+				}
+			};
+
+			const TAU = Math.PI * 2;
+			const canvas = document.getElementById('sea');
+			const ctx = canvas.getContext('2d');
+			const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+			let width = 0;
+			let height = 0;
+			let dpr = 1;
+			let horizonPx = 0;
+			let rafId = 0;
+			let reducedMotion = motion.matches;
+
+			const state = {
+				xSamples: [],
+				waveBands: [],
+				cells: { points: [], cols: 0, rows: 0 },
+				clouds: [],
+				orcaImage: null,
+				orcaReady: false,
+				orcaUrl: ''
+			};
+
+			function mulberry32(seed) {
+				let t = seed >>> 0;
+				return function rand() {
+					t += 0x6d2b79f5;
+					let r = Math.imul(t ^ (t >>> 15), t | 1);
+					r ^= r + Math.imul(r ^ (r >>> 7), r | 61);
+					return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+				};
+			}
+
+			function lerp(a, b, t) {
+				return a + (b - a) * t;
+			}
+
+			function resize() {
+				width = window.innerWidth;
+				height = window.innerHeight;
+				horizonPx = height * CONFIG.horizonY;
+				dpr = Math.min(window.devicePixelRatio || 1, CONFIG.dprMax);
+				canvas.width = Math.floor(width * dpr);
+				canvas.height = Math.floor(height * dpr);
+				canvas.style.width = width + 'px';
+				canvas.style.height = height + 'px';
+				ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+				state.xSamples = [];
+				for (let x = 0; x <= width + CONFIG.sampleStep; x += CONFIG.sampleStep) state.xSamples.push(x);
+
+				initClouds();
+				initWaveBands();
+				initCells();
+			}
+
+			function initClouds() {
+				const rand = mulberry32(CONFIG.seed + 101);
+				state.clouds = [
+					{
+						x: width * 0.52,
+						y: height * 0.2,
+						w: Math.min(width, height) * 0.22,
+						h: Math.min(width, height) * 0.11,
+						phase: rand() * TAU
+					}
+				];
+			}
+
+			function initWaveBands() {
+				const rand = mulberry32(CONFIG.seed + 303);
+				state.waveBands = [];
+				for (let i = 0; i < CONFIG.waves.bandCount; i++) {
+					const depth = i / (CONFIG.waves.bandCount - 1);
+					const near = Math.pow(depth, 1.45);
+					const harmonicCount = 3;
+					const harmonics = [];
+					for (let h = 0; h < harmonicCount; h++) {
+						harmonics.push({
+							amp: lerp(0.22, 0.55, rand()),
+							freqMul: lerp(0.7, 2.2, rand()),
+							speedMul: lerp(0.8, 1.35, rand()),
+							phase: rand() * TAU
+						});
+					}
+
+					state.waveBands.push({
+						seed: rand() * 10000,
+						depth,
+						baseY: horizonPx + near * (height - horizonPx) * 0.66,
+						amplitude: lerp(1.2, 18, Math.pow(depth, 1.9)),
+						baseFreq: lerp(0.038, 0.0092, Math.pow(depth, 1.2)),
+						speed: lerp(0.3, 0.078, Math.pow(depth, 1.1)),
+						thickness: lerp(2.2, 12.5, Math.pow(depth, 1.85)),
+						harmonics,
+						crestChance: lerp(0.05, 0.2, depth)
+					});
+				}
+			}
+
+			function initCells() {
+				const rand = mulberry32(CONFIG.seed + 707);
+				const rows = CONFIG.cells.rows;
+				const cols = CONFIG.cells.cols;
+				const points = [];
+				const top = height * CONFIG.cells.yStart;
+				const bottom = height * 1.03;
+				const usable = bottom - top;
+				for (let r = 0; r <= rows; r++) {
+					const v = r / rows;
+					const row = [];
+					for (let c = 0; c <= cols; c++) {
+						const u = c / cols;
+						const jitterX = (rand() - 0.5) * (width / cols) * CONFIG.cells.jitter;
+						const jitterY = (rand() - 0.5) * (usable / rows) * CONFIG.cells.jitter;
+						row.push({
+							x: u * width + jitterX,
+							y: top + v * usable + jitterY,
+							phase: rand() * TAU
+						});
+					}
+					points.push(row);
+				}
+				state.cells = { points, cols, rows };
+			}
+
+			function initOrcaBoat() {
+				const svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 560">
+  <defs>
+    <linearGradient id="hullWhite" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#f4efe7"/>
+      <stop offset="1" stop-color="#d8d0c2"/>
+    </linearGradient>
+    <linearGradient id="gunwaleRed" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#b13629"/>
+      <stop offset="1" stop-color="#7d261d"/>
+    </linearGradient>
+    <linearGradient id="deckWood" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#8f5a36"/>
+      <stop offset="1" stop-color="#6e442c"/>
+    </linearGradient>
+    <linearGradient id="cabinWall" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#d9d1c1"/>
+      <stop offset="1" stop-color="#b9b2a3"/>
+    </linearGradient>
+    <linearGradient id="roofDeck" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#d4543a"/>
+      <stop offset="1" stop-color="#982f25"/>
+    </linearGradient>
+    <linearGradient id="bridgeWall" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#d8cfbf"/>
+      <stop offset="1" stop-color="#b8b1a3"/>
+    </linearGradient>
+    <linearGradient id="windowGlass" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#9fcde2"/>
+      <stop offset="1" stop-color="#6ea2bf"/>
+    </linearGradient>
+    <linearGradient id="transomWood" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#3f2a22"/>
+      <stop offset="1" stop-color="#251815"/>
+    </linearGradient>
+    <linearGradient id="doorWood" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#734636"/>
+      <stop offset="1" stop-color="#4f3026"/>
+    </linearGradient>
+    <filter id="softShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="3.2"/>
+    </filter>
+  </defs>
+  <g transform="translate(28 8)">
+    <ellipse cx="362" cy="482" rx="276" ry="44" fill="rgba(5,37,70,0.24)" filter="url(#softShadow)"/>
+
+    <path d="M362 64 L286 116 L238 190 L204 280 L178 420 L546 420 L520 280 L486 190 L438 116 Z"
+      fill="url(#hullWhite)" stroke="#1f2428" stroke-width="4"/>
+    <path d="M186 404 L538 404 L546 420 L178 420 Z" fill="#f0ebe1" stroke="#1f2428" stroke-width="3"/>
+    <path d="M200 390 L524 390 L535 406 L189 406 Z" fill="url(#deckWood)" stroke="#27292d" stroke-width="2.4"/>
+    <path d="M184 314 L242 302 L242 398 L192 404 Z" fill="url(#gunwaleRed)"/>
+    <path d="M540 314 L482 302 L482 398 L532 404 Z" fill="url(#gunwaleRed)"/>
+    <path d="M242 302 L482 302 L492 320 L232 320 Z" fill="url(#gunwaleRed)" stroke="#1f2428" stroke-width="2"/>
+
+    <path d="M232 234 L492 234 L492 396 L232 396 Z" fill="url(#cabinWall)" stroke="#1f2428" stroke-width="3.5"/>
+    <line x1="256" y1="238" x2="256" y2="394" stroke="rgba(54,53,49,0.35)" stroke-width="2"/>
+    <line x1="278" y1="238" x2="278" y2="394" stroke="rgba(54,53,49,0.35)" stroke-width="2"/>
+    <line x1="300" y1="238" x2="300" y2="394" stroke="rgba(54,53,49,0.35)" stroke-width="2"/>
+    <line x1="322" y1="238" x2="322" y2="394" stroke="rgba(54,53,49,0.35)" stroke-width="2"/>
+
+    <path d="M278 298 L418 298 L418 384 L278 384 Z" fill="#4c3228" stroke="#1f2428" stroke-width="3"/>
+    <path d="M357 296 L454 312 L454 404 L360 384 Z" fill="url(#doorWood)" stroke="#1f2428" stroke-width="3"/>
+    <circle cx="438" cy="356" r="3.5" fill="#d7ba84"/>
+    <circle cx="347" cy="344" r="17" fill="none" stroke="#3a3b3f" stroke-width="3"/>
+    <line x1="347" y1="327" x2="347" y2="361" stroke="#3a3b3f" stroke-width="2"/>
+    <line x1="330" y1="344" x2="364" y2="344" stroke="#3a3b3f" stroke-width="2"/>
+
+    <line x1="248" y1="248" x2="248" y2="392" stroke="#c9cbc8" stroke-width="4"/>
+    <line x1="272" y1="248" x2="272" y2="392" stroke="#c9cbc8" stroke-width="4"/>
+    <line x1="248" y1="268" x2="272" y2="268" stroke="#c9cbc8" stroke-width="2"/>
+    <line x1="248" y1="288" x2="272" y2="288" stroke="#c9cbc8" stroke-width="2"/>
+    <line x1="248" y1="308" x2="272" y2="308" stroke="#c9cbc8" stroke-width="2"/>
+    <line x1="248" y1="328" x2="272" y2="328" stroke="#c9cbc8" stroke-width="2"/>
+    <line x1="248" y1="348" x2="272" y2="348" stroke="#c9cbc8" stroke-width="2"/>
+    <line x1="248" y1="368" x2="272" y2="368" stroke="#c9cbc8" stroke-width="2"/>
+
+    <path d="M266 228 L458 228 L468 250 L256 250 Z" fill="url(#roofDeck)" stroke="#1f2428" stroke-width="3"/>
+    <path d="M286 168 L438 168 L446 228 L278 228 Z" fill="url(#bridgeWall)" stroke="#1f2428" stroke-width="3"/>
+    <rect x="314" y="183" width="42" height="26" fill="#eee5d6" stroke="#1f2428" stroke-width="3"/>
+    <rect x="321" y="190" width="12" height="11" fill="url(#windowGlass)"/>
+    <rect x="337" y="190" width="12" height="11" fill="url(#windowGlass)"/>
+    <rect x="288" y="210" width="38" height="18" fill="url(#windowGlass)" stroke="#1f2428" stroke-width="2.5"/>
+    <rect x="398" y="210" width="38" height="18" fill="url(#windowGlass)" stroke="#1f2428" stroke-width="2.5"/>
+    <line x1="362" y1="171" x2="362" y2="72" stroke="#2a2d30" stroke-width="5"/>
+    <line x1="362" y1="86" x2="424" y2="62" stroke="#2a2d30" stroke-width="3.2"/>
+    <line x1="362" y1="93" x2="300" y2="70" stroke="#2a2d30" stroke-width="3.2"/>
+    <circle cx="406" cy="199" r="13" fill="none" stroke="#32353a" stroke-width="3"/>
+    <line x1="393" y1="199" x2="419" y2="199" stroke="#32353a" stroke-width="2"/>
+    <line x1="406" y1="186" x2="406" y2="212" stroke="#32353a" stroke-width="2"/>
+
+    <path d="M220 244 L186 182 L174 188 L210 250 Z" fill="#8f4a31" stroke="#1f2428" stroke-width="3"/>
+    <rect x="193" y="250" width="18" height="98" fill="#8a8f93" stroke="#1f2428" stroke-width="3"/>
+    <rect x="195" y="350" width="14" height="58" fill="#7d8288" stroke="#1f2428" stroke-width="2.5"/>
+    <line x1="176" y1="188" x2="146" y2="140" stroke="rgba(50,53,57,0.6)" stroke-width="2"/>
+
+    <line x1="202" y1="236" x2="158" y2="156" stroke="#2d3237" stroke-width="3"/>
+    <line x1="522" y1="236" x2="566" y2="156" stroke="#2d3237" stroke-width="3"/>
+    <line x1="266" y1="234" x2="246" y2="154" stroke="rgba(54,58,63,0.55)" stroke-width="1.8"/>
+    <line x1="458" y1="234" x2="478" y2="154" stroke="rgba(54,58,63,0.55)" stroke-width="1.8"/>
+    <line x1="362" y1="74" x2="334" y2="168" stroke="rgba(54,58,63,0.5)" stroke-width="1.8"/>
+    <line x1="362" y1="74" x2="390" y2="168" stroke="rgba(54,58,63,0.5)" stroke-width="1.8"/>
+
+    <path d="M170 420 Q362 497 554 420 L554 500 Q362 552 170 500 Z"
+      fill="url(#transomWood)" stroke="#1f2428" stroke-width="4"/>
+    <path d="M170 420 Q362 497 554 420" fill="none" stroke="#dad2c3" stroke-width="6"/>
+    <text x="362" y="486" text-anchor="middle" font-family="Georgia,serif" font-size="54" font-weight="700" fill="#c9a065" letter-spacing="4">ORCA</text>
+    <circle cx="214" cy="474" r="6" fill="#404247"/>
+    <circle cx="505" cy="504" r="10" fill="#3b3d42"/>
+    <path d="M360 552 L364 552 L364 596 L360 596 Z" fill="#3a3c41"/>
+  </g>
+</svg>`;
+
+				const blob = new Blob([svg], { type: 'image/svg+xml' });
+				const url = URL.createObjectURL(blob);
+				const image = new Image();
+				image.onload = () => {
+					state.orcaReady = true;
+					state.orcaImage = image;
+					state.orcaUrl = url;
+					startOrRenderOnce();
+				};
+				image.src = url;
+			}
+
+			function waveYAt(band, x, t) {
+				let y = band.baseY;
+				for (let i = 0; i < band.harmonics.length; i++) {
+					const h = band.harmonics[i];
+					y +=
+						Math.sin(x * band.baseFreq * h.freqMul + t * band.speed * h.speedMul + h.phase) *
+						band.amplitude *
+						h.amp;
+				}
+				y += Math.sin(x * 0.0042 + t * 0.19 + band.seed) * band.amplitude * 0.07;
+				return y;
+			}
+
+			function drawSky(t) {
+				const g = ctx.createLinearGradient(0, 0, 0, horizonPx);
+				g.addColorStop(0, CONFIG.palette.skyTop);
+				g.addColorStop(1, CONFIG.palette.skyHorizon);
+				ctx.fillStyle = g;
+				ctx.fillRect(0, 0, width, horizonPx + 2);
+
+				ctx.save();
+				ctx.globalAlpha = CONFIG.windBandAlpha;
+				ctx.translate(width * 0.35, height * 0.15);
+				ctx.rotate(-0.11);
+				const sg = ctx.createLinearGradient(-width * 0.5, 0, width * 0.5, 0);
+				sg.addColorStop(0, 'rgba(255,255,255,0)');
+				sg.addColorStop(0.48, 'rgba(255,255,255,1)');
+				sg.addColorStop(1, 'rgba(255,255,255,0)');
+				ctx.fillStyle = sg;
+				ctx.fillRect(-width * 0.5, -18 + Math.sin(t * 0.1) * 3, width, 36);
+				ctx.restore();
+			}
+
+			function drawClouds(t) {
+				for (let i = 0; i < state.clouds.length; i++) {
+					const c = state.clouds[i];
+					const cx = c.x + Math.sin(t * CONFIG.cloud.speed + c.phase) * CONFIG.cloud.driftPx;
+					const cy = c.y + Math.sin(t * 0.12 + c.phase * 0.7) * 2;
+
+					ctx.save();
+					ctx.globalAlpha = CONFIG.cloud.opacity;
+					ctx.fillStyle = 'rgba(250, 252, 245, 0.95)';
+					ctx.beginPath();
+					ctx.ellipse(cx - c.w * 0.3, cy + c.h * 0.1, c.w * 0.22, c.h * 0.28, 0, 0, TAU);
+					ctx.ellipse(cx - c.w * 0.1, cy - c.h * 0.06, c.w * 0.25, c.h * 0.33, 0, 0, TAU);
+					ctx.ellipse(cx + c.w * 0.16, cy + c.h * 0.02, c.w * 0.27, c.h * 0.3, 0, 0, TAU);
+					ctx.ellipse(cx + c.w * 0.38, cy + c.h * 0.12, c.w * 0.18, c.h * 0.2, 0, 0, TAU);
+					ctx.fill();
+
+					ctx.fillStyle = 'rgba(206, 226, 226, 0.35)';
+					ctx.beginPath();
+					ctx.ellipse(cx - c.w * 0.06, cy + c.h * 0.23, c.w * 0.46, c.h * 0.2, 0, 0, TAU);
+					ctx.fill();
+					ctx.restore();
+				}
+			}
+
+			function drawHorizon() {
+				const haze = ctx.createLinearGradient(0, horizonPx - 18, 0, horizonPx + 22);
+				haze.addColorStop(0, 'rgba(255,255,255,0)');
+				haze.addColorStop(0.5, CONFIG.palette.haze);
+				haze.addColorStop(1, 'rgba(255,255,255,0)');
+				ctx.fillStyle = haze;
+				ctx.fillRect(0, horizonPx - 22, width, 44);
+			}
+
+			function drawOcean(t) {
+				const og = ctx.createLinearGradient(0, horizonPx, 0, height);
+				og.addColorStop(0, CONFIG.palette.oceanMid);
+				og.addColorStop(1, CONFIG.palette.oceanBase);
+				ctx.fillStyle = og;
+				ctx.fillRect(0, horizonPx, width, height - horizonPx);
+
+				for (let b = 0; b < state.waveBands.length; b++) {
+					const band = state.waveBands[b];
+					const pts = state.xSamples;
+					const topY = new Array(pts.length);
+
+					for (let i = 0; i < pts.length; i++) topY[i] = waveYAt(band, pts[i], t);
+
+					// Filled ridge body (toon band)
+					ctx.beginPath();
+					ctx.moveTo(pts[0], topY[0]);
+					for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i], topY[i]);
+					for (let i = pts.length - 1; i >= 0; i--) {
+						ctx.lineTo(pts[i], topY[i] + band.thickness + band.depth * 3);
+					}
+					ctx.closePath();
+					ctx.fillStyle = `rgba(16, 137, 255, ${lerp(0.14, 0.28, band.depth)})`;
+					ctx.fill();
+
+					// Top edge highlight
+					ctx.beginPath();
+					ctx.moveTo(pts[0], topY[0]);
+					for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i], topY[i]);
+					ctx.strokeStyle = `rgba(127,214,255, ${lerp(0.42, 0.74, band.depth)})`;
+					ctx.lineWidth = lerp(1.2, 2.2, band.depth);
+					ctx.stroke();
+
+					// Occasional white crest segments where curvature is high
+					ctx.strokeStyle = CONFIG.palette.crestWhite;
+					ctx.lineWidth = lerp(0.9, 1.8, band.depth);
+					for (let i = 2; i < pts.length - 2; i++) {
+						const d1 = topY[i] - topY[i - 1];
+						const d2 = topY[i + 1] - topY[i];
+						const curvature = Math.abs(d2 - d1);
+						const isPeak = d1 < 0 && d2 > 0;
+						const pick = Math.abs(Math.sin((i + 1.3) * 12.91 + band.seed * 0.021));
+						if (!isPeak || curvature < CONFIG.waves.crestThresholdBase - band.depth * 0.35 || pick > band.crestChance)
+							continue;
+						const len = lerp(8, 22, band.depth);
+						const x0 = pts[i] - len * 0.55;
+						const x1 = pts[i] + len * 0.45;
+						const y0 = waveYAt(band, x0, t) - 0.2;
+						const y1 = waveYAt(band, x1, t) - 0.2;
+						ctx.beginPath();
+						ctx.moveTo(x0, y0);
+						ctx.lineTo(x1, y1);
+						ctx.stroke();
+					}
+				}
+			}
+
+			function drawSurfaceCells(t) {
+				const { points, cols, rows } = state.cells;
+				ctx.save();
+				ctx.strokeStyle = CONFIG.palette.cellLine;
+				ctx.lineWidth = 1.8;
+				ctx.lineJoin = 'round';
+				ctx.lineCap = 'round';
+
+				// Horizontal lines
+				for (let r = 0; r <= rows; r++) {
+					ctx.beginPath();
+					for (let c = 0; c <= cols; c++) {
+						const p = points[r][c];
+						const x = p.x + Math.sin(t * 0.14 + p.phase + r * 0.4) * CONFIG.cells.driftX;
+						const y = p.y + Math.cos(t * 0.12 + p.phase + c * 0.35) * CONFIG.cells.driftY;
+						if (c === 0) ctx.moveTo(x, y);
+						else {
+							const prev = points[r][c - 1];
+							const px = prev.x + Math.sin(t * 0.14 + prev.phase + r * 0.4) * CONFIG.cells.driftX;
+							const py = prev.y + Math.cos(t * 0.12 + prev.phase + (c - 1) * 0.35) * CONFIG.cells.driftY;
+							ctx.quadraticCurveTo((px + x) * 0.5, (py + y) * 0.5, x, y);
+						}
+					}
+					ctx.stroke();
+				}
+
+				// Vertical lines
+				ctx.strokeStyle = 'rgba(170, 239, 255, 0.24)';
+				ctx.lineWidth = 1.4;
+				for (let c = 0; c <= cols; c++) {
+					ctx.beginPath();
+					for (let r = 0; r <= rows; r++) {
+						const p = points[r][c];
+						const x = p.x + Math.sin(t * 0.14 + p.phase + r * 0.4) * CONFIG.cells.driftX;
+						const y = p.y + Math.cos(t * 0.12 + p.phase + c * 0.35) * CONFIG.cells.driftY;
+						if (r === 0) ctx.moveTo(x, y);
+						else {
+							const prev = points[r - 1][c];
+							const px = prev.x + Math.sin(t * 0.14 + prev.phase + (r - 1) * 0.4) * CONFIG.cells.driftX;
+							const py = prev.y + Math.cos(t * 0.12 + prev.phase + c * 0.35) * CONFIG.cells.driftY;
+							ctx.quadraticCurveTo((px + x) * 0.5, (py + y) * 0.5, x, y);
+						}
+					}
+					ctx.stroke();
+				}
+
+				ctx.restore();
+			}
+
+			function drawOrcaBoat(t) {
+				if (!state.orcaReady || !state.orcaImage) return;
+
+				const w = Math.max(
+					CONFIG.boat.widthMin,
+					Math.min(CONFIG.boat.widthMax, width * CONFIG.boat.widthRatio)
+				);
+				const h = w * (560 / 780);
+				const x = width * CONFIG.boat.anchorX;
+				const y = height * CONFIG.boat.anchorY + Math.sin(t * 0.65) * 2.4;
+
+				ctx.save();
+				ctx.translate(x, y);
+				ctx.rotate(Math.sin(t * 0.42) * 0.01);
+
+				ctx.fillStyle = 'rgba(4, 33, 58, 0.22)';
+				ctx.beginPath();
+				ctx.ellipse(0, h * 0.28, w * 0.46, h * 0.09, 0, 0, TAU);
+				ctx.fill();
+
+				ctx.drawImage(state.orcaImage, -w * 0.5, -h * 0.58, w, h);
+				ctx.restore();
+			}
+
+			function loop(timeMs) {
+				const t = timeMs * 0.001;
+				drawSky(t);
+				drawClouds(t);
+				drawHorizon(t);
+				drawOcean(t);
+				drawSurfaceCells(t);
+				drawOrcaBoat(t);
+
+				if (!reducedMotion) rafId = requestAnimationFrame(loop);
+			}
+
+			function startOrRenderOnce() {
+				cancelAnimationFrame(rafId);
+				if (reducedMotion) {
+					loop(0);
+					return;
+				}
+				rafId = requestAnimationFrame(loop);
+			}
+
+			window.addEventListener('resize', () => {
+				resize();
+				startOrRenderOnce();
+			});
+
+			if ('addEventListener' in motion) {
+				motion.addEventListener('change', (e) => {
+					reducedMotion = e.matches;
+					startOrRenderOnce();
+				});
+			}
+
+			resize();
+			initOrcaBoat();
+			startOrRenderOnce();
+
+			window.addEventListener('beforeunload', () => {
+				if (state.orcaUrl) URL.revokeObjectURL(state.orcaUrl);
+			});
+		</script>
+	</body>
+</html>
