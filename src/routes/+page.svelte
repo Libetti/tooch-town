@@ -1,36 +1,22 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
-
-	let seaCanvas: HTMLCanvasElement | null = null;
-
-	type DriftStroke = {
-		seed: number;
-		lane: number;
-		y: number;
-		length: number;
-		speed: number;
-		alpha: number;
-		arc: number;
-	};
-
 	const projects = [
 		{
 			name: 'Tooch Town',
-			description: 'A home base for experiments, builds, and polished side projects.',
+			description: 'TODO',
 			href: '#',
-			label: 'Case study in progress'
+			label: 'TODO'
 		},
 		{
-			name: 'Project Atlas',
-			description: 'A private tool for organizing ideas into action-ready plans.',
+			name: 'TODO',
+			description: 'TODO',
 			href: '#',
-			label: 'Prototype'
+			label: 'TODO'
 		},
 		{
-			name: 'Neighborhood Notes',
-			description: 'A simple way to collect local recommendations and share them fast.',
+			name: 'TODO',
+			description: 'TODO',
 			href: '#',
-			label: 'Launching soon'
+			label: 'TODO'
 		}
 	];
 
@@ -39,209 +25,6 @@
 		{ name: 'LinkedIn', href: 'https://linkedin.com' },
 		{ name: 'Email', href: 'mailto:hello@example.com' }
 	];
-
-	const TAU = Math.PI * 2;
-
-	const randomFromSeed = (seed: number): number => {
-		const value = Math.sin(seed * 12.9898) * 43758.5453123;
-		return value - Math.floor(value);
-	};
-
-	const wrap = (value: number, max: number): number => {
-		return ((value % max) + max) % max;
-	};
-
-	onMount(() => {
-		const canvas = seaCanvas;
-		if (!canvas) {
-			return;
-		}
-
-		const ctx = canvas.getContext('2d');
-		if (!ctx) {
-			return;
-		}
-
-		let frameId = 0;
-		let width = 0;
-		let height = 0;
-		let dpr = 1;
-
-		const skyWind: DriftStroke[] = Array.from({ length: 8 }, (_, index) => {
-			const seed = index + 11;
-			return {
-				seed,
-				lane: (index + 0.2 + randomFromSeed(seed * 1.5) * 0.16) / 8,
-				y: 0.14 + (index % 4) * 0.075 + randomFromSeed(seed * 1.8) * 0.018,
-				length: 120 + randomFromSeed(seed * 2.4) * 180,
-				speed: 7.8,
-				alpha: 0.2 + randomFromSeed(seed * 3.1) * 0.2,
-				arc: -2.6 + randomFromSeed(seed * 4.4) * 5.2
-			};
-		});
-
-		const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-
-		const resize = (): void => {
-			width = window.innerWidth;
-			height = window.innerHeight;
-			dpr = Math.min(window.devicePixelRatio || 1, 2);
-			canvas.width = Math.floor(width * dpr);
-			canvas.height = Math.floor(height * dpr);
-			canvas.style.width = `${width}px`;
-			canvas.style.height = `${height}px`;
-			ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-		};
-
-		const drawStreak = (
-			x: number,
-			y: number,
-			length: number,
-			arc: number,
-			alpha: number,
-			thickness: number
-		): void => {
-			ctx.strokeStyle = `rgba(231, 249, 255, ${alpha})`;
-			ctx.lineWidth = thickness;
-			ctx.lineCap = 'round';
-			ctx.beginPath();
-			ctx.moveTo(x, y);
-			ctx.quadraticCurveTo(x + length * 0.5, y + arc, x + length, y - arc * 0.2);
-			ctx.stroke();
-		};
-
-		const drawMainCloud = (time: number): void => {
-			const x = width * 0.5 + Math.sin(time * 0.08) * 10;
-			const y = height * 0.19 + Math.sin(time * 0.16) * 1.8;
-			const base = Math.min(width, height) * 0.1;
-
-			const shadow = ctx.createRadialGradient(x, y + base * 0.35, base * 0.3, x, y + base * 0.35, base * 1.25);
-			shadow.addColorStop(0, 'rgba(198, 214, 211, 0.34)');
-			shadow.addColorStop(1, 'rgba(198, 214, 211, 0)');
-			ctx.fillStyle = shadow;
-			ctx.beginPath();
-			ctx.ellipse(x, y + base * 0.35, base * 1.16, base * 0.54, 0, 0, TAU);
-			ctx.fill();
-
-			ctx.fillStyle = 'rgba(241, 243, 230, 0.92)';
-			ctx.beginPath();
-			ctx.ellipse(x - base * 0.55, y + base * 0.1, base * 0.4, base * 0.34, 0, 0, TAU);
-			ctx.ellipse(x - base * 0.2, y - base * 0.1, base * 0.47, base * 0.4, 0, 0, TAU);
-			ctx.ellipse(x + base * 0.2, y + base * 0.02, base * 0.52, base * 0.36, 0, 0, TAU);
-			ctx.ellipse(x + base * 0.6, y + base * 0.12, base * 0.36, base * 0.3, 0, 0, TAU);
-			ctx.fill();
-
-			ctx.fillStyle = 'rgba(225, 235, 226, 0.55)';
-			ctx.beginPath();
-			ctx.ellipse(x - base * 0.25, y + base * 0.22, base * 0.92, base * 0.32, 0, 0, TAU);
-			ctx.fill();
-		};
-
-		const drawScene = (timeMs: number): void => {
-			const time = timeMs * 0.001;
-			const horizon = height * 0.61 + Math.sin(time * 0.2) * 0.8;
-
-			ctx.clearRect(0, 0, width, height);
-
-			const skyGradient = ctx.createLinearGradient(0, 0, 0, horizon);
-			skyGradient.addColorStop(0, '#51d4f0');
-			skyGradient.addColorStop(0.56, '#8beaf8');
-			skyGradient.addColorStop(1, '#d9fbff');
-			ctx.fillStyle = skyGradient;
-			ctx.fillRect(0, 0, width, horizon);
-
-			const sunX = width * 0.52;
-			const sunY = height * 0.05;
-			const sunGlow = ctx.createRadialGradient(sunX, sunY, 0, sunX, sunY, height * 0.4);
-			sunGlow.addColorStop(0, 'rgba(255, 249, 219, 0.2)');
-			sunGlow.addColorStop(1, 'rgba(255, 249, 219, 0)');
-			ctx.fillStyle = sunGlow;
-			ctx.fillRect(0, 0, width, horizon);
-
-			for (const streak of skyWind) {
-				const y = horizon * streak.y;
-				if (y >= horizon - 8) {
-					continue;
-				}
-				const span = width + streak.length * 1.5;
-				const x = wrap(streak.lane * span - time * streak.speed * 16, span) - streak.length;
-				drawStreak(x, y, streak.length, streak.arc, streak.alpha, 1.8);
-				drawStreak(
-					x + streak.length * 0.08,
-					y + 1.2,
-					streak.length * 0.78,
-					streak.arc * 0.65,
-					streak.alpha * 0.5,
-					1.1
-				);
-			}
-
-			drawMainCloud(time);
-
-			ctx.fillStyle = 'rgba(227, 244, 248, 0.45)';
-			ctx.beginPath();
-			ctx.ellipse(width * 0.32, horizon - height * 0.06, width * 0.18, height * 0.03, 0, 0, TAU);
-			ctx.ellipse(width * 0.58, horizon - height * 0.055, width * 0.2, height * 0.028, 0, 0, TAU);
-			ctx.ellipse(width * 0.82, horizon - height * 0.06, width * 0.16, height * 0.025, 0, 0, TAU);
-			ctx.fill();
-
-			const horizonGlow = ctx.createLinearGradient(0, horizon - 22, 0, horizon + 26);
-			horizonGlow.addColorStop(0, 'rgba(223, 248, 255, 0)');
-			horizonGlow.addColorStop(0.46, 'rgba(214, 243, 255, 0.78)');
-			horizonGlow.addColorStop(1, 'rgba(214, 243, 255, 0)');
-			ctx.fillStyle = horizonGlow;
-			ctx.fillRect(0, horizon - 24, width, 52);
-
-			const oceanGradient = ctx.createLinearGradient(0, horizon, 0, height);
-			oceanGradient.addColorStop(0, '#238ff5');
-			oceanGradient.addColorStop(0.45, '#1f86ee');
-			oceanGradient.addColorStop(1, '#1c7de7');
-			ctx.fillStyle = oceanGradient;
-			ctx.fillRect(0, horizon, width, height - horizon);
-		};
-
-		const frame = (timeMs: number): void => {
-			drawScene(timeMs);
-			frameId = window.requestAnimationFrame(frame);
-		};
-
-		const onResize = (): void => {
-			resize();
-			if (prefersReducedMotion.matches) {
-				drawScene(0);
-			}
-		};
-
-		const onMotionChange = (): void => {
-			window.cancelAnimationFrame(frameId);
-			if (prefersReducedMotion.matches) {
-				drawScene(0);
-				return;
-			}
-			frameId = window.requestAnimationFrame(frame);
-		};
-
-		window.addEventListener('resize', onResize);
-
-		if ('addEventListener' in prefersReducedMotion) {
-			prefersReducedMotion.addEventListener('change', onMotionChange);
-		}
-
-		resize();
-		if (prefersReducedMotion.matches) {
-			drawScene(0);
-		} else {
-			frameId = window.requestAnimationFrame(frame);
-		}
-
-		return () => {
-			window.cancelAnimationFrame(frameId);
-			window.removeEventListener('resize', onResize);
-			if ('removeEventListener' in prefersReducedMotion) {
-				prefersReducedMotion.removeEventListener('change', onMotionChange);
-			}
-		};
-	});
 </script>
 
 <svelte:head>
@@ -252,7 +35,13 @@
 	/>
 </svelte:head>
 
-<canvas bind:this={seaCanvas} class="sea-canvas" aria-hidden="true"></canvas>
+<iframe
+	src="/windwaker-great-sea.html"
+	class="sea-frame"
+	title="Animated Great Sea Background"
+	loading="eager"
+	aria-hidden="true"
+></iframe>
 
 <main class="landing">
 	<section class="hero">
@@ -296,13 +85,14 @@
 		font-family: 'Avenir Next', Avenir, 'Segoe UI', sans-serif;
 	}
 
-	.sea-canvas {
+	.sea-frame {
 		position: fixed;
 		inset: 0;
 		z-index: 0;
 		width: 100vw;
 		height: 100vh;
 		display: block;
+		border: 0;
 		pointer-events: none;
 	}
 
