@@ -21,9 +21,9 @@
 	];
 
 	const profileLinks = [
-		{ name: 'GitHub', href: 'https://github.com' },
-		{ name: 'LinkedIn', href: 'https://linkedin.com' },
-		{ name: 'Email', href: 'mailto:hello@example.com' }
+		{ name: 'GitHub', href: 'https://github.com/libetti' },
+		{ name: 'LinkedIn', href: 'https://www.linkedin.com/in/libetti' },
+		{ name: 'Email', href: 'mailto:anthony.libetti@yahoo.com' }
 	];
 </script>
 
