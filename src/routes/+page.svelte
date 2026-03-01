@@ -1,29 +1,29 @@
 <script lang="ts">
 	const projects = [
 		{
-			name: 'Tooch Town',
-			description: 'TODO',
-			href: '#',
-			label: 'TODO'
+			name: 'My Flightfeeder',
+			description: 'Live view of my hosted fightfeeder',
+			href: '/feeder',
+			label: 'View Feeder Map'
 		},
 		{
-			name: 'TODO',
-			description: 'TODO',
-			href: '#',
-			label: 'TODO'
+			name: 'Farm Health',
+			description: 'Check the health of my humble farm',
+			href: '/feeder',
+			label: 'View Feeder Map'
 		},
 		{
-			name: 'TODO',
-			description: 'TODO',
+			name: 'Upcoming AI project....',
+			description: 'Wee Wooo Coming Soon!',
 			href: '#',
-			label: 'TODO'
+			label: 'DO NOT TOUCH'
 		}
 	];
 
 	const profileLinks = [
-		{ name: 'GitHub', href: 'https://github.com' },
-		{ name: 'LinkedIn', href: 'https://linkedin.com' },
-		{ name: 'Email', href: 'mailto:hello@example.com' }
+		{ name: 'GitHub', href: 'https://github.com/libetti' },
+		{ name: 'LinkedIn', href: 'https://www.linkedin.com/in/libetti' },
+		{ name: 'Email', href: 'mailto:anthony.libetti@yahoo.com' }
 	];
 </script>
 
@@ -48,8 +48,8 @@
 		<p class="eyebrow">Tooch Town</p>
 		<h1>Anthony Libetti</h1>
 		<p class="intro">
-			Software engineer building small, useful products with strong UX and clear technical foundations.
-			This site is the central hub for what I am shipping now and what is next.
+			So you made it, welcome to my hood bitches. Home to me, a map-fancy software engineer whose
+			life mission is to continue to afford a series of stupid hobbies which end up abandoned.
 		</p>
 		<div class="links" aria-label="profile links">
 			{#each profileLinks as link}
