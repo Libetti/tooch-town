@@ -1,5 +1,8 @@
 <script lang="ts">
 	import SpinningGlobeBackground from '$lib/components/SpinningGlobeBackground.svelte';
+	import type { PageData } from './$types';
+
+	let { data }: { data: PageData } = $props();
 
 	const projects = [
 		{
@@ -37,7 +40,7 @@
 	/>
 </svelte:head>
 
-<SpinningGlobeBackground />
+<SpinningGlobeBackground center={data.initialCenter} />
 
 <main class="landing">
 	<section class="hero">

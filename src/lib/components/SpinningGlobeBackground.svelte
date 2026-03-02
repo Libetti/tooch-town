@@ -14,6 +14,10 @@
 	export let spinDegreesPerSecond = 0.45;
 	export let onMapReady: ((map: Map) => void) | undefined = undefined;
 
+	const wrapLongitude = (longitude: number): number => {
+		return ((((longitude + 180) % 360) + 360) % 360) - 180;
+	};
+
 	onMount(() => {
 		const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -35,6 +39,8 @@
 
 			if (prefersReducedMotion || !map) return;
 
+			let spinLongitude = map.getCenter().lng;
+			const spinLatitude = map.getCenter().lat;
 			let lastTime = performance.now();
 			const tick = (now: number) => {
 				if (!map) return;
@@ -42,8 +48,9 @@
 				const deltaSeconds = (now - lastTime) / 1000;
 				lastTime = now;
 
-				const nextBearing = (map.getBearing() + deltaSeconds * spinDegreesPerSecond) % 360;
-				map.rotateTo(nextBearing, { duration: 0 });
+				// Earth rotates west-to-east, so the camera-facing longitude drifts west over time.
+				spinLongitude = wrapLongitude(spinLongitude - deltaSeconds * spinDegreesPerSecond);
+				map.setCenter([spinLongitude, spinLatitude]);
 
 				frameId = requestAnimationFrame(tick);
 			};
