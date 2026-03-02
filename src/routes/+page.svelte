@@ -1,4 +1,6 @@
 <script lang="ts">
+	import SpinningGlobeBackground from '$lib/components/SpinningGlobeBackground.svelte';
+
 	const projects = [
 		{
 			name: 'My Flightfeeder',
@@ -35,13 +37,7 @@
 	/>
 </svelte:head>
 
-<iframe
-	src="/windwaker-great-sea.html"
-	class="sea-frame"
-	title="Animated Great Sea Background"
-	loading="eager"
-	aria-hidden="true"
-></iframe>
+<SpinningGlobeBackground />
 
 <main class="landing">
 	<section class="hero">
@@ -80,24 +76,13 @@
 <style>
 	:global(body) {
 		margin: 0;
-		background: #5aa4e6;
+		background: #0d2032;
 		color: #1f2530;
 		font-family: 'Avenir Next', Avenir, 'Segoe UI', sans-serif;
 	}
 
-	.sea-frame {
-		position: fixed;
-		inset: 0;
-		z-index: 0;
-		width: 100vw;
-		height: 100vh;
-		display: block;
-		border: 0;
-		pointer-events: none;
-	}
-
 	.landing {
-		--panel: rgba(255, 255, 255, 0.82);
+		--panel: rgba(255, 255, 255, 0.9);
 		--line: rgba(18, 54, 78, 0.2);
 		--headline: #11161f;
 		--accent: #c0571a;
