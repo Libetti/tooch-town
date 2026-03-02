@@ -1,4 +1,30 @@
 <script lang="ts">
+	import { _SunLight as SunLight, AmbientLight, LightingEffect } from '@deck.gl/core';
+	import DeckGlOverlay from '$lib/components/DeckGlOverlay.svelte';
+	import SpinningGlobeBackground from '$lib/components/SpinningGlobeBackground.svelte';
+	import type { Map as MapLibreMap } from 'maplibre-gl';
+	import type { PageData } from './$types';
+
+	let { data }: { data: PageData } = $props();
+	let globeMap = $state<MapLibreMap | undefined>(undefined);
+
+	const ambientLight = new AmbientLight({
+		color: [255, 255, 255],
+		intensity: 0.3
+	});
+
+	const sunLight = new SunLight({
+		color: [255, 255, 255],
+		intensity: 1,
+		timestamp: Date.now()
+	});
+
+	const deckEffects = [new LightingEffect({ ambientLight, sunLight })];
+
+	const handleMapReady = (map: MapLibreMap) => {
+		globeMap = map;
+	};
+
 	const projects = [
 		{
 			name: 'My Flightfeeder',
@@ -35,13 +61,17 @@
 	/>
 </svelte:head>
 
-<iframe
-	src="/windwaker-great-sea.html"
-	class="sea-frame"
-	title="Animated Great Sea Background"
-	loading="eager"
-	aria-hidden="true"
-></iframe>
+<SpinningGlobeBackground
+	center={data.initialCenter}
+	zoom={2.5}
+	pitch={0}
+	spinDegreesPerSecond={0.6}
+	onMapReady={handleMapReady}
+/>
+
+{#if globeMap}
+	<DeckGlOverlay map={globeMap} effects={deckEffects} />
+{/if}
 
 <main class="landing">
 	<section class="hero">
@@ -80,27 +110,19 @@
 <style>
 	:global(body) {
 		margin: 0;
-		background: #5aa4e6;
+		background: #0d2032;
 		color: #1f2530;
 		font-family: 'Avenir Next', Avenir, 'Segoe UI', sans-serif;
 	}
 
-	.sea-frame {
-		position: fixed;
-		inset: 0;
-		z-index: 0;
-		width: 100vw;
-		height: 100vh;
-		display: block;
-		border: 0;
-		pointer-events: none;
-	}
-
 	.landing {
-		--panel: rgba(255, 255, 255, 0.82);
+		--panel: rgba(255, 255, 255, 0.9);
 		--line: rgba(18, 54, 78, 0.2);
 		--headline: #11161f;
 		--accent: #c0571a;
+		--space-text: #edf5ff;
+		--space-muted: rgba(237, 245, 255, 0.86);
+		--space-shadow: 0 2px 14px rgba(2, 8, 20, 0.72);
 		position: relative;
 		z-index: 1;
 		isolation: isolate;
@@ -176,11 +198,14 @@
 		margin: 0;
 		font-size: clamp(1.35rem, 3vw, 1.8rem);
 		font-family: Georgia, 'Times New Roman', serif;
+		color: var(--space-text);
+		text-shadow: var(--space-shadow);
 	}
 
 	.projects-heading p {
 		margin: 0.35rem 0 0;
-		color: rgba(31, 37, 48, 0.82);
+		color: var(--space-muted);
+		text-shadow: var(--space-shadow);
 	}
 
 	.project-grid {
