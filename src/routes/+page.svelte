@@ -74,9 +74,9 @@
 {/if}
 
 <main class="landing">
-	<section class="hero">
+	<section class="hero" aria-labelledby="about-title">
 		<p class="eyebrow">Tooch Town</p>
-		<h1>Anthony Libetti</h1>
+		<h1 id="about-title">Anthony Libetti</h1>
 		<p class="intro">
 			So you made it, welcome to my hood bitches. Home to me, a map-fancy software engineer whose
 			life mission is to continue to afford a series of stupid hobbies which end up abandoned.
@@ -88,56 +88,68 @@
 		</div>
 	</section>
 
-	<section class="projects" aria-labelledby="projects-title">
-		<div class="projects-heading">
-			<h2 id="projects-title">Current Projects</h2>
-			<p>A quick snapshot of the projects this site will host.</p>
-		</div>
-		<ul class="project-grid">
-			{#each projects as project}
-				<li class="project-card">
-					<h3>{project.name}</h3>
-					<p>{project.description}</p>
-					<a href={project.href}>
-						{project.label}
-					</a>
-				</li>
-			{/each}
-		</ul>
-	</section>
+	<div class="content-grid">
+		<section class="panel projects" aria-labelledby="projects-title">
+			<div class="section-heading">
+				<h2 id="projects-title">Current Projects</h2>
+				<p>A quick snapshot of what this site will host.</p>
+			</div>
+			<ul class="project-list">
+				{#each projects as project}
+					<li class="project-item">
+						<div>
+							<h3>{project.name}</h3>
+							<p>{project.description}</p>
+						</div>
+						<a href={project.href}>{project.label}</a>
+					</li>
+				{/each}
+			</ul>
+		</section>
+
+		<section class="panel musings" aria-labelledby="musings-title">
+			<div class="section-heading">
+				<h2 id="musings-title">Musings</h2>
+				<p>Article titles will live here.</p>
+			</div>
+			<div class="musings-empty" role="status">No titles published yet.</div>
+		</section>
+	</div>
 </main>
 
 <style>
 	:global(body) {
 		margin: 0;
-		background: #0d2032;
-		color: #1f2530;
+		background: #0b1627;
+		color: #e8f1ff;
 		font-family: 'Avenir Next', Avenir, 'Segoe UI', sans-serif;
 	}
 
 	.landing {
-		--panel: rgba(255, 255, 255, 0.9);
-		--line: rgba(18, 54, 78, 0.2);
-		--headline: #11161f;
-		--accent: #c0571a;
-		--space-text: #edf5ff;
-		--space-muted: rgba(237, 245, 255, 0.86);
-		--space-shadow: 0 2px 14px rgba(2, 8, 20, 0.72);
+		--panel: rgba(7, 16, 29, 0.62);
+		--line: rgba(166, 198, 255, 0.22);
+		--headline: #f5f8ff;
+		--body: rgba(227, 238, 255, 0.9);
+		--muted: rgba(203, 219, 247, 0.78);
+		--accent: #ffc67f;
+		--link: #ffd8ac;
 		position: relative;
 		z-index: 1;
 		isolation: isolate;
-		max-width: 68rem;
+		max-width: 72rem;
 		margin: 0 auto;
-		padding: 4rem 1.25rem 5rem;
+		padding: 4rem 1.25rem 5.5rem;
+		display: grid;
+		gap: 1rem;
 	}
 
 	.hero {
 		background: var(--panel);
 		border: 1px solid var(--line);
 		border-radius: 1.25rem;
-		padding: 2rem;
-		backdrop-filter: blur(5px);
-		box-shadow: 0 14px 40px rgba(23, 28, 37, 0.08);
+		padding: 1.8rem;
+		backdrop-filter: blur(8px);
+		box-shadow: 0 18px 36px rgba(1, 6, 16, 0.32);
 		animation: reveal 550ms ease-out both;
 	}
 
@@ -163,6 +175,7 @@
 		max-width: 60ch;
 		line-height: 1.65;
 		font-size: 1.04rem;
+		color: var(--body);
 	}
 
 	.links {
@@ -174,12 +187,12 @@
 
 	.links a {
 		text-decoration: none;
-		color: #172231;
+		color: #e8f1ff;
 		border: 1px solid var(--line);
 		border-radius: 999px;
 		padding: 0.45rem 0.9rem;
 		font-size: 0.92rem;
-		background: rgba(255, 255, 255, 0.7);
+		background: rgba(13, 27, 47, 0.42);
 		transition:
 			transform 140ms ease,
 			background 140ms ease;
@@ -187,72 +200,96 @@
 
 	.links a:hover {
 		transform: translateY(-1px);
-		background: #fff;
+		background: rgba(13, 27, 47, 0.62);
 	}
 
-	.projects {
-		margin-top: 2.25rem;
+	.content-grid {
+		display: grid;
+		grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+		gap: 1rem;
 	}
 
-	.projects-heading h2 {
+	.panel {
+		background: var(--panel);
+		border: 1px solid var(--line);
+		border-radius: 1.1rem;
+		padding: 1.2rem 1.1rem;
+		backdrop-filter: blur(8px);
+		box-shadow: 0 18px 34px rgba(1, 6, 16, 0.28);
+	}
+
+	.section-heading h2 {
 		margin: 0;
-		font-size: clamp(1.35rem, 3vw, 1.8rem);
+		font-size: clamp(1.18rem, 2.5vw, 1.48rem);
 		font-family: Georgia, 'Times New Roman', serif;
-		color: var(--space-text);
-		text-shadow: var(--space-shadow);
+		color: var(--headline);
 	}
 
-	.projects-heading p {
+	.section-heading p {
 		margin: 0.35rem 0 0;
-		color: var(--space-muted);
-		text-shadow: var(--space-shadow);
+		color: var(--muted);
+		font-size: 0.94rem;
 	}
 
-	.project-grid {
+	.project-list {
 		list-style: none;
 		margin: 1.1rem 0 0;
 		padding: 0;
-		display: grid;
-		gap: 1rem;
-		grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
 	}
 
-	.project-card {
-		background: var(--panel);
-		border: 1px solid var(--line);
-		border-radius: 1rem;
-		padding: 1rem;
+	.project-item {
+		padding: 0.95rem 0.05rem;
 		display: flex;
-		flex-direction: column;
-		gap: 0.6rem;
-		animation: reveal 550ms ease-out both;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: 0.8rem;
+		border-top: 1px solid rgba(166, 198, 255, 0.18);
 	}
 
-	.project-card:nth-child(2) {
-		animation-delay: 90ms;
+	.project-item:first-child {
+		border-top: 0;
+		padding-top: 0.25rem;
 	}
 
-	.project-card:nth-child(3) {
-		animation-delay: 180ms;
-	}
-
-	.project-card h3 {
+	.project-item h3 {
 		margin: 0;
-		font-size: 1.1rem;
+		font-size: 1.02rem;
+		color: var(--headline);
 	}
 
-	.project-card p {
-		margin: 0;
+	.project-item p {
+		margin: 0.35rem 0 0;
 		line-height: 1.52;
-		color: rgba(31, 37, 48, 0.88);
+		font-size: 0.93rem;
+		color: var(--body);
 	}
 
-	.project-card a {
+	.project-item a {
 		width: fit-content;
-		font-size: 0.9rem;
+		font-size: 0.86rem;
 		text-decoration: none;
-		color: #9b3f06;
+		color: var(--link);
 		font-weight: 600;
+		white-space: nowrap;
+		padding-top: 0.2rem;
+	}
+
+	.project-item a:hover {
+		color: #ffe8ca;
+	}
+
+	.musings {
+		min-height: 100%;
+	}
+
+	.musings-empty {
+		margin-top: 1rem;
+		border: 1px dashed rgba(166, 198, 255, 0.26);
+		border-radius: 0.8rem;
+		padding: 0.95rem;
+		color: var(--muted);
+		background: rgba(9, 20, 36, 0.3);
+		font-size: 0.92rem;
 	}
 
 	@keyframes reveal {
@@ -273,6 +310,17 @@
 
 		.hero {
 			padding: 1.4rem;
+		}
+
+		.project-item {
+			flex-direction: column;
+			gap: 0.55rem;
+		}
+	}
+
+	@media (max-width: 56rem) {
+		.content-grid {
+			grid-template-columns: 1fr;
 		}
 	}
 </style>
