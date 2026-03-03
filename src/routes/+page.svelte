@@ -66,6 +66,7 @@
 	zoom={2.5}
 	pitch={0}
 	spinDegreesPerSecond={0.6}
+	verticalOffsetVh={1.8}
 	onMapReady={handleMapReady}
 />
 
@@ -74,12 +75,31 @@
 {/if}
 
 <main class="landing">
+	<p class="site-sign" aria-label="site title">Tooch Town</p>
+
 	<section class="hero" aria-labelledby="about-title">
-		<p class="eyebrow">Tooch Town</p>
 		<h1 id="about-title">Anthony Libetti</h1>
+		<p class="subtitle">Software Engineer II at FlightAware</p>
 		<p class="intro">
 			So you made it, welcome to my hood bitches. Home to me, a map-fancy software engineer whose
-			life mission is to continue to afford a series of stupid hobbies which end up abandoned.
+			life mission is to continue to afford a series of stupid hobbies which end up abandoned. I'm
+			currently employed as a Software Engineer on the web "wing" at FlightAware. Check the new
+			flight tracking experience, it's a WIP replacement of the current page which is both
+			janky and geriatric!
+			<a
+				class="flightaware-inline"
+				href="https://beta.flightaware.com/live/airport/ILG"
+				target="_blank"
+				rel="noreferrer"
+			>
+				<img
+					src="https://upload.wikimedia.org/wikipedia/commons/1/19/FlightAware_logo.svg"
+					alt="FlightAware"
+					loading="lazy"
+					decoding="async"
+				/>
+				<span>ILG live</span>
+			</a>
 		</p>
 		<div class="links" aria-label="profile links">
 			{#each profileLinks as link}
@@ -153,13 +173,19 @@
 		animation: reveal 550ms ease-out both;
 	}
 
-	.eyebrow {
-		margin: 0 0 0.75rem;
-		letter-spacing: 0.12em;
+	.site-sign {
+		margin: 0 0 0.55rem;
+		text-align: center;
+		font-size: clamp(1.4rem, 3.2vw, 2.15rem);
+		letter-spacing: 0.2em;
 		text-transform: uppercase;
 		font-weight: 700;
-		font-size: 0.72rem;
 		color: var(--accent);
+		text-shadow:
+			0 0 6px rgba(255, 198, 127, 0.82),
+			0 0 16px rgba(255, 198, 127, 0.56),
+			0 0 34px rgba(255, 198, 127, 0.3);
+		animation: signGlow 2.8s ease-in-out infinite alternate;
 	}
 
 	h1 {
@@ -170,12 +196,46 @@
 		color: var(--headline);
 	}
 
+	.subtitle {
+		margin: -0.35rem 0 1rem;
+		font-size: 0.94rem;
+		letter-spacing: 0.02em;
+		font-weight: 600;
+		color: var(--muted);
+	}
+
 	.intro {
 		margin: 0;
 		max-width: 60ch;
 		line-height: 1.65;
 		font-size: 1.04rem;
 		color: var(--body);
+	}
+
+	.flightaware-inline {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+		margin-left: 0.45rem;
+		padding: 0;
+		color: #f4f8ff;
+		font-size: 0.78rem;
+		font-weight: 600;
+		letter-spacing: 0.01em;
+		text-decoration: none;
+		vertical-align: baseline;
+		white-space: nowrap;
+	}
+
+	.flightaware-inline img {
+		height: 0.95rem;
+		width: auto;
+		display: block;
+		filter: brightness(0) invert(1);
+	}
+
+	.flightaware-inline:hover {
+		color: #8ec8ff;
 	}
 
 	.links {
@@ -300,6 +360,23 @@
 		to {
 			opacity: 1;
 			transform: translateY(0);
+		}
+	}
+
+	@keyframes signGlow {
+		from {
+			filter: brightness(0.95);
+			text-shadow:
+				0 0 5px rgba(255, 198, 127, 0.62),
+				0 0 12px rgba(255, 198, 127, 0.42),
+				0 0 24px rgba(255, 198, 127, 0.2);
+		}
+		to {
+			filter: brightness(1.08);
+			text-shadow:
+				0 0 8px rgba(255, 198, 127, 0.9),
+				0 0 18px rgba(255, 198, 127, 0.64),
+				0 0 38px rgba(255, 198, 127, 0.35);
 		}
 	}
 

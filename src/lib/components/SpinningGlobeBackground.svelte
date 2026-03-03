@@ -40,6 +40,7 @@
 	export let zoom = 1.15;
 	export let pitch = 8;
 	export let spinDegreesPerSecond = 0.45;
+	export let verticalOffsetVh = 0;
 	export let onMapReady: ((map: Map) => void) | undefined = undefined;
 
 	const wrapLongitude = (longitude: number): number => {
@@ -100,7 +101,11 @@
 	<div class="starfield starfield-near"></div>
 	<div class="glimmer glimmer-a"></div>
 	<div class="glimmer glimmer-b"></div>
-	<div bind:this={mapElement} class="globe-map"></div>
+	<div
+		bind:this={mapElement}
+		class="globe-map"
+		style={`--globe-vertical-offset-vh: ${verticalOffsetVh};`}
+	></div>
 	<div class="space-vignette"></div>
 </div>
 
@@ -201,7 +206,10 @@
 
 	.globe-map {
 		position: absolute;
-		inset: 0;
+		top: calc(var(--globe-vertical-offset-vh, 0) * 1vh);
+		right: 0;
+		bottom: calc(var(--globe-vertical-offset-vh, 0) * -1vh);
+		left: 0;
 		filter: saturate(1.12) contrast(1.08);
 	}
 
