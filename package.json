@@ -49,6 +49,7 @@
 	"dependencies": {
 		"@deck.gl/core": "^9.2.10",
 		"@deck.gl/mapbox": "^9.2.10",
+		"@supabase/supabase-js": "^2.98.0",
 		"maplibre-gl": "^5.19.0"
 	}
 }

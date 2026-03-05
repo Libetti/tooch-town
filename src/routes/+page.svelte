@@ -47,9 +47,10 @@
 	];
 
 	const profileLinks = [
-		{ name: 'GitHub', href: 'https://github.com/libetti' },
-		{ name: 'LinkedIn', href: 'https://www.linkedin.com/in/libetti' },
-		{ name: 'Email', href: 'mailto:anthony.libetti@yahoo.com' }
+		{ name: 'GitHub', href: 'https://github.com/libetti', external: true },
+		{ name: 'LinkedIn', href: 'https://www.linkedin.com/in/libetti', external: true },
+		{ name: 'Email', href: 'mailto:anthony.libetti@yahoo.com', external: false },
+		{ name: 'Login', href: '/login', external: false }
 	];
 </script>
 
@@ -83,7 +84,13 @@
 		</p>
 		<div class="links" aria-label="profile links">
 			{#each profileLinks as link}
-				<a href={link.href} target="_blank" rel="noreferrer">{link.name}</a>
+				<a
+					href={link.href}
+					target={link.external ? '_blank' : undefined}
+					rel={link.external ? 'noreferrer' : undefined}
+				>
+					{link.name}
+				</a>
 			{/each}
 		</div>
 	</section>
