@@ -29,6 +29,7 @@
 	let rainAnimationFrameId: number | undefined;
 	let lastFrameTimestamp = 0;
 	let lastRainLayerBuild = 0;
+	let cardsCollapsed = $state(false);
 
 	const ambientLight = new AmbientLight({
 		color: [255, 255, 255],
@@ -43,7 +44,7 @@
 
 	const deckEffects = [new LightingEffect({ ambientLight, sunLight })];
 	const RAIN_POLL_INTERVAL_MS = 180_000;
-	const RAIN_LAYER_REBUILD_INTERVAL_MS = 125;
+	const RAIN_LAYER_REBUILD_INTERVAL_MS = 16;
 
 	type PrecipGridResponse = {
 		generatedAt: string;
@@ -159,6 +160,7 @@
 	zoom={2.5}
 	pitch={0}
 	spinDegreesPerSecond={0.6}
+	interactionsEnabled={cardsCollapsed}
 	onMapReady={handleMapReady}
 />
 
@@ -166,50 +168,70 @@
 	<DeckGlOverlay map={globeMap} layers={deckLayers} effects={deckEffects} />
 {/if}
 
-<main class="landing">
-	<section class="hero" aria-labelledby="about-title">
-		<p class="eyebrow">Tooch Town</p>
-		<h1 id="about-title">Anthony Libetti</h1>
-		<p class="intro">
-			So you made it, welcome to my hood bitches. Home to me, a map-fancy software engineer whose
-			life mission is to continue to afford a series of stupid hobbies which end up abandoned.
-		</p>
-		<div class="links" aria-label="profile links">
-			<a href="https://github.com/libetti" target="_blank" rel="noreferrer">GitHub</a>
-			<a href="https://www.linkedin.com/in/libetti" target="_blank" rel="noreferrer">LinkedIn</a>
-			<a href="mailto:anthony.libetti@yahoo.com" target="_blank" rel="noreferrer">Email</a>
+{#if !cardsCollapsed}
+	<main class="landing">
+		<section class="hero" aria-labelledby="about-title">
+			<button
+				type="button"
+				class="collapse-cards"
+				aria-label="Hide cards"
+				onclick={() => {
+					cardsCollapsed = true;
+				}}>x</button
+			>
+			<p class="eyebrow">Tooch Town</p>
+			<h1 id="about-title">Anthony Libetti</h1>
+			<p class="intro">
+				So you made it, welcome to my hood bitches. Home to me, a map-fancy software engineer whose
+				life mission is to continue to afford a series of stupid hobbies which end up abandoned.
+			</p>
+			<div class="links" aria-label="profile links">
+				<a href="https://github.com/libetti" target="_blank" rel="noreferrer">GitHub</a>
+				<a href="https://www.linkedin.com/in/libetti" target="_blank" rel="noreferrer">LinkedIn</a>
+				<a href="mailto:anthony.libetti@yahoo.com" target="_blank" rel="noreferrer">Email</a>
+			</div>
+		</section>
+
+		<div class="content-grid">
+			<section class="panel projects" aria-labelledby="projects-title">
+				<div class="section-heading">
+					<h2 id="projects-title">Current Projects</h2>
+					<p>A quick snapshot of what this site will host.</p>
+				</div>
+				<ul class="project-list">
+					{#each projects as project (project.name)}
+						<li class="project-item">
+							<div>
+								<h3>{project.name}</h3>
+								<p>{project.description}</p>
+							</div>
+							<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+							<a href={project.href}>{project.label}</a>
+						</li>
+					{/each}
+				</ul>
+			</section>
+
+			<section class="panel musings" aria-labelledby="musings-title">
+				<div class="section-heading">
+					<h2 id="musings-title">Musings</h2>
+					<p>Article titles will live here.</p>
+				</div>
+				<div class="musings-empty" role="status">No titles published yet.</div>
+			</section>
 		</div>
-	</section>
-
-	<div class="content-grid">
-		<section class="panel projects" aria-labelledby="projects-title">
-			<div class="section-heading">
-				<h2 id="projects-title">Current Projects</h2>
-				<p>A quick snapshot of what this site will host.</p>
-			</div>
-			<ul class="project-list">
-				{#each projects as project (project.name)}
-					<li class="project-item">
-						<div>
-							<h3>{project.name}</h3>
-							<p>{project.description}</p>
-						</div>
-						<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-						<a href={project.href}>{project.label}</a>
-					</li>
-				{/each}
-			</ul>
-		</section>
-
-		<section class="panel musings" aria-labelledby="musings-title">
-			<div class="section-heading">
-				<h2 id="musings-title">Musings</h2>
-				<p>Article titles will live here.</p>
-			</div>
-			<div class="musings-empty" role="status">No titles published yet.</div>
-		</section>
+	</main>
+{:else}
+	<div class="card-restore-bar">
+		<button
+			type="button"
+			class="restore-cards"
+			onclick={() => {
+				cardsCollapsed = false;
+			}}>Open Cards</button
+		>
 	</div>
-</main>
+{/if}
 
 <style>
 	:global(body) {
@@ -238,6 +260,7 @@
 	}
 
 	.hero {
+		position: relative;
 		background: var(--panel);
 		border: 1px solid var(--line);
 		border-radius: 1.25rem;
@@ -295,6 +318,48 @@
 	.links a:hover {
 		transform: translateY(-1px);
 		background: rgba(13, 27, 47, 0.62);
+	}
+
+	.collapse-cards {
+		position: absolute;
+		top: 0.8rem;
+		right: 0.8rem;
+		border: 1px solid var(--line);
+		background: rgba(10, 24, 43, 0.7);
+		color: #f5f8ff;
+		border-radius: 999px;
+		width: 2rem;
+		height: 2rem;
+		cursor: pointer;
+		font-size: 1.1rem;
+		line-height: 1;
+	}
+
+	.collapse-cards:hover {
+		background: rgba(14, 31, 54, 0.92);
+	}
+
+	.card-restore-bar {
+		position: fixed;
+		left: 50%;
+		bottom: 1.2rem;
+		transform: translateX(-50%);
+		z-index: 2;
+	}
+
+	.restore-cards {
+		border: 1px solid rgba(166, 198, 255, 0.34);
+		background: rgba(7, 16, 29, 0.86);
+		color: #f5f8ff;
+		border-radius: 999px;
+		padding: 0.52rem 1rem;
+		font-size: 0.9rem;
+		cursor: pointer;
+		backdrop-filter: blur(8px);
+	}
+
+	.restore-cards:hover {
+		background: rgba(12, 24, 42, 0.92);
 	}
 
 	.content-grid {

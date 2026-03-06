@@ -40,10 +40,28 @@
 	export let zoom = 1.15;
 	export let pitch = 8;
 	export let spinDegreesPerSecond = 0.45;
+	export let interactionsEnabled = false;
 	export let onMapReady: ((map: Map) => void) | undefined = undefined;
 
 	const wrapLongitude = (longitude: number): number => {
 		return ((((longitude + 180) % 360) + 360) % 360) - 180;
+	};
+
+	const applyInteractionState = (targetMap: Map, enabled: boolean) => {
+		if (enabled) {
+			targetMap.dragPan.enable();
+			targetMap.scrollZoom.enable();
+			targetMap.touchZoomRotate.enable();
+			targetMap.touchZoomRotate.disableRotation();
+			return;
+		}
+
+		targetMap.dragPan.disable();
+		targetMap.scrollZoom.disable();
+		targetMap.doubleClickZoom.disable();
+		targetMap.boxZoom.disable();
+		targetMap.keyboard.disable();
+		targetMap.touchZoomRotate.disable();
 	};
 
 	onMount(() => {
@@ -70,12 +88,8 @@
 		}
 
 		map.once('load', () => {
-			map?.dragPan.disable();
 			map?.dragRotate.disable();
-			map?.doubleClickZoom.disable();
-			map?.boxZoom.disable();
-			map?.keyboard.disable();
-			map?.touchZoomRotate.disableRotation();
+			if (map) applyInteractionState(map, interactionsEnabled);
 
 			map?.setProjection({ type: 'globe' });
 			if (map) onMapReady?.(map);
@@ -90,6 +104,11 @@
 
 				const deltaSeconds = (now - lastTime) / 1000;
 				lastTime = now;
+
+				if (interactionsEnabled) {
+					frameId = requestAnimationFrame(tick);
+					return;
+				}
 
 				// Earth rotates west-to-east, so the camera-facing longitude drifts west over time.
 				spinLongitude = wrapLongitude(spinLongitude - deltaSeconds * spinDegreesPerSecond);
@@ -107,6 +126,10 @@
 			map = undefined;
 		};
 	});
+
+	$: if (map) {
+		applyInteractionState(map, interactionsEnabled);
+	}
 </script>
 
 <div class="globe-shell" aria-hidden="true">
@@ -115,7 +138,7 @@
 	<div class="starfield starfield-near"></div>
 	<div class="glimmer glimmer-a"></div>
 	<div class="glimmer glimmer-b"></div>
-	<div bind:this={mapElement} class="globe-map"></div>
+	<div bind:this={mapElement} class:interactive={interactionsEnabled} class="globe-map"></div>
 	<div class="space-vignette"></div>
 </div>
 
@@ -217,8 +240,12 @@
 	.globe-map {
 		position: absolute;
 		inset: 0;
-		pointer-events: auto;
+		pointer-events: none;
 		filter: saturate(1.12) contrast(1.08);
+	}
+
+	.globe-map.interactive {
+		pointer-events: auto;
 	}
 
 	.space-vignette {
