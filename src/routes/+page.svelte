@@ -1,52 +1,12 @@
 <script lang="ts">
-	import { dev } from '$app/environment';
 	import { PUBLIC_MAPTILER_KEY } from '$env/static/public';
-	import {
-		_SunLight as SunLight,
-		AmbientLight,
-		LightingEffect,
-		type DeckProps
-	} from '@deck.gl/core';
-	import { onMount } from 'svelte';
-	import DeckGlOverlay from '$lib/components/DeckGlOverlay.svelte';
 	import SpinningGlobeBackground from '$lib/components/SpinningGlobeBackground.svelte';
-	import { buildRainLineLayer } from '$lib/weather/rainLayer';
-	import {
-		buildFallbackPrecipCells,
-		DEFAULT_RAIN_LAYER_CONFIG,
-		createRainAnimationState,
-		updateRainAnimationState,
-		type PrecipCell
-	} from '$lib/weather/precipitation';
-	import type { Map as MapLibreMap, StyleSpecification } from 'maplibre-gl';
+	import type { StyleSpecification } from 'maplibre-gl';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
-	let globeMap = $state<MapLibreMap | undefined>(undefined);
-	let rainCells = $state<PrecipCell[]>([]);
-	let deckLayers = $state<NonNullable<DeckProps['layers']>>([]);
-	let rainAnimationState = $state(createRainAnimationState(DEFAULT_RAIN_LAYER_CONFIG));
-	let rainFetchIntervalId: number | undefined;
-	let rainAnimationFrameId: number | undefined;
-	let lastFrameTimestamp = 0;
-	let lastRainLayerBuild = 0;
 	let cardsCollapsed = $state(false);
 	let selectedBaseLayer = $state<'satellite' | 'streets'>('satellite');
-
-	const ambientLight = new AmbientLight({
-		color: [255, 255, 255],
-		intensity: 0.3
-	});
-
-	const sunLight = new SunLight({
-		color: [255, 255, 255],
-		intensity: 1,
-		timestamp: Date.now()
-	});
-
-	const deckEffects = [new LightingEffect({ ambientLight, sunLight })];
-	const RAIN_POLL_INTERVAL_MS = 180_000;
-	const RAIN_LAYER_REBUILD_INTERVAL_MS = 16;
 
 	const FALLBACK_STREETS_STYLE: StyleSpecification = {
 		version: 8,
@@ -86,85 +46,6 @@
 			: (SATELLITE_STYLE_URL ?? FALLBACK_SATELLITE_STYLE)
 	);
 
-	type PrecipGridResponse = {
-		generatedAt: string;
-		ttlSeconds: number;
-		cells: PrecipCell[];
-	};
-
-	const handleMapReady = (map: MapLibreMap) => {
-		globeMap = map;
-	};
-
-	const rebuildRainLayer = (timestampMs: number, force = false) => {
-		if (lastFrameTimestamp > 0) {
-			rainAnimationState = updateRainAnimationState(
-				rainAnimationState,
-				timestampMs - lastFrameTimestamp,
-				DEFAULT_RAIN_LAYER_CONFIG
-			);
-		}
-		lastFrameTimestamp = timestampMs;
-
-		if (!force && timestampMs - lastRainLayerBuild < RAIN_LAYER_REBUILD_INTERVAL_MS) {
-			return;
-		}
-
-		const rainLayer = buildRainLineLayer(
-			rainCells,
-			timestampMs / 1000,
-			rainAnimationState,
-			DEFAULT_RAIN_LAYER_CONFIG
-		);
-		deckLayers = rainLayer ? [rainLayer] : [];
-		lastRainLayerBuild = timestampMs;
-	};
-
-	const tickRain = (timestampMs: number) => {
-		rebuildRainLayer(timestampMs);
-		rainAnimationFrameId = window.requestAnimationFrame(tickRain);
-	};
-
-	const fetchRainGrid = async () => {
-		try {
-			const response = await fetch('/api/weather/precip-grid', {
-				headers: { accept: 'application/json' }
-			});
-			if (!response.ok) return;
-
-			const payload = (await response.json()) as PrecipGridResponse;
-			const liveCells = Array.isArray(payload.cells) ? payload.cells : [];
-			rainCells = liveCells.length ? liveCells : buildFallbackPrecipCells();
-			if (dev) {
-				console.info('[rain] grid update', {
-					cells: liveCells.length,
-					renderedCells: rainCells.length,
-					usingFallback: liveCells.length === 0,
-					thresholdMmPerHour: rainAnimationState.activeMinPrecipMmPerHour
-				});
-			}
-			rebuildRainLayer(performance.now(), true);
-		} catch {
-			// Keep rendering with previously fetched precipitation.
-		}
-	};
-
-	onMount(() => {
-		lastRainLayerBuild = -RAIN_LAYER_REBUILD_INTERVAL_MS;
-		void fetchRainGrid();
-
-		rainFetchIntervalId = window.setInterval(() => {
-			void fetchRainGrid();
-		}, RAIN_POLL_INTERVAL_MS);
-
-		rainAnimationFrameId = window.requestAnimationFrame(tickRain);
-
-		return () => {
-			if (rainFetchIntervalId !== undefined) window.clearInterval(rainFetchIntervalId);
-			if (rainAnimationFrameId !== undefined) window.cancelAnimationFrame(rainAnimationFrameId);
-		};
-	});
-
 	const projects = [
 		{
 			name: 'My Flightfeeder',
@@ -202,12 +83,7 @@
 	pitch={0}
 	spinDegreesPerSecond={0.6}
 	interactionsEnabled={cardsCollapsed}
-	onMapReady={handleMapReady}
 />
-
-{#if globeMap}
-	<DeckGlOverlay map={globeMap} layers={deckLayers} effects={deckEffects} />
-{/if}
 
 {#if !cardsCollapsed}
 	<main class="landing">
