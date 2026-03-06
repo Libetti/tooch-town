@@ -7,6 +7,7 @@
 	let mapElement: HTMLDivElement;
 	let map: Map | undefined;
 	let frameId: number | undefined;
+	let activeStyle: string | StyleSpecification | undefined;
 
 	const LEGACY_SATELLITE_STYLE: StyleSpecification = {
 		version: 8,
@@ -68,6 +69,7 @@
 		const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 		try {
+			activeStyle = styleUrl;
 			map = new maplibregl.Map({
 				container: mapElement,
 				style: styleUrl,
@@ -129,6 +131,14 @@
 
 	$: if (map) {
 		applyInteractionState(map, interactionsEnabled);
+	}
+
+	$: if (map && styleUrl !== activeStyle) {
+		activeStyle = styleUrl;
+		map.setStyle(styleUrl);
+		map.once('style.load', () => {
+			map?.setProjection({ type: 'globe' });
+		});
 	}
 </script>
 

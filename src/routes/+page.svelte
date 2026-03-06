@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { dev } from '$app/environment';
+	import { PUBLIC_MAPTILER_KEY } from '$env/static/public';
 	import {
 		_SunLight as SunLight,
 		AmbientLight,
@@ -17,7 +18,7 @@
 		updateRainAnimationState,
 		type PrecipCell
 	} from '$lib/weather/precipitation';
-	import type { Map as MapLibreMap } from 'maplibre-gl';
+	import type { Map as MapLibreMap, StyleSpecification } from 'maplibre-gl';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -30,6 +31,7 @@
 	let lastFrameTimestamp = 0;
 	let lastRainLayerBuild = 0;
 	let cardsCollapsed = $state(false);
+	let selectedBaseLayer = $state<'satellite' | 'streets'>('satellite');
 
 	const ambientLight = new AmbientLight({
 		color: [255, 255, 255],
@@ -45,6 +47,44 @@
 	const deckEffects = [new LightingEffect({ ambientLight, sunLight })];
 	const RAIN_POLL_INTERVAL_MS = 180_000;
 	const RAIN_LAYER_REBUILD_INTERVAL_MS = 16;
+
+	const FALLBACK_STREETS_STYLE: StyleSpecification = {
+		version: 8,
+		sources: {
+			osm: {
+				type: 'raster',
+				tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+				tileSize: 256,
+				attribution: '© OpenStreetMap contributors'
+			}
+		},
+		layers: [{ id: 'osm-base', type: 'raster', source: 'osm' }]
+	};
+	const FALLBACK_SATELLITE_STYLE: StyleSpecification = {
+		version: 8,
+		sources: {
+			esriSatellite: {
+				type: 'raster',
+				tiles: [
+					'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+				],
+				tileSize: 256,
+				attribution: 'Source: Esri, Maxar, Earthstar Geographics, and the GIS user community'
+			}
+		},
+		layers: [{ id: 'esri-satellite-base', type: 'raster', source: 'esriSatellite' }]
+	};
+	const SATELLITE_STYLE_URL = PUBLIC_MAPTILER_KEY
+		? `https://api.maptiler.com/maps/satellite/style.json?key=${PUBLIC_MAPTILER_KEY}`
+		: undefined;
+	const STREETS_STYLE_URL = PUBLIC_MAPTILER_KEY
+		? `https://api.maptiler.com/maps/streets/style.json?key=${PUBLIC_MAPTILER_KEY}`
+		: undefined;
+	const selectedStyleUrl = $derived<string | StyleSpecification>(
+		selectedBaseLayer === 'streets'
+			? (STREETS_STYLE_URL ?? FALLBACK_STREETS_STYLE)
+			: (SATELLITE_STYLE_URL ?? FALLBACK_SATELLITE_STYLE)
+	);
 
 	type PrecipGridResponse = {
 		generatedAt: string;
@@ -156,6 +196,7 @@
 </svelte:head>
 
 <SpinningGlobeBackground
+	styleUrl={selectedStyleUrl}
 	center={data.initialCenter}
 	zoom={2.5}
 	pitch={0}
@@ -230,6 +271,13 @@
 				cardsCollapsed = false;
 			}}>Open Cards</button
 		>
+		<label class="base-layer-control" for="base-layer-select">
+			Base Layer
+			<select id="base-layer-select" bind:value={selectedBaseLayer}>
+				<option value="satellite">Satellite</option>
+				<option value="streets">Streets</option>
+			</select>
+		</label>
 	</div>
 {/if}
 
@@ -345,6 +393,9 @@
 		bottom: 1.2rem;
 		transform: translateX(-50%);
 		z-index: 2;
+		display: flex;
+		align-items: center;
+		gap: 0.6rem;
 	}
 
 	.restore-cards {
@@ -360,6 +411,28 @@
 
 	.restore-cards:hover {
 		background: rgba(12, 24, 42, 0.92);
+	}
+
+	.base-layer-control {
+		display: flex;
+		align-items: center;
+		gap: 0.45rem;
+		border: 1px solid rgba(166, 198, 255, 0.3);
+		background: rgba(7, 16, 29, 0.84);
+		color: #f5f8ff;
+		border-radius: 999px;
+		padding: 0.35rem 0.55rem 0.35rem 0.75rem;
+		font-size: 0.82rem;
+		backdrop-filter: blur(8px);
+	}
+
+	.base-layer-control select {
+		background: rgba(12, 24, 42, 0.95);
+		color: #f5f8ff;
+		border: 1px solid rgba(166, 198, 255, 0.35);
+		border-radius: 999px;
+		padding: 0.2rem 0.5rem;
+		font-size: 0.82rem;
 	}
 
 	.content-grid {
