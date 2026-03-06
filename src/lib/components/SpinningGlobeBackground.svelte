@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { env } from '$env/dynamic/public';
+	import { PUBLIC_MAPTILER_KEY } from '$env/static/public';
 	import { onMount } from 'svelte';
 	import maplibregl, { type Map, type StyleSpecification } from 'maplibre-gl';
 	import 'maplibre-gl/dist/maplibre-gl.css';
@@ -31,8 +31,8 @@
 		]
 	};
 
-	const MAPTILER_SATELLITE_STYLE = env.PUBLIC_MAPTILER_KEY
-		? `https://api.maptiler.com/maps/satellite/style.json?key=${env.PUBLIC_MAPTILER_KEY}`
+	const MAPTILER_SATELLITE_STYLE = PUBLIC_MAPTILER_KEY
+		? `https://api.maptiler.com/maps/satellite/style.json?key=${PUBLIC_MAPTILER_KEY}`
 		: LEGACY_SATELLITE_STYLE;
 
 	export let styleUrl: string | StyleSpecification = MAPTILER_SATELLITE_STYLE;
@@ -49,17 +49,25 @@
 	onMount(() => {
 		const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-		map = new maplibregl.Map({
-			container: mapElement,
-			style: styleUrl,
-			center,
-			zoom,
-			pitch,
-			bearing: 0,
-			interactive: false,
-			attributionControl: false,
-			renderWorldCopies: false
-		});
+		try {
+			map = new maplibregl.Map({
+				container: mapElement,
+				style: styleUrl,
+				center,
+				zoom,
+				pitch,
+				bearing: 0,
+				interactive: false,
+				attributionControl: false,
+				renderWorldCopies: false
+			});
+		} catch {
+			return () => {
+				if (frameId !== undefined) cancelAnimationFrame(frameId);
+				map?.remove();
+				map = undefined;
+			};
+		}
 
 		map.once('load', () => {
 			map?.setProjection({ type: 'globe' });

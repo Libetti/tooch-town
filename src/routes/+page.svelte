@@ -1,12 +1,33 @@
 <script lang="ts">
-	import { _SunLight as SunLight, AmbientLight, LightingEffect } from '@deck.gl/core';
+	import { dev } from '$app/environment';
+	import {
+		_SunLight as SunLight,
+		AmbientLight,
+		LightingEffect,
+		type DeckProps
+	} from '@deck.gl/core';
+	import { onMount } from 'svelte';
 	import DeckGlOverlay from '$lib/components/DeckGlOverlay.svelte';
 	import SpinningGlobeBackground from '$lib/components/SpinningGlobeBackground.svelte';
+	import { buildRainLineLayer } from '$lib/weather/rainLayer';
+	import {
+		DEFAULT_RAIN_LAYER_CONFIG,
+		createRainAnimationState,
+		updateRainAnimationState,
+		type PrecipCell
+	} from '$lib/weather/precipitation';
 	import type { Map as MapLibreMap } from 'maplibre-gl';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
 	let globeMap = $state<MapLibreMap | undefined>(undefined);
+	let rainCells = $state<PrecipCell[]>([]);
+	let deckLayers = $state<NonNullable<DeckProps['layers']>>([]);
+	let rainAnimationState = $state(createRainAnimationState(DEFAULT_RAIN_LAYER_CONFIG));
+	let rainFetchIntervalId: number | undefined;
+	let rainAnimationFrameId: number | undefined;
+	let lastFrameTimestamp = 0;
+	let lastRainLayerBuild = 0;
 
 	const ambientLight = new AmbientLight({
 		color: [255, 255, 255],
@@ -20,10 +41,84 @@
 	});
 
 	const deckEffects = [new LightingEffect({ ambientLight, sunLight })];
+	const RAIN_POLL_INTERVAL_MS = 180_000;
+	const RAIN_LAYER_REBUILD_INTERVAL_MS = 125;
+
+	type PrecipGridResponse = {
+		generatedAt: string;
+		ttlSeconds: number;
+		cells: PrecipCell[];
+	};
 
 	const handleMapReady = (map: MapLibreMap) => {
 		globeMap = map;
 	};
+
+	const rebuildRainLayer = (timestampMs: number, force = false) => {
+		if (lastFrameTimestamp > 0) {
+			rainAnimationState = updateRainAnimationState(
+				rainAnimationState,
+				timestampMs - lastFrameTimestamp,
+				DEFAULT_RAIN_LAYER_CONFIG
+			);
+		}
+		lastFrameTimestamp = timestampMs;
+
+		if (!force && timestampMs - lastRainLayerBuild < RAIN_LAYER_REBUILD_INTERVAL_MS) {
+			return;
+		}
+
+		const rainLayer = buildRainLineLayer(
+			rainCells,
+			timestampMs / 1000,
+			rainAnimationState,
+			DEFAULT_RAIN_LAYER_CONFIG
+		);
+		deckLayers = rainLayer ? [rainLayer] : [];
+		lastRainLayerBuild = timestampMs;
+	};
+
+	const tickRain = (timestampMs: number) => {
+		rebuildRainLayer(timestampMs);
+		rainAnimationFrameId = window.requestAnimationFrame(tickRain);
+	};
+
+	const fetchRainGrid = async () => {
+		try {
+			const response = await fetch('/api/weather/precip-grid', {
+				headers: { accept: 'application/json' }
+			});
+			if (!response.ok) return;
+
+			const payload = (await response.json()) as PrecipGridResponse;
+			rainCells = Array.isArray(payload.cells) ? payload.cells : [];
+			if (dev) {
+				console.info('[rain] grid update', {
+					cells: rainCells.length,
+					thresholdMmPerHour: rainAnimationState.activeMinPrecipMmPerHour
+				});
+			}
+			rebuildRainLayer(performance.now(), true);
+		} catch {
+			// Keep rendering with previously fetched precipitation.
+		}
+	};
+
+	onMount(() => {
+		lastRainLayerBuild = -RAIN_LAYER_REBUILD_INTERVAL_MS;
+		void fetchRainGrid();
+
+		rainFetchIntervalId = window.setInterval(() => {
+			void fetchRainGrid();
+		}, RAIN_POLL_INTERVAL_MS);
+
+		rainAnimationFrameId = window.requestAnimationFrame(tickRain);
+
+		return () => {
+			if (rainFetchIntervalId !== undefined) window.clearInterval(rainFetchIntervalId);
+			if (rainAnimationFrameId !== undefined) window.cancelAnimationFrame(rainAnimationFrameId);
+		};
+	});
 
 	const projects = [
 		{
@@ -45,12 +140,6 @@
 			label: 'DO NOT TOUCH'
 		}
 	];
-
-	const profileLinks = [
-		{ name: 'GitHub', href: 'https://github.com/libetti' },
-		{ name: 'LinkedIn', href: 'https://www.linkedin.com/in/libetti' },
-		{ name: 'Email', href: 'mailto:anthony.libetti@yahoo.com' }
-	];
 </script>
 
 <svelte:head>
@@ -70,52 +159,8 @@
 />
 
 {#if globeMap}
-	<DeckGlOverlay map={globeMap} effects={deckEffects} />
+	<DeckGlOverlay map={globeMap} layers={deckLayers} effects={deckEffects} />
 {/if}
-
-<main class="landing">
-	<section class="hero" aria-labelledby="about-title">
-		<p class="eyebrow">Tooch Town</p>
-		<h1 id="about-title">Anthony Libetti</h1>
-		<p class="intro">
-			So you made it, welcome to my hood bitches. Home to me, a map-fancy software engineer whose
-			life mission is to continue to afford a series of stupid hobbies which end up abandoned.
-		</p>
-		<div class="links" aria-label="profile links">
-			{#each profileLinks as link}
-				<a href={link.href} target="_blank" rel="noreferrer">{link.name}</a>
-			{/each}
-		</div>
-	</section>
-
-	<div class="content-grid">
-		<section class="panel projects" aria-labelledby="projects-title">
-			<div class="section-heading">
-				<h2 id="projects-title">Current Projects</h2>
-				<p>A quick snapshot of what this site will host.</p>
-			</div>
-			<ul class="project-list">
-				{#each projects as project}
-					<li class="project-item">
-						<div>
-							<h3>{project.name}</h3>
-							<p>{project.description}</p>
-						</div>
-						<a href={project.href}>{project.label}</a>
-					</li>
-				{/each}
-			</ul>
-		</section>
-
-		<section class="panel musings" aria-labelledby="musings-title">
-			<div class="section-heading">
-				<h2 id="musings-title">Musings</h2>
-				<p>Article titles will live here.</p>
-			</div>
-			<div class="musings-empty" role="status">No titles published yet.</div>
-		</section>
-	</div>
-</main>
 
 <style>
 	:global(body) {
