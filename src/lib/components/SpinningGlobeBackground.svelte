@@ -57,7 +57,7 @@
 				zoom,
 				pitch,
 				bearing: 0,
-				interactive: false,
+				interactive: true,
 				attributionControl: false,
 				renderWorldCopies: false
 			});
@@ -70,6 +70,13 @@
 		}
 
 		map.once('load', () => {
+			map?.dragPan.disable();
+			map?.dragRotate.disable();
+			map?.doubleClickZoom.disable();
+			map?.boxZoom.disable();
+			map?.keyboard.disable();
+			map?.touchZoomRotate.disableRotation();
+
 			map?.setProjection({ type: 'globe' });
 			if (map) onMapReady?.(map);
 
@@ -210,6 +217,7 @@
 	.globe-map {
 		position: absolute;
 		inset: 0;
+		pointer-events: auto;
 		filter: saturate(1.12) contrast(1.08);
 	}
 

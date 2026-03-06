@@ -94,6 +94,36 @@ export const boostPrecipitationIntensity = (precipMmPerHour: number): number => 
 	return clamp(boosted, 0, 1);
 };
 
+export const buildFallbackPrecipCells = (): PrecipCell[] => {
+	const cells: PrecipCell[] = [];
+
+	for (let lat = -56; lat <= 56; lat += 8) {
+		for (let lon = -180; lon <= 180; lon += 8) {
+			const waveA = Math.sin(toRadians(lon * 1.7 + lat * 0.9));
+			const waveB = Math.cos(toRadians(lon * 0.55 - lat * 2.1));
+			const score = waveA * 0.62 + waveB * 0.48;
+			if (score < 0.5) continue;
+
+			const strength = clamp((score - 0.5) / 0.5, 0, 1);
+			const precipitationMmPerHour = 0.25 + strength * 1.8;
+			const visualIntensity = clamp(
+				boostPrecipitationIntensity(precipitationMmPerHour) * 1.22,
+				0,
+				1
+			);
+
+			cells.push({
+				lon,
+				lat,
+				precipitationMmPerHour,
+				visualIntensity
+			});
+		}
+	}
+
+	return cells;
+};
+
 export const updateRainAnimationState = (
 	state: RainAnimationState,
 	frameTimeMs: number,

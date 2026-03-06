@@ -43,9 +43,61 @@ const chunk = <T>(items: T[], size: number): T[][] => {
 };
 
 const parseBatchPayload = (payload: unknown): PrecipCell[] => {
-	const rows = Array.isArray(payload) ? payload : [payload];
 	const cells: PrecipCell[] = [];
 
+	const tryPushCell = (latValue: unknown, lonValue: unknown, precipValue: unknown) => {
+		const lat = Number(latValue);
+		const lon = Number(lonValue);
+		const precipitationMmPerHour = Number(precipValue);
+		if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+		if (!Number.isFinite(precipitationMmPerHour) || precipitationMmPerHour <= 0) return;
+
+		cells.push({
+			lon,
+			lat,
+			precipitationMmPerHour,
+			visualIntensity: boostPrecipitationIntensity(precipitationMmPerHour)
+		});
+	};
+
+	if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+		const objectPayload = payload as {
+			latitude?: unknown;
+			longitude?: unknown;
+			current?: { precipitation?: unknown };
+			hourly?: { precipitation?: unknown[] };
+		};
+
+		const latitudeArray = Array.isArray(objectPayload.latitude) ? objectPayload.latitude : null;
+		const longitudeArray = Array.isArray(objectPayload.longitude) ? objectPayload.longitude : null;
+		const currentArray = Array.isArray(objectPayload.current?.precipitation)
+			? objectPayload.current.precipitation
+			: null;
+		const hourlyArray = Array.isArray(objectPayload.hourly?.precipitation)
+			? objectPayload.hourly.precipitation
+			: null;
+
+		if (latitudeArray && longitudeArray) {
+			const length = Math.min(
+				latitudeArray.length,
+				longitudeArray.length,
+				currentArray?.length ?? Infinity,
+				hourlyArray?.length ?? Infinity
+			);
+
+			for (let index = 0; index < length; index += 1) {
+				tryPushCell(
+					latitudeArray[index],
+					longitudeArray[index],
+					currentArray?.[index] ?? hourlyArray?.[index]
+				);
+			}
+
+			if (cells.length) return cells;
+		}
+	}
+
+	const rows = Array.isArray(payload) ? payload : [payload];
 	for (const row of rows) {
 		if (!row || typeof row !== 'object') continue;
 		const objectRow = row as {
@@ -55,22 +107,11 @@ const parseBatchPayload = (payload: unknown): PrecipCell[] => {
 			hourly?: { precipitation?: unknown[] };
 		};
 
-		const lat = Number(objectRow.latitude);
-		const lon = Number(objectRow.longitude);
-		if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
-
-		let precipitationMmPerHour = Number(objectRow.current?.precipitation);
-		if (!Number.isFinite(precipitationMmPerHour)) {
-			precipitationMmPerHour = Number(objectRow.hourly?.precipitation?.[0]);
-		}
-		if (!Number.isFinite(precipitationMmPerHour) || precipitationMmPerHour <= 0) continue;
-
-		cells.push({
-			lon,
-			lat,
-			precipitationMmPerHour,
-			visualIntensity: boostPrecipitationIntensity(precipitationMmPerHour)
-		});
+		tryPushCell(
+			objectRow.latitude,
+			objectRow.longitude,
+			objectRow.current?.precipitation ?? objectRow.hourly?.precipitation?.[0]
+		);
 	}
 
 	return cells;

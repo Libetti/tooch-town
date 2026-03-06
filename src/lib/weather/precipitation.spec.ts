@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
 	DEFAULT_RAIN_LAYER_CONFIG,
+	buildFallbackPrecipCells,
 	boostPrecipitationIntensity,
 	createRainAnimationState,
 	generateRainParticles,
@@ -78,5 +79,13 @@ describe('updateRainAnimationState', () => {
 
 		expect(state.activePerCellCap).toBe(8);
 		expect(state.activeMinPrecipMmPerHour).toBeGreaterThanOrEqual(0.2);
+	});
+});
+
+describe('buildFallbackPrecipCells', () => {
+	it('returns dramatized fallback cells when live weather data is empty', () => {
+		const fallbackCells = buildFallbackPrecipCells();
+		expect(fallbackCells.length).toBeGreaterThan(100);
+		expect(fallbackCells.every((cell) => cell.visualIntensity > 0)).toBe(true);
 	});
 });

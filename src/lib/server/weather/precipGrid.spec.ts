@@ -35,6 +35,35 @@ const buildMockFetch = () => {
 	};
 };
 
+const buildColumnarMockFetch = () => {
+	let callCount = 0;
+
+	const mockFetch: typeof fetch = (async (input: RequestInfo | URL) => {
+		callCount += 1;
+		const url = new URL(typeof input === 'string' ? input : input.toString());
+		const latitudes = (url.searchParams.get('latitude') ?? '').split(',').map(Number);
+		const longitudes = (url.searchParams.get('longitude') ?? '').split(',').map(Number);
+
+		const payload = {
+			latitude: latitudes,
+			longitude: longitudes,
+			current: {
+				precipitation: latitudes.map((_, index) => (index % 3 === 0 ? 0.4 : 0))
+			}
+		};
+
+		return new Response(JSON.stringify(payload), {
+			status: 200,
+			headers: { 'content-type': 'application/json' }
+		});
+	}) as typeof fetch;
+
+	return {
+		mockFetch,
+		getCallCount: () => callCount
+	};
+};
+
 const expectedBatchCount = Math.ceil(__internal.GRID_POINTS.length / __internal.GRID_BATCH_SIZE);
 
 describe('getPrecipGrid', () => {
@@ -77,5 +106,13 @@ describe('getPrecipGrid', () => {
 
 		expect(getCallCount()).toBe(expectedBatchCount * 2);
 		expect(second.generatedAt).not.toBe(first.generatedAt);
+	});
+
+	it('parses columnar batch payloads from provider responses', async () => {
+		const { mockFetch, getCallCount } = buildColumnarMockFetch();
+		const result = await getPrecipGrid(mockFetch, Date.parse('2026-03-06T12:00:00.000Z'));
+
+		expect(getCallCount()).toBe(expectedBatchCount);
+		expect(result.cells.length).toBeGreaterThan(0);
 	});
 });

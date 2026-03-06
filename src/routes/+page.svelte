@@ -11,6 +11,7 @@
 	import SpinningGlobeBackground from '$lib/components/SpinningGlobeBackground.svelte';
 	import { buildRainLineLayer } from '$lib/weather/rainLayer';
 	import {
+		buildFallbackPrecipCells,
 		DEFAULT_RAIN_LAYER_CONFIG,
 		createRainAnimationState,
 		updateRainAnimationState,
@@ -91,10 +92,13 @@
 			if (!response.ok) return;
 
 			const payload = (await response.json()) as PrecipGridResponse;
-			rainCells = Array.isArray(payload.cells) ? payload.cells : [];
+			const liveCells = Array.isArray(payload.cells) ? payload.cells : [];
+			rainCells = liveCells.length ? liveCells : buildFallbackPrecipCells();
 			if (dev) {
 				console.info('[rain] grid update', {
-					cells: rainCells.length,
+					cells: liveCells.length,
+					renderedCells: rainCells.length,
+					usingFallback: liveCells.length === 0,
 					thresholdMmPerHour: rainAnimationState.activeMinPrecipMmPerHour
 				});
 			}
@@ -161,6 +165,51 @@
 {#if globeMap}
 	<DeckGlOverlay map={globeMap} layers={deckLayers} effects={deckEffects} />
 {/if}
+
+<main class="landing">
+	<section class="hero" aria-labelledby="about-title">
+		<p class="eyebrow">Tooch Town</p>
+		<h1 id="about-title">Anthony Libetti</h1>
+		<p class="intro">
+			So you made it, welcome to my hood bitches. Home to me, a map-fancy software engineer whose
+			life mission is to continue to afford a series of stupid hobbies which end up abandoned.
+		</p>
+		<div class="links" aria-label="profile links">
+			<a href="https://github.com/libetti" target="_blank" rel="noreferrer">GitHub</a>
+			<a href="https://www.linkedin.com/in/libetti" target="_blank" rel="noreferrer">LinkedIn</a>
+			<a href="mailto:anthony.libetti@yahoo.com" target="_blank" rel="noreferrer">Email</a>
+		</div>
+	</section>
+
+	<div class="content-grid">
+		<section class="panel projects" aria-labelledby="projects-title">
+			<div class="section-heading">
+				<h2 id="projects-title">Current Projects</h2>
+				<p>A quick snapshot of what this site will host.</p>
+			</div>
+			<ul class="project-list">
+				{#each projects as project (project.name)}
+					<li class="project-item">
+						<div>
+							<h3>{project.name}</h3>
+							<p>{project.description}</p>
+						</div>
+						<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+						<a href={project.href}>{project.label}</a>
+					</li>
+				{/each}
+			</ul>
+		</section>
+
+		<section class="panel musings" aria-labelledby="musings-title">
+			<div class="section-heading">
+				<h2 id="musings-title">Musings</h2>
+				<p>Article titles will live here.</p>
+			</div>
+			<div class="musings-empty" role="status">No titles published yet.</div>
+		</section>
+	</div>
+</main>
 
 <style>
 	:global(body) {
