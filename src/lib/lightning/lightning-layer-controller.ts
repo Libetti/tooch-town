@@ -30,7 +30,6 @@ type LightningLayerControllerOptions = {
 	apiPath?: string;
 	scenegraphPath?: string;
 	pollIntervalMs?: number;
-	cleanupIntervalMs?: number;
 };
 
 type LightningLayerController = {
@@ -39,11 +38,12 @@ type LightningLayerController = {
 	stop: () => void;
 };
 
-const MIN_TTL_SEC = 8;
 const ENERGY_LOG10_MIN = -15;
 const ENERGY_LOG10_MAX = -11;
+const DECLUTTER_DISTANCE_METERS = 20_000;
 
-const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value));
+const clamp = (value: number, min: number, max: number): number =>
+	Math.min(max, Math.max(min, value));
 
 const normalizeEnergy = (energy: number | null): number => {
 	if (typeof energy !== 'number' || !Number.isFinite(energy) || energy <= 0) return 0;
@@ -56,11 +56,38 @@ const scaleFromIntensity = (intensityNorm: number): number => {
 	return 0.6 + intensityNorm * 3.4;
 };
 
+const distanceMeters = (a: LightningStrike, b: LightningStrike): number => {
+	const [lon1, lat1] = a.position;
+	const [lon2, lat2] = b.position;
+	const avgLatRad = (((lat1 + lat2) / 2) * Math.PI) / 180;
+	const dy = (lat2 - lat1) * 111_320;
+	const dx = (lon2 - lon1) * 111_320 * Math.cos(avgLatRad);
+	return Math.sqrt(dx * dx + dy * dy);
+};
+
+const declutterStrikes = (input: LightningStrike[]): LightningStrike[] => {
+	if (input.length <= 1) return input;
+
+	const ranked = [...input].sort((a, b) => {
+		if (b.intensityNorm !== a.intensityNorm) return b.intensityNorm - a.intensityNorm;
+		return b.timestampMs - a.timestampMs;
+	});
+
+	const kept: LightningStrike[] = [];
+	for (const strike of ranked) {
+		const hasNearby = kept.some(
+			(existing) => distanceMeters(existing, strike) < DECLUTTER_DISTANCE_METERS
+		);
+		if (!hasNearby) kept.push(strike);
+	}
+
+	return kept;
+};
+
 export const createLightningLayerController = ({
 	apiPath = '/api/lightning/recent',
 	scenegraphPath = '/models/lightning-bolt.gltf',
-	pollIntervalMs = 30_000,
-	cleanupIntervalMs = 1_000
+	pollIntervalMs = 30_000
 }: LightningLayerControllerOptions): LightningLayerController => {
 	const layersStore = writable<DeckProps['layers']>([]);
 
@@ -72,7 +99,7 @@ export const createLightningLayerController = ({
 	let running = false;
 
 	const publishLayers = (): void => {
-		const visibleStrikes = strikes;
+		const visibleStrikes = declutterStrikes(strikes);
 		if (visibleStrikes.length === 0) {
 			layersStore.set([]);
 			return;
@@ -85,13 +112,17 @@ export const createLightningLayerController = ({
 				scenegraph: scenegraphPath,
 				pickable: false,
 				sizeScale: 1,
-				sizeMinPixels: 16,
-				sizeMaxPixels: 16,
-				getPosition: (strike) => [strike.position[0], strike.position[1], 8_000],
-				getOrientation: () => [0,180,30],
+				sizeMinPixels: 12,
+				sizeMaxPixels: 100,
+				getPosition: (strike) => [strike.position[0], strike.position[1], 8000],
+				getOrientation: () => [0, 180, 0],
 				getScale: (strike) => [strike.baseScale, strike.baseScale, strike.baseScale],
 				getColor: () => [255, 255, 255, 255],
-				_lighting: 'pbr'
+				_lighting: 'pbr',
+				parameters: {
+					depthCompare: 'less-equal',
+					depthWriteEnabled: false
+				}
 			})
 		]);
 	};

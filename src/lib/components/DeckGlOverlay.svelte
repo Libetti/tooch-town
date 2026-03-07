@@ -9,7 +9,7 @@
 	export let layers: DeckProps['layers'] = [];
 	export let effects: DeckProps['effects'] = [];
 	export let interleaved = true;
-	export let animate = false;
+	export let animate = true;
 
 	let overlay: MapboxOverlayType | undefined;
 	let overlayMap: Map | undefined;
