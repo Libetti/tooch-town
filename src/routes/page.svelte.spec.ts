@@ -5,7 +5,11 @@ import Page from './+page.svelte';
 
 describe('/+page.svelte', () => {
 	it('should render the landing page content', async () => {
-		render(Page);
+		render(Page, {
+			data: {
+				initialCenter: [-75.5663, 39.662]
+			}
+		});
 
 		const heading = page.getByRole('heading', { level: 1, name: 'Anthony Libetti' });
 		const projectsHeading = page.getByRole('heading', { level: 2, name: 'Current Projects' });

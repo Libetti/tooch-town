@@ -75,10 +75,7 @@ const getClientIp = (event: Parameters<PageServerLoad>[0]): string | null => {
 	}
 };
 
-const geolocateIp = async (
-	fetchFn: typeof fetch,
-	ip: string
-): Promise<[number, number] | null> => {
+const geolocateIp = async (fetchFn: typeof fetch, ip: string): Promise<[number, number] | null> => {
 	const abortController = new AbortController();
 	const timeout = setTimeout(() => abortController.abort(), 2500);
 

@@ -1,29 +1,50 @@
 <script lang="ts">
-	import { _SunLight as SunLight, AmbientLight, LightingEffect } from '@deck.gl/core';
-	import DeckGlOverlay from '$lib/components/DeckGlOverlay.svelte';
+	import { PUBLIC_MAPTILER_KEY } from '$env/static/public';
 	import SpinningGlobeBackground from '$lib/components/SpinningGlobeBackground.svelte';
-	import type { Map as MapLibreMap } from 'maplibre-gl';
+	import type { StyleSpecification } from 'maplibre-gl';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
-	let globeMap = $state<MapLibreMap | undefined>(undefined);
+	let cardsCollapsed = $state(false);
+	let selectedBaseLayer = $state<'satellite' | 'streets'>('satellite');
 
-	const ambientLight = new AmbientLight({
-		color: [255, 255, 255],
-		intensity: 0.3
-	});
-
-	const sunLight = new SunLight({
-		color: [255, 255, 255],
-		intensity: 1,
-		timestamp: Date.now()
-	});
-
-	const deckEffects = [new LightingEffect({ ambientLight, sunLight })];
-
-	const handleMapReady = (map: MapLibreMap) => {
-		globeMap = map;
+	const FALLBACK_STREETS_STYLE: StyleSpecification = {
+		version: 8,
+		sources: {
+			osm: {
+				type: 'raster',
+				tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+				tileSize: 256,
+				attribution: '© OpenStreetMap contributors'
+			}
+		},
+		layers: [{ id: 'osm-base', type: 'raster', source: 'osm' }]
 	};
+	const FALLBACK_SATELLITE_STYLE: StyleSpecification = {
+		version: 8,
+		sources: {
+			esriSatellite: {
+				type: 'raster',
+				tiles: [
+					'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+				],
+				tileSize: 256,
+				attribution: 'Source: Esri, Maxar, Earthstar Geographics, and the GIS user community'
+			}
+		},
+		layers: [{ id: 'esri-satellite-base', type: 'raster', source: 'esriSatellite' }]
+	};
+	const SATELLITE_STYLE_URL = PUBLIC_MAPTILER_KEY
+		? `https://api.maptiler.com/maps/satellite/style.json?key=${PUBLIC_MAPTILER_KEY}`
+		: undefined;
+	const STREETS_STYLE_URL = PUBLIC_MAPTILER_KEY
+		? `https://api.maptiler.com/maps/streets/style.json?key=${PUBLIC_MAPTILER_KEY}`
+		: undefined;
+	const selectedStyleUrl = $derived<string | StyleSpecification>(
+		selectedBaseLayer === 'streets'
+			? (STREETS_STYLE_URL ?? FALLBACK_STREETS_STYLE)
+			: (SATELLITE_STYLE_URL ?? FALLBACK_SATELLITE_STYLE)
+	);
 
 	const projects = [
 		{
@@ -45,12 +66,6 @@
 			label: 'DO NOT TOUCH'
 		}
 	];
-
-	const profileLinks = [
-		{ name: 'GitHub', href: 'https://github.com/libetti' },
-		{ name: 'LinkedIn', href: 'https://www.linkedin.com/in/libetti' },
-		{ name: 'Email', href: 'mailto:anthony.libetti@yahoo.com' }
-	];
 </script>
 
 <svelte:head>
@@ -62,60 +77,85 @@
 </svelte:head>
 
 <SpinningGlobeBackground
+	styleUrl={selectedStyleUrl}
 	center={data.initialCenter}
 	zoom={2.5}
 	pitch={0}
 	spinDegreesPerSecond={0.6}
-	onMapReady={handleMapReady}
+	interactionsEnabled={cardsCollapsed}
 />
 
-{#if globeMap}
-	<DeckGlOverlay map={globeMap} effects={deckEffects} />
-{/if}
+{#if !cardsCollapsed}
+	<main class="landing">
+		<section class="hero" aria-labelledby="about-title">
+			<button
+				type="button"
+				class="collapse-cards"
+				aria-label="Hide cards"
+				onclick={() => {
+					cardsCollapsed = true;
+				}}>x</button
+			>
+			<p class="eyebrow">Tooch Town</p>
+			<h1 id="about-title">Anthony Libetti</h1>
+			<p class="intro">
+				So you made it, welcome to my hood bitches. Home to me, a map-fancy software engineer whose
+				life mission is to continue to afford a series of stupid hobbies which end up abandoned.
+			</p>
+			<div class="links" aria-label="profile links">
+				<a href="https://github.com/libetti" target="_blank" rel="noreferrer">GitHub</a>
+				<a href="https://www.linkedin.com/in/libetti" target="_blank" rel="noreferrer">LinkedIn</a>
+				<a href="mailto:anthony.libetti@yahoo.com" target="_blank" rel="noreferrer">Email</a>
+			</div>
+		</section>
 
-<main class="landing">
-	<section class="hero" aria-labelledby="about-title">
-		<p class="eyebrow">Tooch Town</p>
-		<h1 id="about-title">Anthony Libetti</h1>
-		<p class="intro">
-			So you made it, welcome to my hood bitches. Home to me, a map-fancy software engineer whose
-			life mission is to continue to afford a series of stupid hobbies which end up abandoned.
-		</p>
-		<div class="links" aria-label="profile links">
-			{#each profileLinks as link}
-				<a href={link.href} target="_blank" rel="noreferrer">{link.name}</a>
-			{/each}
+		<div class="content-grid">
+			<section class="panel projects" aria-labelledby="projects-title">
+				<div class="section-heading">
+					<h2 id="projects-title">Current Projects</h2>
+					<p>A quick snapshot of what this site will host.</p>
+				</div>
+				<ul class="project-list">
+					{#each projects as project (project.name)}
+						<li class="project-item">
+							<div>
+								<h3>{project.name}</h3>
+								<p>{project.description}</p>
+							</div>
+							<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+							<a href={project.href}>{project.label}</a>
+						</li>
+					{/each}
+				</ul>
+			</section>
+
+			<section class="panel musings" aria-labelledby="musings-title">
+				<div class="section-heading">
+					<h2 id="musings-title">Musings</h2>
+					<p>Article titles will live here.</p>
+				</div>
+				<div class="musings-empty" role="status">No titles published yet.</div>
+			</section>
 		</div>
-	</section>
-
-	<div class="content-grid">
-		<section class="panel projects" aria-labelledby="projects-title">
-			<div class="section-heading">
-				<h2 id="projects-title">Current Projects</h2>
-				<p>A quick snapshot of what this site will host.</p>
-			</div>
-			<ul class="project-list">
-				{#each projects as project}
-					<li class="project-item">
-						<div>
-							<h3>{project.name}</h3>
-							<p>{project.description}</p>
-						</div>
-						<a href={project.href}>{project.label}</a>
-					</li>
-				{/each}
-			</ul>
-		</section>
-
-		<section class="panel musings" aria-labelledby="musings-title">
-			<div class="section-heading">
-				<h2 id="musings-title">Musings</h2>
-				<p>Article titles will live here.</p>
-			</div>
-			<div class="musings-empty" role="status">No titles published yet.</div>
-		</section>
+	</main>
+{:else}
+	<div class="card-restore-bar">
+		<button
+			type="button"
+			class="restore-cards"
+			onclick={() => {
+				cardsCollapsed = false;
+			}}>Open Cards</button
+		>
+		<label class="base-layer-control" for="base-layer-select">
+			Base Layer
+			<select id="base-layer-select" bind:value={selectedBaseLayer}>
+				<option value="satellite">Satellite</option>
+				<option value="streets">Streets</option>
+			</select>
+		</label>
 	</div>
-</main>
+{/if}
 
 <style>
 	:global(body) {
@@ -144,6 +184,7 @@
 	}
 
 	.hero {
+		position: relative;
 		background: var(--panel);
 		border: 1px solid var(--line);
 		border-radius: 1.25rem;
@@ -201,6 +242,73 @@
 	.links a:hover {
 		transform: translateY(-1px);
 		background: rgba(13, 27, 47, 0.62);
+	}
+
+	.collapse-cards {
+		position: absolute;
+		top: 0.8rem;
+		right: 0.8rem;
+		border: 1px solid var(--line);
+		background: rgba(10, 24, 43, 0.7);
+		color: #f5f8ff;
+		border-radius: 999px;
+		width: 2rem;
+		height: 2rem;
+		cursor: pointer;
+		font-size: 1.1rem;
+		line-height: 1;
+	}
+
+	.collapse-cards:hover {
+		background: rgba(14, 31, 54, 0.92);
+	}
+
+	.card-restore-bar {
+		position: fixed;
+		left: 50%;
+		bottom: 1.2rem;
+		transform: translateX(-50%);
+		z-index: 2;
+		display: flex;
+		align-items: center;
+		gap: 0.6rem;
+	}
+
+	.restore-cards {
+		border: 1px solid rgba(166, 198, 255, 0.34);
+		background: rgba(7, 16, 29, 0.86);
+		color: #f5f8ff;
+		border-radius: 999px;
+		padding: 0.52rem 1rem;
+		font-size: 0.9rem;
+		cursor: pointer;
+		backdrop-filter: blur(8px);
+	}
+
+	.restore-cards:hover {
+		background: rgba(12, 24, 42, 0.92);
+	}
+
+	.base-layer-control {
+		display: flex;
+		align-items: center;
+		gap: 0.45rem;
+		border: 1px solid rgba(166, 198, 255, 0.3);
+		background: rgba(7, 16, 29, 0.84);
+		color: #f5f8ff;
+		border-radius: 999px;
+		padding: 0.35rem 0.55rem 0.35rem 0.75rem;
+		font-size: 0.82rem;
+		backdrop-filter: blur(8px);
+	}
+
+	.base-layer-control select {
+		background: rgba(12, 24, 42, 0.95);
+		color: #f5f8ff;
+		border: 1px solid rgba(166, 198, 255, 0.35);
+		border-radius: 999px;
+		padding: 0.2rem 0.5rem;
+		font-size: 0.82rem;
 	}
 
 	.content-grid {
