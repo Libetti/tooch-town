@@ -15,7 +15,8 @@
 		"test:unit": "vitest",
 		"test": "npm run test:unit -- --run && npm run test:e2e",
 		"test:e2e": "playwright test",
-		"proxy": "local-ssl-proxy --key /Users/anthony.libetti/.ssl/_wildcard.tooch.dev-key.pem --cert /Users/anthony.libetti/.ssl/_wildcard.tooch.dev.pem --source 443 --target 5173"
+		"proxy": "local-ssl-proxy --key /Users/anthony.libetti/.ssl/_wildcard.tooch.dev-key.pem --cert /Users/anthony.libetti/.ssl/_wildcard.tooch.dev.pem --source 443 --target 5173",
+		"proxy:weather": "local-ssl-proxy --key /Users/anthony.libetti/.ssl/_wildcard.tooch.dev-key.pem --cert /Users/anthony.libetti/.ssl/_wildcard.tooch.dev.pem --source 8443 --target 8000"
 	},
 	"devDependencies": {
 		"@eslint/compat": "^2.0.2",

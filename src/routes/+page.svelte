@@ -1,12 +1,35 @@
 <script lang="ts">
 	import { PUBLIC_MAPTILER_KEY } from '$env/static/public';
+	import type { DeckProps } from '@deck.gl/core';
+	import DeckGlOverlay from '$lib/components/DeckGlOverlay.svelte';
+	import { createLightningLayerController } from '$lib/lightning/lightning-layer-controller';
 	import SpinningGlobeBackground from '$lib/components/SpinningGlobeBackground.svelte';
-	import type { StyleSpecification } from 'maplibre-gl';
+	import { onMount } from 'svelte';
+	import type { Map, StyleSpecification } from 'maplibre-gl';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
 	let cardsCollapsed = $state(false);
 	let selectedBaseLayer = $state<'satellite' | 'streets'>('satellite');
+	let deckMap = $state<Map | undefined>(undefined);
+	let deckLayers = $state<DeckProps['layers']>([]);
+
+	const lightningLayerController = createLightningLayerController({
+		apiPath: '/api/lightning/recent',
+		scenegraphPath: '/models/lightning-bolt.gltf'
+	});
+
+	onMount(() => {
+		const unsubscribe = lightningLayerController.layers.subscribe((layers) => {
+			deckLayers = layers;
+		});
+		lightningLayerController.start();
+
+		return () => {
+			unsubscribe();
+			lightningLayerController.stop();
+		};
+	});
 
 	const FALLBACK_STREETS_STYLE: StyleSpecification = {
 		version: 8,
@@ -79,11 +102,15 @@
 <SpinningGlobeBackground
 	styleUrl={selectedStyleUrl}
 	center={data.initialCenter}
-	zoom={2.5}
+	zoom={4}
 	pitch={0}
 	spinDegreesPerSecond={0.6}
 	interactionsEnabled={cardsCollapsed}
+	onMapReady={(map) => {
+		deckMap = map;
+	}}
 />
+<DeckGlOverlay map={deckMap} layers={deckLayers} animate={false} />
 
 {#if !cardsCollapsed}
 	<main class="landing">
