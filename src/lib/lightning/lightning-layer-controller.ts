@@ -100,12 +100,10 @@ export const createLightningLayerController = ({
 				scenegraph: scenegraphPath,
 				pickable: false,
 				sizeScale: 1,
-				sizeMinPixels: 16,
-				sizeMaxPixels: 16,
-				// Lift the model above the surface so it doesn't intersect/clamp into the basemap.
-				getPosition: (strike) => [strike.position[0], strike.position[1], 8_000 + strike.baseScale * 3_000],
-				// The GLTF's long axis is Y; rotate so the bolt stands in map Z-up space.
-				getOrientation: () => [90, 0, 0],
+				sizeMinPixels: 24,
+				sizeMaxPixels: 24,
+				getPosition: (strike) => [strike.position[0], strike.position[1], 8_000],
+				getOrientation: () => [0,180,30],
 				getScale: (strike) => [strike.baseScale, strike.baseScale, strike.baseScale],
 				getColor: (strike) => [255, 255, 255, getStrikeAlpha(strike, nowMs)],
 				_lighting: 'pbr'
