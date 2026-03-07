@@ -110,7 +110,7 @@
 		deckMap = map;
 	}}
 />
-<DeckGlOverlay map={deckMap} layers={deckLayers} />
+<DeckGlOverlay map={deckMap} layers={deckLayers} animate={false} />
 
 {#if !cardsCollapsed}
 	<main class="landing">

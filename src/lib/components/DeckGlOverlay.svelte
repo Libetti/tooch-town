@@ -9,13 +9,15 @@
 	export let layers: DeckProps['layers'] = [];
 	export let effects: DeckProps['effects'] = [];
 	export let interleaved = true;
+	export let animate = false;
 
 	let overlay: MapboxOverlayType | undefined;
 	let overlayMap: Map | undefined;
 
 	const deckProps = (): DeckProps => ({
 		layers,
-		effects
+		effects,
+		_animate: animate
 	});
 
 	const detachOverlay = () => {

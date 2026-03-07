@@ -22,7 +22,6 @@ type LightningStrike = {
 	id: string;
 	position: [number, number, number];
 	intensityNorm: number;
-	ttlSec: number;
 	baseScale: number;
 	timestampMs: number;
 };
@@ -40,34 +39,21 @@ type LightningLayerController = {
 	stop: () => void;
 };
 
-const MIN_TTL_SEC = 45;
-const MAX_TTL_SEC = 180;
-const FADE_START_SEC = 15;
+const MIN_TTL_SEC = 8;
+const ENERGY_LOG10_MIN = -15;
+const ENERGY_LOG10_MAX = -11;
 
 const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value));
 
 const normalizeEnergy = (energy: number | null): number => {
-	if (typeof energy !== 'number' || !Number.isFinite(energy)) return 0;
-	return clamp(Math.log10(Math.abs(energy) + 1) / 4, 0, 1);
-};
-
-const ttlFromIntensity = (intensityNorm: number): number => {
-	return MIN_TTL_SEC + intensityNorm * (MAX_TTL_SEC - MIN_TTL_SEC);
+	if (typeof energy !== 'number' || !Number.isFinite(energy) || energy <= 0) return 0;
+	const energyLog10 = Math.log10(Math.abs(energy));
+	return clamp((energyLog10 - ENERGY_LOG10_MIN) / (ENERGY_LOG10_MAX - ENERGY_LOG10_MIN), 0, 1);
 };
 
 const scaleFromIntensity = (intensityNorm: number): number => {
-	// Keep intensity-based relative size while ScenegraphLayer clamps pixel size across zooms.
-	return 0.8 + intensityNorm * 1.7;
-};
-
-const getStrikeAlpha = (strike: LightningStrike, currentTimeMs: number): number => {
-	const ageSec = (currentTimeMs - strike.timestampMs) / 1000;
-	if (ageSec <= FADE_START_SEC) return 255;
-	if (ageSec >= strike.ttlSec) return 0;
-
-	const fadeDurationSec = Math.max(1, strike.ttlSec - FADE_START_SEC);
-	const fadeProgress = (ageSec - FADE_START_SEC) / fadeDurationSec;
-	return Math.round(255 * (1 - clamp(fadeProgress, 0, 1)));
+	// Keep visible separation between weak/strong strikes even with pixel clamping.
+	return 0.6 + intensityNorm * 3.4;
 };
 
 export const createLightningLayerController = ({
@@ -82,13 +68,12 @@ export const createLightningLayerController = ({
 	const seenStrikeIds = new Set<string>();
 
 	let strikes: LightningStrike[] = [];
-	let nowMs = Date.now();
 	let pollIntervalId: ReturnType<typeof setInterval> | undefined;
-	let cleanupIntervalId: ReturnType<typeof setInterval> | undefined;
 	let running = false;
 
 	const publishLayers = (): void => {
-		if (strikes.length === 0) {
+		const visibleStrikes = strikes;
+		if (visibleStrikes.length === 0) {
 			layersStore.set([]);
 			return;
 		}
@@ -96,26 +81,19 @@ export const createLightningLayerController = ({
 		layersStore.set([
 			new ScenegraphLayer<LightningStrike>({
 				id: 'lightning-scenegraph',
-				data: strikes,
+				data: visibleStrikes,
 				scenegraph: scenegraphPath,
 				pickable: false,
 				sizeScale: 1,
-				sizeMinPixels: 24,
-				sizeMaxPixels: 24,
+				sizeMinPixels: 16,
+				sizeMaxPixels: 16,
 				getPosition: (strike) => [strike.position[0], strike.position[1], 8_000],
 				getOrientation: () => [0,180,30],
 				getScale: (strike) => [strike.baseScale, strike.baseScale, strike.baseScale],
-				getColor: (strike) => [255, 255, 255, getStrikeAlpha(strike, nowMs)],
+				getColor: () => [255, 255, 255, 255],
 				_lighting: 'pbr'
 			})
 		]);
-	};
-
-	const removeExpiredStrikes = (referenceTimeMs: number): void => {
-		strikes = strikes.filter((strike) => {
-			const ageMs = referenceTimeMs - strike.timestampMs;
-			return ageMs < strike.ttlSec * 1_000;
-		});
 	};
 
 	const mapResponseToStrikes = (
@@ -123,13 +101,16 @@ export const createLightningLayerController = ({
 		response: LightningRecentResponse
 	): LightningStrike[] => {
 		const nextStrikes: LightningStrike[] = [];
+		const ingestTimeMs = Date.now();
 
 		for (const feature of response.features) {
 			const strikeId = `${satellite}:${feature.id}`;
 			if (seenStrikeIds.has(strikeId)) continue;
 
-			const timestampMs = Date.parse(feature.time);
-			if (!Number.isFinite(timestampMs)) continue;
+			const parsedFeatureTimeMs = Date.parse(feature.time);
+			const timestampMs = Number.isFinite(parsedFeatureTimeMs)
+				? Math.min(parsedFeatureTimeMs, ingestTimeMs)
+				: ingestTimeMs;
 			if (!Number.isFinite(feature.latitude) || !Number.isFinite(feature.longitude)) continue;
 
 			const intensityNorm = normalizeEnergy(feature.energy);
@@ -137,7 +118,6 @@ export const createLightningLayerController = ({
 				id: strikeId,
 				position: [feature.longitude, feature.latitude, 0],
 				intensityNorm,
-				ttlSec: ttlFromIntensity(intensityNorm),
 				baseScale: scaleFromIntensity(intensityNorm),
 				timestampMs
 			});
@@ -169,11 +149,9 @@ export const createLightningLayerController = ({
 			if (request.status === 'fulfilled') additions.push(...request.value);
 		}
 
-		nowMs = Date.now();
 		if (additions.length > 0) {
 			strikes = [...strikes, ...additions];
 		}
-		removeExpiredStrikes(nowMs);
 		publishLayers();
 	};
 
@@ -185,12 +163,6 @@ export const createLightningLayerController = ({
 		pollIntervalId = setInterval(() => {
 			void pollLightning();
 		}, pollIntervalMs);
-
-		cleanupIntervalId = setInterval(() => {
-			nowMs = Date.now();
-			removeExpiredStrikes(nowMs);
-			publishLayers();
-		}, cleanupIntervalMs);
 	};
 
 	const stop = (): void => {
@@ -198,10 +170,6 @@ export const createLightningLayerController = ({
 		if (pollIntervalId !== undefined) {
 			clearInterval(pollIntervalId);
 			pollIntervalId = undefined;
-		}
-		if (cleanupIntervalId !== undefined) {
-			clearInterval(cleanupIntervalId);
-			cleanupIntervalId = undefined;
 		}
 	};
 
