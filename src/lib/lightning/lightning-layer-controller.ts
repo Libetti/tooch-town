@@ -53,7 +53,7 @@ const normalizeEnergy = (energy: number | null): number => {
 
 const scaleFromIntensity = (intensityNorm: number): number => {
 	// Keep visible separation between weak/strong strikes even with pixel clamping.
-	return 0.6 + intensityNorm * 3.4;
+	return 0.3 + intensityNorm * 1.7;
 };
 
 const distanceMeters = (a: LightningStrike, b: LightningStrike): number => {
@@ -113,16 +113,12 @@ export const createLightningLayerController = ({
 				pickable: false,
 				sizeScale: 1,
 				sizeMinPixels: 12,
-				sizeMaxPixels: 100,
+				sizeMaxPixels: 12,
 				getPosition: (strike) => [strike.position[0], strike.position[1], 8000],
-				getOrientation: () => [0, 180, 0],
+				getOrientation: () => [0, 200, 20],
 				getScale: (strike) => [strike.baseScale, strike.baseScale, strike.baseScale],
 				getColor: () => [255, 255, 255, 255],
 				_lighting: 'pbr',
-				parameters: {
-					depthCompare: 'less-equal',
-					depthWriteEnabled: false
-				}
 			})
 		]);
 	};
