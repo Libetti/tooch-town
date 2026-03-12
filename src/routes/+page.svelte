@@ -16,7 +16,7 @@
 
 	const lightningLayerController = createLightningLayerController({
 		apiPath: '/api/lightning/recent',
-		scenegraphPath: '/models/lightning-bolt.gltf'
+		scenegraphPath: '/models/Thunderstorm.glb'
 	});
 
 	onMount(() => {
