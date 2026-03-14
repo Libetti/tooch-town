@@ -23,7 +23,6 @@ export const createMoonOrbitLayer = ({
 	orbitInclinationDeg = 23.5,
 	modelScaleMeters = 50_000,
 	initialPhaseDeg = 0,
-	modelRotationDeg = [0, 0, 0]
 }: MoonOrbitLayerOptions): CustomLayerInterface => {
 	let mapRef: Map | undefined;
 	let renderer: THREE.WebGLRenderer | undefined;
@@ -97,7 +96,7 @@ export const createMoonOrbitLayer = ({
 			);
 		},
 
-		render(gl, _options: CustomRenderMethodInput) {
+		render(gl, options: CustomRenderMethodInput) {
 			if (!renderer || !mapRef || disposed) return;
 
 			const elapsedSeconds = (performance.now() - startMs) / 1000;
@@ -106,16 +105,8 @@ export const createMoonOrbitLayer = ({
 			const orbitLng = wrapLongitude(baseOrbitLng + THREE.MathUtils.radToDeg(angleRad));
 			const orbitLat = Math.sin(angleRad) * orbitInclinationDeg;
 
-			const visibleMoon = moonModel ?? fallbackMoon;
-			if (visibleMoon) {
-				visibleMoon.rotation.set(
-					THREE.MathUtils.degToRad(modelRotationDeg[0]),
-					THREE.MathUtils.degToRad(modelRotationDeg[1]) + angleRad,
-					THREE.MathUtils.degToRad(modelRotationDeg[2])
-				);
-			}
 
-			const modelProjection = new THREE.Matrix4().fromArray(
+			const modelMatrix = new THREE.Matrix4().fromArray(
 				(
 					(mapRef as unknown as {
 						transform: {
@@ -124,13 +115,16 @@ export const createMoonOrbitLayer = ({
 					}).transform.getMatrixForModel([orbitLng, orbitLat], Math.max(0, orbitAltitudeMeters))
 				) as number[]
 			);
+			const globeMatrix = new THREE.Matrix4().fromArray(
+				options.defaultProjectionData.mainMatrix as unknown as number[]
+			);
 
 			const scaleMatrix = new THREE.Matrix4().makeScale(
 				modelScaleMeters,
 				modelScaleMeters,
 				modelScaleMeters
 			);
-			camera.projectionMatrix = modelProjection.multiply(scaleMatrix);
+			camera.projectionMatrix = globeMatrix.multiply(modelMatrix).multiply(scaleMatrix);
 
 			renderer.resetState();
 			renderer.render(scene, camera);
@@ -167,27 +161,39 @@ export const mountMoonOrbitLayer = (
 	options: MoonOrbitLayerOptions
 ): (() => void) => {
 	const layer = createMoonOrbitLayer(options);
-	const addLayer = () => {
-		if (!map.getLayer(layer.id)) {
+	const layerId = layer.id;
+	let active = true;
+
+	const tryAdd = () => {
+		if (!active) return;
+		if (map.getLayer(layerId)) return;
+
+		// Guard style readiness without depending on a single 'load' event.
+		const style = map.getStyle();
+		if (!style || !style.layers) return;
+
+		try {
 			map.addLayer(layer);
+		} catch {
+			// Style/projection can still be mid-transition; idle/style.load will retry.
 		}
 	};
 
-	if (map.isStyleLoaded()) {
-		addLayer();
-	} else {
-		map.once('load', addLayer);
-	}
+	const onStyleLoad = () => tryAdd();
+	const onIdle = () => tryAdd();
 
-	const onStyleLoad = () => {
-		addLayer();
-	};
+	// Try immediately, then retry on style lifecycle events.
+	tryAdd();
 	map.on('style.load', onStyleLoad);
+	map.on('idle', onIdle);
 
 	return () => {
+		active = false;
 		map.off('style.load', onStyleLoad);
-		if (map.getLayer(layer.id)) {
-			map.removeLayer(layer.id);
+		map.off('idle', onIdle);
+
+		if (map.getLayer(layerId)) {
+			map.removeLayer(layerId);
 		}
 	};
 };

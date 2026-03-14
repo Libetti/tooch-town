@@ -106,7 +106,7 @@
 <SpinningGlobeBackground
 	styleUrl={selectedStyleUrl}
 	center={data.initialCenter}
-	zoom={4}
+	zoom={2}
 	pitch={0}
 	spinDegreesPerSecond={0.6}
 	interactionsEnabled={cardsCollapsed}
@@ -116,10 +116,10 @@
 		removeMoonOrbitLayer = mountMoonOrbitLayer(map, {
 			layerId: 'moon-orbit-layer',
 			modelUrl: '/models/Moon_Glb.glb',
-			orbitPeriodSeconds: 45,
-			orbitAltitudeMeters: 650_000,
+			orbitPeriodSeconds: 90,
+			orbitAltitudeMeters: 3_000_000,
 			orbitInclinationDeg: 26,
-			modelScaleMeters: 70_000
+			modelScaleMeters: 800_000
 		});
 	}}
 />
