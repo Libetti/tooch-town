@@ -40,7 +40,8 @@ type LightningLayerController = {
 
 const ENERGY_LOG10_MIN = -15;
 const ENERGY_LOG10_MAX = -11;
-const DECLUTTER_DISTANCE_METERS = 20_000;
+// Decrease this and fix the lightning declutter shit
+const DECLUTTER_DISTANCE_METERS = 150_000;
 
 const clamp = (value: number, min: number, max: number): number =>
 	Math.min(max, Math.max(min, value));
