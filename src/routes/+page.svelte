@@ -3,6 +3,7 @@
 	import type { DeckProps } from '@deck.gl/core';
 	import DeckGlOverlay from '$lib/components/DeckGlOverlay.svelte';
 	import { createLightningLayerController } from '$lib/lightning/lightning-layer-controller';
+	import { mountMoonOrbitLayer } from '$lib/space/moon-orbit-layer';
 	import SpinningGlobeBackground from '$lib/components/SpinningGlobeBackground.svelte';
 	import { onMount } from 'svelte';
 	import type { Map, StyleSpecification } from 'maplibre-gl';
@@ -13,6 +14,7 @@
 	let selectedBaseLayer = $state<'satellite' | 'streets'>('satellite');
 	let deckMap = $state<Map | undefined>(undefined);
 	let deckLayers = $state<DeckProps['layers']>([]);
+	let removeMoonOrbitLayer: (() => void) | undefined;
 
 	const lightningLayerController = createLightningLayerController({
 		apiPath: '/api/lightning/recent',
@@ -28,6 +30,8 @@
 		return () => {
 			unsubscribe();
 			lightningLayerController.stop();
+			removeMoonOrbitLayer?.();
+			removeMoonOrbitLayer = undefined;
 		};
 	});
 
@@ -108,6 +112,15 @@
 	interactionsEnabled={cardsCollapsed}
 	onMapReady={(map) => {
 		deckMap = map;
+		removeMoonOrbitLayer?.();
+		removeMoonOrbitLayer = mountMoonOrbitLayer(map, {
+			layerId: 'moon-orbit-layer',
+			modelUrl: '/models/Moon_Glb.glb',
+			orbitPeriodSeconds: 45,
+			orbitAltitudeMeters: 650_000,
+			orbitInclinationDeg: 26,
+			modelScaleMeters: 70_000
+		});
 	}}
 />
 <DeckGlOverlay map={deckMap} layers={deckLayers} animate={false} />

@@ -29,6 +29,7 @@
 		"@tailwindcss/vite": "^4.1.18",
 		"@tailwindplus/elements": "^1.0.22",
 		"@types/node": "^24",
+		"@types/three": "^0.183.1",
 		"@vitest/browser-playwright": "^4.0.18",
 		"eslint": "^9.39.2",
 		"eslint-config-prettier": "^10.1.8",
@@ -52,6 +53,7 @@
 		"@deck.gl/layers": "^9.2.11",
 		"@deck.gl/mapbox": "^9.2.10",
 		"@deck.gl/mesh-layers": "^9.2.11",
-		"maplibre-gl": "^5.19.0"
+		"maplibre-gl": "^5.19.0",
+		"three": "^0.183.2"
 	}
 }
