@@ -18,7 +18,8 @@
 
 	const lightningLayerController = createLightningLayerController({
 		apiPath: '/api/lightning/recent',
-		scenegraphPath: '/models/Thunderstorm.glb'
+		scenegraphPath: '/models/Thunderstorm.glb',
+		pollIntervalMs:15_000
 	});
 
 	onMount(() => {

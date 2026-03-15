@@ -14,12 +14,6 @@
 	let overlay: MapboxOverlayType | undefined;
 	let overlayMap: Map | undefined;
 
-	const deckProps = (): DeckProps => ({
-		layers,
-		effects,
-		_animate: animate
-	});
-
 	const detachOverlay = () => {
 		if (overlay && overlayMap) {
 			overlayMap.removeControl(overlay);
@@ -31,7 +25,12 @@
 
 	const attachOverlay = async (targetMap: Map) => {
 		if (overlay && overlayMap === targetMap) {
-			overlay.setProps({ interleaved, ...deckProps() });
+			overlay.setProps({
+				interleaved,
+				layers,
+				effects,
+				_animate: animate
+			});
 			return;
 		}
 
@@ -40,7 +39,12 @@
 		const { MapboxOverlay } = await import('@deck.gl/mapbox');
 		if (map !== targetMap) return;
 
-		overlay = new MapboxOverlay({ interleaved, ...deckProps() });
+		overlay = new MapboxOverlay({
+			interleaved,
+			layers,
+			effects,
+			_animate: animate
+		});
 		targetMap.addControl(overlay);
 		overlayMap = targetMap;
 	};
@@ -54,7 +58,12 @@
 	}
 
 	$: if (overlay) {
-		overlay.setProps({ interleaved, ...deckProps() });
+		overlay.setProps({
+			interleaved,
+			layers,
+			effects,
+			_animate: animate
+		});
 	}
 
 	onDestroy(() => {

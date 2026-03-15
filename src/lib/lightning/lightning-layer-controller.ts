@@ -24,6 +24,7 @@ type LightningStrike = {
 	intensityNorm: number;
 	baseScale: number;
 	timestampMs: number;
+	bornAtMs: number;
 };
 
 type LightningLayerControllerOptions = {
@@ -42,6 +43,7 @@ const ENERGY_LOG10_MIN = -15;
 const ENERGY_LOG10_MAX = -11;
 // Decrease this and fix the lightning declutter shit
 const DECLUTTER_DISTANCE_METERS = 150_000;
+const FADE_TICK_MS = 100;
 
 const clamp = (value: number, min: number, max: number): number =>
 	Math.min(max, Math.max(min, value));
@@ -93,13 +95,22 @@ export const createLightningLayerController = ({
 	const layersStore = writable<DeckProps['layers']>([]);
 
 	const normalizedApiPath = apiPath.trim() || '/api/lightning/recent';
-	const seenStrikeIds = new Set<string>();
 
 	let strikes: LightningStrike[] = [];
 	let pollIntervalId: ReturnType<typeof setInterval> | undefined;
+	let fadeIntervalId: ReturnType<typeof setInterval> | undefined;
+	let completedPollCount = 0;
+	let strikeSequence = 0;
 	let running = false;
 
+	const updateStrikeLifecycles = (nowMs: number): void => {
+		const maxLifetimeMs = pollIntervalMs * 2;
+		strikes = strikes.filter((strike) => nowMs - strike.bornAtMs < maxLifetimeMs);
+	};
+
 	const publishLayers = (): void => {
+		const nowMs = Date.now();
+		updateStrikeLifecycles(nowMs);
 		const visibleStrikes = declutterStrikes(strikes);
 		if (visibleStrikes.length === 0) {
 			layersStore.set([]);
@@ -117,9 +128,19 @@ export const createLightningLayerController = ({
 				sizeMaxPixels: 12,
 				getPosition: (strike) => [strike.position[0], strike.position[1], 8000],
 				getOrientation: () => [0, 200, 20],
-				getScale: (strike) => [strike.baseScale, strike.baseScale, strike.baseScale],
-				getColor: () => [255, 255, 255, 255],
-				_lighting: 'pbr',
+				getScale: (strike) => {
+					const ageMs = nowMs - strike.bornAtMs;
+					const fadeProgress = clamp((ageMs - pollIntervalMs) / pollIntervalMs, 0, 1);
+					// Shrink while fading to ensure visibility change even on textured models.
+					const fadeScale = strike.baseScale * (1 - fadeProgress);
+					return [fadeScale, fadeScale, fadeScale];
+				},
+				getColor: (strike) => {
+					const ageMs = nowMs - strike.bornAtMs;
+					const fadeProgress = clamp((ageMs - pollIntervalMs) / pollIntervalMs, 0, 1);
+					return [255, 255, 255, Math.round(255 * (1 - fadeProgress))];
+				},
+				_lighting: 'pbr'
 			})
 		]);
 	};
@@ -132,8 +153,7 @@ export const createLightningLayerController = ({
 		const ingestTimeMs = Date.now();
 
 		for (const feature of response.features) {
-			const strikeId = `${satellite}:${feature.id}`;
-			if (seenStrikeIds.has(strikeId)) continue;
+			const strikeId = `${satellite}:${feature.id}:${completedPollCount + 1}:${strikeSequence++}`;
 
 			const parsedFeatureTimeMs = Date.parse(feature.time);
 			const timestampMs = Number.isFinite(parsedFeatureTimeMs)
@@ -147,9 +167,9 @@ export const createLightningLayerController = ({
 				position: [feature.longitude, feature.latitude, 0],
 				intensityNorm,
 				baseScale: scaleFromIntensity(intensityNorm),
-				timestampMs
+				timestampMs,
+				bornAtMs: ingestTimeMs
 			});
-			seenStrikeIds.add(strikeId);
 		}
 
 		return nextStrikes;
@@ -180,6 +200,7 @@ export const createLightningLayerController = ({
 		if (additions.length > 0) {
 			strikes = [...strikes, ...additions];
 		}
+		completedPollCount += 1;
 		publishLayers();
 	};
 
@@ -191,6 +212,9 @@ export const createLightningLayerController = ({
 		pollIntervalId = setInterval(() => {
 			void pollLightning();
 		}, pollIntervalMs);
+		fadeIntervalId = setInterval(() => {
+			publishLayers();
+		}, FADE_TICK_MS);
 	};
 
 	const stop = (): void => {
@@ -198,6 +222,10 @@ export const createLightningLayerController = ({
 		if (pollIntervalId !== undefined) {
 			clearInterval(pollIntervalId);
 			pollIntervalId = undefined;
+		}
+		if (fadeIntervalId !== undefined) {
+			clearInterval(fadeIntervalId);
+			fadeIntervalId = undefined;
 		}
 	};
 
