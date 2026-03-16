@@ -1,219 +1,305 @@
-import type { DeckProps } from '@deck.gl/core';
-import { ScenegraphLayer } from '@deck.gl/mesh-layers';
-import { writable, type Readable } from 'svelte/store';
+import type { LayerSpecification, Map as MapLibreMap } from 'maplibre-gl';
 
 type Satellite = 'goes-east' | 'goes-west';
 
-type LightningFeature = {
+export type LightningStrikePayload = {
 	id: string;
+	satellite: Satellite;
 	latitude: number;
 	longitude: number;
 	time: string;
 	energy: number | null;
+	confidence?: number;
+	qualityFlag?: string;
+	source?: string;
 };
 
 type LightningRecentResponse = {
-	satellite: string;
-	count: number;
+	generatedAt: string;
+	windowSeconds: number;
+	strikes: LightningStrikePayload[];
+};
+
+type BufferedLightningStrike = {
+	id: string;
+	position: [number, number];
+	baseWeight: number;
+	eventTimeMs: number;
+	bornAtMs: number;
+};
+
+type LightningFeature = {
+	type: 'Feature';
+	geometry: {
+		type: 'Point';
+		coordinates: [number, number];
+	};
+	properties: {
+		id: string;
+		weight: number;
+		baseWeight: number;
+	};
+};
+
+type LightningFeatureCollection = {
+	type: 'FeatureCollection';
 	features: LightningFeature[];
 };
 
-type LightningStrike = {
-	id: string;
-	position: [number, number, number];
-	intensityNorm: number;
-	baseScale: number;
-	timestampMs: number;
-	bornAtMs: number;
+type MapLibreGeoJsonSource = {
+	setData: (data: LightningFeatureCollection) => void;
 };
 
 type LightningLayerControllerOptions = {
 	apiPath?: string;
-	scenegraphPath?: string;
 	pollIntervalMs?: number;
+	decayWindowMs?: number;
+	limit?: number;
+	maxBufferedStrikes?: number;
 };
 
 type LightningLayerController = {
-	layers: Readable<DeckProps['layers']>;
+	attach: (map: MapLibreMap) => void;
 	start: () => void;
 	stop: () => void;
 };
 
-const ENERGY_LOG10_MIN = -15;
+const LIGHTNING_SOURCE_ID = 'lightning-source';
+const LIGHTNING_LAYER_ID = 'lightning-heatmap';
+const ENERGY_LOG10_MIN = -15.5;
 const ENERGY_LOG10_MAX = -11;
-// Decrease this and fix the lightning declutter shit
-const DECLUTTER_DISTANCE_METERS = 150_000;
-const FADE_TICK_MS = 100;
+const ENERGY_FLOOR_WEIGHT = 0.05;
+const FADE_TICK_MS = 2_500;
+const DEFAULT_DECAY_WINDOW_MS = 120_000;
+const DEFAULT_LIMIT = 600;
+const DEFAULT_MAX_BUFFERED_STRIKES = 900;
 
 const clamp = (value: number, min: number, max: number): number =>
 	Math.min(max, Math.max(min, value));
 
-const normalizeEnergy = (energy: number | null): number => {
-	if (typeof energy !== 'number' || !Number.isFinite(energy) || energy <= 0) return 0;
-	const energyLog10 = Math.log10(Math.abs(energy));
-	return clamp((energyLog10 - ENERGY_LOG10_MIN) / (ENERGY_LOG10_MAX - ENERGY_LOG10_MIN), 0, 1);
-};
+const emptyFeatureCollection = (): LightningFeatureCollection => ({
+	type: 'FeatureCollection',
+	features: []
+});
 
-const scaleFromIntensity = (intensityNorm: number): number => {
-	// Keep visible separation between weak/strong strikes even with pixel clamping.
-	return 0.3 + intensityNorm * 1.7;
-};
-
-const distanceMeters = (a: LightningStrike, b: LightningStrike): number => {
-	const [lon1, lat1] = a.position;
-	const [lon2, lat2] = b.position;
-	const avgLatRad = (((lat1 + lat2) / 2) * Math.PI) / 180;
-	const dy = (lat2 - lat1) * 111_320;
-	const dx = (lon2 - lon1) * 111_320 * Math.cos(avgLatRad);
-	return Math.sqrt(dx * dx + dy * dy);
-};
-
-const declutterStrikes = (input: LightningStrike[]): LightningStrike[] => {
-	if (input.length <= 1) return input;
-
-	const ranked = [...input].sort((a, b) => {
-		if (b.intensityNorm !== a.intensityNorm) return b.intensityNorm - a.intensityNorm;
-		return b.timestampMs - a.timestampMs;
-	});
-
-	const kept: LightningStrike[] = [];
-	for (const strike of ranked) {
-		const hasNearby = kept.some(
-			(existing) => distanceMeters(existing, strike) < DECLUTTER_DISTANCE_METERS
-		);
-		if (!hasNearby) kept.push(strike);
+const buildHeatmapLayer = (): LayerSpecification => ({
+	id: LIGHTNING_LAYER_ID,
+	type: 'heatmap',
+	source: LIGHTNING_SOURCE_ID,
+	paint: {
+		'heatmap-weight': ['coalesce', ['get', 'weight'], 0],
+		'heatmap-intensity': 1.25,
+		'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 0, 8, 2, 14, 5, 22],
+		'heatmap-opacity': ['interpolate', ['linear'], ['zoom'], 0, 0.65, 4, 0.85],
+		'heatmap-color': [
+			'interpolate',
+			['linear'],
+			['heatmap-density'],
+			0,
+			'rgba(0, 24, 66, 0)',
+			0.2,
+			'rgba(20, 80, 155, 0.45)',
+			0.4,
+			'rgba(77, 152, 205, 0.65)',
+			0.6,
+			'rgba(240, 196, 77, 0.8)',
+			0.8,
+			'rgba(255, 127, 45, 0.92)',
+			1,
+			'rgba(255, 63, 32, 1)'
+		]
 	}
+});
 
-	return kept;
+export const normalizeEnergy = (energy: number | null): number => {
+	if (typeof energy !== 'number' || !Number.isFinite(energy) || energy <= 0)
+		return ENERGY_FLOOR_WEIGHT;
+	const energyLog10 = Math.log10(Math.abs(energy));
+	return (
+		clamp((energyLog10 - ENERGY_LOG10_MIN) / (ENERGY_LOG10_MAX - ENERGY_LOG10_MIN), 0, 1) ||
+		ENERGY_FLOOR_WEIGHT
+	);
+};
+
+export const computeDecayFactor = (ageMs: number, decayWindowMs: number): number => {
+	if (decayWindowMs <= 0) return 0;
+	return clamp(1 - ageMs / decayWindowMs, 0, 1);
 };
 
 export const createLightningLayerController = ({
 	apiPath = '/api/lightning/recent',
-	scenegraphPath = '/models/lightning-bolt.gltf',
-	pollIntervalMs = 30_000
+	pollIntervalMs = 15_000,
+	decayWindowMs = DEFAULT_DECAY_WINDOW_MS,
+	limit = DEFAULT_LIMIT,
+	maxBufferedStrikes = DEFAULT_MAX_BUFFERED_STRIKES
 }: LightningLayerControllerOptions): LightningLayerController => {
-	const layersStore = writable<DeckProps['layers']>([]);
-
 	const normalizedApiPath = apiPath.trim() || '/api/lightning/recent';
+	const normalizedDecayWindowMs = Math.max(5_000, decayWindowMs);
 
-	let strikes: LightningStrike[] = [];
+	let strikesById = new globalThis.Map<string, BufferedLightningStrike>();
 	let pollIntervalId: ReturnType<typeof setInterval> | undefined;
 	let fadeIntervalId: ReturnType<typeof setInterval> | undefined;
-	let completedPollCount = 0;
-	let strikeSequence = 0;
+	let mapRef: MapLibreMap | undefined;
+	let styleLoadHandler: (() => void) | undefined;
 	let running = false;
 
-	const updateStrikeLifecycles = (nowMs: number): void => {
-		const maxLifetimeMs = pollIntervalMs * 2;
-		strikes = strikes.filter((strike) => nowMs - strike.bornAtMs < maxLifetimeMs);
+	const getSource = (): MapLibreGeoJsonSource | undefined => {
+		if (!mapRef) return undefined;
+		return mapRef.getSource(LIGHTNING_SOURCE_ID) as unknown as MapLibreGeoJsonSource | undefined;
 	};
 
-	const publishLayers = (): void => {
+	const ensureMapArtifacts = (): void => {
+		if (!mapRef) return;
+		if (!mapRef.getSource(LIGHTNING_SOURCE_ID)) {
+			mapRef.addSource(LIGHTNING_SOURCE_ID, {
+				type: 'geojson',
+				data: emptyFeatureCollection()
+			});
+		}
+		if (!mapRef.getLayer(LIGHTNING_LAYER_ID)) {
+			mapRef.addLayer(buildHeatmapLayer());
+		}
+	};
+
+	const removeMapArtifacts = (): void => {
+		if (!mapRef) return;
+		if (mapRef.getLayer(LIGHTNING_LAYER_ID)) {
+			mapRef.removeLayer(LIGHTNING_LAYER_ID);
+		}
+		if (mapRef.getSource(LIGHTNING_SOURCE_ID)) {
+			mapRef.removeSource(LIGHTNING_SOURCE_ID);
+		}
+	};
+
+	const toBufferedStrike = (
+		strike: LightningStrikePayload,
+		nowMs: number
+	): BufferedLightningStrike | undefined => {
+		if (!Number.isFinite(strike.latitude) || !Number.isFinite(strike.longitude)) return undefined;
+		const id =
+			strike.id.trim() ||
+			`${strike.satellite}:${strike.longitude}:${strike.latitude}:${strike.time}`;
+		const parsedTimeMs = Date.parse(strike.time);
+		const eventTimeMs = Number.isFinite(parsedTimeMs) ? Math.min(parsedTimeMs, nowMs) : nowMs;
+		return {
+			id,
+			position: [strike.longitude, strike.latitude],
+			baseWeight: normalizeEnergy(strike.energy),
+			eventTimeMs,
+			bornAtMs: nowMs
+		};
+	};
+
+	const upsertStrikes = (incomingStrikes: LightningStrikePayload[]): void => {
 		const nowMs = Date.now();
-		updateStrikeLifecycles(nowMs);
-		const visibleStrikes = declutterStrikes(strikes);
-		if (visibleStrikes.length === 0) {
-			layersStore.set([]);
-			return;
+		for (const incomingStrike of incomingStrikes) {
+			const nextStrike = toBufferedStrike(incomingStrike, nowMs);
+			if (!nextStrike) continue;
+			const existing = strikesById.get(nextStrike.id);
+			if (!existing || nextStrike.eventTimeMs > existing.eventTimeMs) {
+				strikesById.set(nextStrike.id, nextStrike);
+			}
 		}
 
-		layersStore.set([
-			new ScenegraphLayer<LightningStrike>({
-				id: 'lightning-scenegraph',
-				data: visibleStrikes,
-				scenegraph: scenegraphPath,
-				pickable: false,
-				sizeScale: 1,
-				sizeMinPixels: 12,
-				sizeMaxPixels: 12,
-				getPosition: (strike) => [strike.position[0], strike.position[1], 8000],
-				getOrientation: () => [0, 200, 20],
-				getScale: (strike) => {
-					const ageMs = nowMs - strike.bornAtMs;
-					const fadeProgress = clamp((ageMs - pollIntervalMs) / pollIntervalMs, 0, 1);
-					// Shrink while fading to ensure visibility change even on textured models.
-					const fadeScale = strike.baseScale * (1 - fadeProgress);
-					return [fadeScale, fadeScale, fadeScale];
-				},
-				getColor: (strike) => {
-					const ageMs = nowMs - strike.bornAtMs;
-					const fadeProgress = clamp((ageMs - pollIntervalMs) / pollIntervalMs, 0, 1);
-					return [255, 255, 255, Math.round(255 * (1 - fadeProgress))];
-				},
-				_lighting: 'pbr'
-			})
-		]);
+		if (strikesById.size > maxBufferedStrikes) {
+			const oldestFirst = [...strikesById.values()].sort((a, b) => a.bornAtMs - b.bornAtMs);
+			const overflowCount = strikesById.size - maxBufferedStrikes;
+			for (let index = 0; index < overflowCount; index += 1) {
+				const oldestStrike = oldestFirst[index];
+				if (oldestStrike) strikesById.delete(oldestStrike.id);
+			}
+		}
 	};
 
-	const mapResponseToStrikes = (
-		satellite: Satellite,
-		response: LightningRecentResponse
-	): LightningStrike[] => {
-		const nextStrikes: LightningStrike[] = [];
-		const ingestTimeMs = Date.now();
+	const removeExpiredStrikes = (nowMs: number): void => {
+		for (const [strikeId, strike] of strikesById.entries()) {
+			const ageMs = Math.max(0, nowMs - strike.bornAtMs);
+			if (ageMs >= normalizedDecayWindowMs) {
+				strikesById.delete(strikeId);
+			}
+		}
+	};
 
-		for (const feature of response.features) {
-			const strikeId = `${satellite}:${feature.id}:${completedPollCount + 1}:${strikeSequence++}`;
+	const publishSourceData = (): void => {
+		const nowMs = Date.now();
+		removeExpiredStrikes(nowMs);
+		const source = getSource();
+		if (!source) return;
 
-			const parsedFeatureTimeMs = Date.parse(feature.time);
-			const timestampMs = Number.isFinite(parsedFeatureTimeMs)
-				? Math.min(parsedFeatureTimeMs, ingestTimeMs)
-				: ingestTimeMs;
-			if (!Number.isFinite(feature.latitude) || !Number.isFinite(feature.longitude)) continue;
-
-			const intensityNorm = normalizeEnergy(feature.energy);
-			nextStrikes.push({
-				id: strikeId,
-				position: [feature.longitude, feature.latitude, 0],
-				intensityNorm,
-				baseScale: scaleFromIntensity(intensityNorm),
-				timestampMs,
-				bornAtMs: ingestTimeMs
+		const features: LightningFeature[] = [];
+		for (const strike of strikesById.values()) {
+			const ageMs = Math.max(0, nowMs - strike.bornAtMs);
+			const decayedWeight = strike.baseWeight * computeDecayFactor(ageMs, normalizedDecayWindowMs);
+			if (decayedWeight <= 0) continue;
+			features.push({
+				type: 'Feature',
+				geometry: { type: 'Point', coordinates: strike.position },
+				properties: { id: strike.id, weight: decayedWeight, baseWeight: strike.baseWeight }
 			});
 		}
 
-		return nextStrikes;
+		source.setData({
+			type: 'FeatureCollection',
+			features
+		});
 	};
 
-	const fetchSatelliteStrikes = async (satellite: Satellite): Promise<LightningStrike[]> => {
-		const query = new URLSearchParams({ satellite });
+	const fetchRecentStrikes = async (): Promise<LightningStrikePayload[]> => {
+		const query = new URLSearchParams({
+			windowSeconds: String(Math.round(normalizedDecayWindowMs / 1000))
+		});
+		if (typeof limit === 'number' && Number.isFinite(limit) && limit > 0) {
+			query.set('limit', String(Math.floor(limit)));
+		}
 		const response = await fetch(`${normalizedApiPath}?${query.toString()}`);
 		if (!response.ok) {
-			throw new Error(`Failed to fetch ${satellite} lightning data`);
+			throw new Error('Failed to fetch lightning heatmap data');
 		}
 
 		const payload = (await response.json()) as LightningRecentResponse;
-		return mapResponseToStrikes(satellite, payload);
+		if (!Array.isArray(payload.strikes)) return [];
+		return payload.strikes;
 	};
 
 	const pollLightning = async (): Promise<void> => {
-		const requests = await Promise.allSettled([
-			fetchSatelliteStrikes('goes-east'),
-			fetchSatelliteStrikes('goes-west')
-		]);
-
-		const additions: LightningStrike[] = [];
-		for (const request of requests) {
-			if (request.status === 'fulfilled') additions.push(...request.value);
+		try {
+			const incomingStrikes = await fetchRecentStrikes();
+			if (incomingStrikes.length > 0) {
+				upsertStrikes(incomingStrikes);
+			}
+		} catch {
+			// Keep rendering existing decaying strikes if polling temporarily fails.
 		}
+		publishSourceData();
+	};
 
-		if (additions.length > 0) {
-			strikes = [...strikes, ...additions];
+	const attach = (map: MapLibreMap): void => {
+		if (mapRef === map) return;
+		if (mapRef && styleLoadHandler) mapRef.off('style.load', styleLoadHandler);
+		mapRef = map;
+		styleLoadHandler = () => {
+			if (!running) return;
+			ensureMapArtifacts();
+			publishSourceData();
+		};
+		mapRef.on('style.load', styleLoadHandler);
+		if (running) {
+			ensureMapArtifacts();
+			publishSourceData();
 		}
-		completedPollCount += 1;
-		publishLayers();
 	};
 
 	const start = (): void => {
 		if (running) return;
 		running = true;
 
+		ensureMapArtifacts();
 		void pollLightning();
 		pollIntervalId = setInterval(() => {
 			void pollLightning();
 		}, pollIntervalMs);
 		fadeIntervalId = setInterval(() => {
-			publishLayers();
+			publishSourceData();
 		}, FADE_TICK_MS);
 	};
 
@@ -223,14 +309,16 @@ export const createLightningLayerController = ({
 			clearInterval(pollIntervalId);
 			pollIntervalId = undefined;
 		}
-		if (fadeIntervalId !== undefined) {
-			clearInterval(fadeIntervalId);
-			fadeIntervalId = undefined;
-		}
+		if (fadeIntervalId !== undefined) clearInterval(fadeIntervalId);
+		fadeIntervalId = undefined;
+		strikesById = new globalThis.Map<string, BufferedLightningStrike>();
+		const source = getSource();
+		source?.setData(emptyFeatureCollection());
+		removeMapArtifacts();
 	};
 
 	return {
-		layers: { subscribe: layersStore.subscribe },
+		attach,
 		start,
 		stop
 	};

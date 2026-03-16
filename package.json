@@ -49,6 +49,7 @@
 		"vitest-browser-svelte": "^2.0.2"
 	},
 	"dependencies": {
+		"@deck.gl/aggregation-layers": "^9.2.11",
 		"@deck.gl/core": "^9.2.10",
 		"@deck.gl/layers": "^9.2.11",
 		"@deck.gl/mapbox": "^9.2.10",
