@@ -66,6 +66,7 @@ type LightningLayerController = {
 
 const LIGHTNING_SOURCE_ID = 'lightning-source';
 const LIGHTNING_LAYER_ID = 'lightning-heatmap';
+const LIGHTNING_STRIKE_LAYER_ID = 'lightning-strikes';
 const ENERGY_LOG10_MIN = -15.5;
 const ENERGY_LOG10_MAX = -11;
 const ENERGY_FLOOR_WEIGHT = 0.05;
@@ -88,9 +89,10 @@ const buildHeatmapLayer = (): LayerSpecification => ({
 	source: LIGHTNING_SOURCE_ID,
 	paint: {
 		'heatmap-weight': ['coalesce', ['get', 'weight'], 0],
-		'heatmap-intensity': 1.25,
-		'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 0, 8, 2, 14, 5, 22],
-		'heatmap-opacity': ['interpolate', ['linear'], ['zoom'], 0, 0.65, 4, 0.85],
+		// Tuned to approximate the prior Deck heatmap look and color progression.
+		'heatmap-intensity': 1.05,
+		'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 0, 10, 2, 14, 4, 20, 6, 26],
+		'heatmap-opacity': ['interpolate', ['linear'], ['zoom'], 0, 0.58, 4, 0.82],
 		'heatmap-color': [
 			'interpolate',
 			['linear'],
@@ -98,15 +100,55 @@ const buildHeatmapLayer = (): LayerSpecification => ({
 			0,
 			'rgba(0, 24, 66, 0)',
 			0.2,
-			'rgba(20, 80, 155, 0.45)',
+			'rgba(20, 80, 155, 0.35)',
 			0.4,
-			'rgba(77, 152, 205, 0.65)',
+			'rgba(77, 152, 205, 0.55)',
 			0.6,
-			'rgba(240, 196, 77, 0.8)',
+			'rgba(240, 196, 77, 0.7)',
 			0.8,
-			'rgba(255, 127, 45, 0.92)',
+			'rgba(255, 127, 45, 0.86)',
 			1,
 			'rgba(255, 63, 32, 1)'
+		]
+	}
+});
+
+const buildStrikeLayer = (): LayerSpecification => ({
+	id: LIGHTNING_STRIKE_LAYER_ID,
+	type: 'circle',
+	source: LIGHTNING_SOURCE_ID,
+	minzoom: 5,
+	paint: {
+		'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 2.4, 7, 4.5, 9, 6.5],
+		'circle-color': [
+			'interpolate',
+			['linear'],
+			['coalesce', ['get', 'weight'], 0],
+			0,
+			'rgba(240, 196, 77, 0.65)',
+			0.35,
+			'rgba(255, 127, 45, 0.85)',
+			1,
+			'rgba(255, 63, 32, 1)'
+		],
+		'circle-opacity': ['interpolate', ['linear'], ['zoom'], 5, 0, 6.7, 0.08, 7, 0.35, 8, 0.82, 9, 0.96],
+		'circle-blur': ['interpolate', ['linear'], ['zoom'], 5, 0.7, 7, 0.45, 9, 0.3],
+		'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 5, 0.8, 7, 1.2, 9, 1.5],
+		'circle-stroke-color': 'rgba(255, 244, 191, 0.9)',
+		'circle-stroke-opacity': [
+			'interpolate',
+			['linear'],
+			['zoom'],
+			5,
+			0,
+			6.8,
+			0.04,
+			7,
+			0.28,
+			8,
+			0.85,
+			9,
+			0.95
 		]
 	}
 });
@@ -159,12 +201,18 @@ export const createLightningLayerController = ({
 		if (!mapRef.getLayer(LIGHTNING_LAYER_ID)) {
 			mapRef.addLayer(buildHeatmapLayer());
 		}
+		if (!mapRef.getLayer(LIGHTNING_STRIKE_LAYER_ID)) {
+			mapRef.addLayer(buildStrikeLayer());
+		}
 	};
 
 	const removeMapArtifacts = (): void => {
 		if (!mapRef) return;
 		if (mapRef.getLayer(LIGHTNING_LAYER_ID)) {
 			mapRef.removeLayer(LIGHTNING_LAYER_ID);
+		}
+		if (mapRef.getLayer(LIGHTNING_STRIKE_LAYER_ID)) {
+			mapRef.removeLayer(LIGHTNING_STRIKE_LAYER_ID);
 		}
 		if (mapRef.getSource(LIGHTNING_SOURCE_ID)) {
 			mapRef.removeSource(LIGHTNING_SOURCE_ID);

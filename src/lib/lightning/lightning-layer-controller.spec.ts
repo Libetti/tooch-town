@@ -135,6 +135,7 @@ describe('lightning maplibre controller', () => {
 
 		expect(mockMap.state.sources.has('lightning-source')).toBe(true);
 		expect(mockMap.state.layers.has('lightning-heatmap')).toBe(true);
+		expect(mockMap.state.layers.has('lightning-strikes')).toBe(true);
 		const source = mockMap.state.sources.get('lightning-source');
 		expect(source).toBeDefined();
 		const featureCollection = source?.lastData as {
@@ -212,6 +213,7 @@ describe('lightning maplibre controller', () => {
 
 		controller.stop();
 		expect(mockMap.state.layers.has('lightning-heatmap')).toBe(false);
+		expect(mockMap.state.layers.has('lightning-strikes')).toBe(false);
 		expect(mockMap.state.sources.has('lightning-source')).toBe(false);
 	});
 
@@ -240,6 +242,7 @@ describe('lightning maplibre controller', () => {
 		mockMap.emit('style.load');
 
 		expect(mockMap.state.layers.has('lightning-heatmap')).toBe(true);
+		expect(mockMap.state.layers.has('lightning-strikes')).toBe(true);
 		expect(mockMap.state.sources.has('lightning-source')).toBe(true);
 		controller.stop();
 	});
