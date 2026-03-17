@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { PUBLIC_MAPTILER_KEY } from '$env/static/public';
+	import { createWeatherRasterLayerManager } from '$lib/weather/weather-raster-layer';
 	import { onMount } from 'svelte';
 	import maplibregl, { type Map, type StyleSpecification } from 'maplibre-gl';
 	import 'maplibre-gl/dist/maplibre-gl.css';
@@ -42,7 +43,18 @@
 	export let pitch = 8;
 	export let spinDegreesPerSecond = 0.45;
 	export let interactionsEnabled = false;
+	export let weatherVisible = true;
+	export let weatherTileTemplate: string | undefined = undefined;
 	export let onMapReady: ((map: Map) => void) | undefined = undefined;
+
+	const weatherLayerManager = createWeatherRasterLayerManager({
+		sourceId: 'weather-cmi',
+		layerId: 'weather-cmi-layer',
+		beforeLayerId: 'moon-orbit-layer',
+		opacity: 0.72,
+		fadeOutZoomStart: 8,
+		fadeOutZoomEnd: 10
+	});
 
 	const wrapLongitude = (longitude: number): number => {
 		return ((((longitude + 180) % 360) + 360) % 360) - 180;
@@ -106,6 +118,12 @@
 
 			map?.setProjection({ type: 'globe' });
 			if (map) makeMapBackgroundTransparent(map);
+			if (map) {
+				weatherLayerManager.sync(map, {
+					visible: weatherVisible,
+					tileTemplate: weatherTileTemplate
+				});
+			}
 			if (map) onMapReady?.(map);
 
 			if (prefersReducedMotion || !map) return;
@@ -136,6 +154,7 @@
 
 		return () => {
 			if (frameId !== undefined) cancelAnimationFrame(frameId);
+			if (map) weatherLayerManager.clear(map);
 			map?.remove();
 			map = undefined;
 		};
@@ -151,7 +170,20 @@
 		map.once('style.load', () => {
 			map?.setProjection({ type: 'globe' });
 			if (map) makeMapBackgroundTransparent(map);
+			if (map) {
+				weatherLayerManager.resetAppliedState();
+				weatherLayerManager.sync(map, {
+					visible: weatherVisible,
+					tileTemplate: weatherTileTemplate
+				});
+			}
 		});
+	}
+
+	$: if (map) {
+		const visible = weatherVisible;
+		const tileTemplate = weatherTileTemplate;
+		weatherLayerManager.sync(map, { visible, tileTemplate });
 	}
 </script>
 

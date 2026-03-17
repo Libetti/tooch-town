@@ -1,31 +1,54 @@
 <script lang="ts">
 	import { PUBLIC_MAPTILER_KEY } from '$env/static/public';
-	import type { DeckProps } from '@deck.gl/core';
-	import DeckGlOverlay from '$lib/components/DeckGlOverlay.svelte';
 	import { createLightningLayerController } from '$lib/lightning/lightning-layer-controller';
+	import { createCmiRasterLayerController } from '$lib/weather/cmi-raster-layer-controller';
 	import { mountMoonOrbitLayer } from '$lib/space/moon-orbit-layer';
 	import SpinningGlobeBackground from '$lib/components/SpinningGlobeBackground.svelte';
 	import { onMount } from 'svelte';
-	import type { Map, StyleSpecification } from 'maplibre-gl';
+	import type { StyleSpecification } from 'maplibre-gl';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
 	let cardsCollapsed = $state(false);
 	let selectedBaseLayer = $state<'satellite' | 'streets'>('satellite');
-	let deckMap = $state<Map | undefined>(undefined);
-	let deckLayers = $state<DeckProps['layers']>([]);
+	let selectedWeatherSatellite = $state<'goes-east' | 'goes-west'>('goes-east');
+	let weatherLayerEnabled = $state(false);
+	let weatherTileTemplate = $state<string | undefined>(undefined);
 	let removeMoonOrbitLayer: (() => void) | undefined;
 
 	const lightningLayerController = createLightningLayerController({
 		apiPath: '/api/lightning/recent',
 		pollIntervalMs: 15_000
 	});
+	const cmiRasterLayerController = createCmiRasterLayerController({
+		apiPath: '/api/imagery/cmi/ch13/frames',
+		tilePathPrefix: '/api/imagery/cmi/ch13/tiles',
+		satellite: 'goes-east',
+		visible: false,
+		frameLimit: 12,
+		pollHintSeconds: 10,
+		animationIntervalMs: 700
+	});
+
+	$effect(() => {
+		cmiRasterLayerController.setSatellite(selectedWeatherSatellite);
+	});
+
+	$effect(() => {
+		cmiRasterLayerController.setVisible(weatherLayerEnabled);
+	});
 
 	onMount(() => {
+		const unsubscribeWeather = cmiRasterLayerController.tileTemplate.subscribe((tileTemplate) => {
+			weatherTileTemplate = tileTemplate;
+		});
 		lightningLayerController.start();
+		cmiRasterLayerController.start();
 
 		return () => {
+			unsubscribeWeather();
 			lightningLayerController.stop();
+			cmiRasterLayerController.stop();
 			removeMoonOrbitLayer?.();
 			removeMoonOrbitLayer = undefined;
 		};
@@ -106,8 +129,9 @@
 	pitch={0}
 	spinDegreesPerSecond={0.6}
 	interactionsEnabled={cardsCollapsed}
+	weatherVisible={weatherLayerEnabled}
+	weatherTileTemplate={weatherTileTemplate}
 	onMapReady={(map) => {
-		deckMap = map;
 		lightningLayerController.attach(map);
 		removeMoonOrbitLayer?.();
 		removeMoonOrbitLayer = mountMoonOrbitLayer(map, {
@@ -120,7 +144,6 @@
 		});
 	}}
 />
-<DeckGlOverlay map={deckMap} layers={deckLayers} />
 
 {#if !cardsCollapsed}
 	<main class="landing">
@@ -189,6 +212,28 @@
 			<select id="base-layer-select" bind:value={selectedBaseLayer}>
 				<option value="satellite">Satellite</option>
 				<option value="streets">Streets</option>
+			</select>
+		</label>
+		<label class="weather-toggle-control" for="weather-toggle">
+			Weather
+			<input
+				id="weather-toggle"
+				type="checkbox"
+				checked={weatherLayerEnabled}
+				oninput={(event) => {
+					weatherLayerEnabled = (event.currentTarget as HTMLInputElement).checked;
+				}}
+			/>
+		</label>
+		<label class="weather-satellite-control" for="weather-satellite-select">
+			Satellite
+			<select
+				id="weather-satellite-select"
+				bind:value={selectedWeatherSatellite}
+				disabled={!weatherLayerEnabled}
+			>
+				<option value="goes-east">GOES-East</option>
+				<option value="goes-west">GOES-West</option>
 			</select>
 		</label>
 	</div>
@@ -340,6 +385,35 @@
 	}
 
 	.base-layer-control select {
+		background: rgba(12, 24, 42, 0.95);
+		color: #f5f8ff;
+		border: 1px solid rgba(166, 198, 255, 0.35);
+		border-radius: 999px;
+		padding: 0.2rem 0.5rem;
+		font-size: 0.82rem;
+	}
+
+	.weather-toggle-control,
+	.weather-satellite-control {
+		display: flex;
+		align-items: center;
+		gap: 0.45rem;
+		border: 1px solid rgba(166, 198, 255, 0.3);
+		background: rgba(7, 16, 29, 0.84);
+		color: #f5f8ff;
+		border-radius: 999px;
+		padding: 0.35rem 0.55rem 0.35rem 0.75rem;
+		font-size: 0.82rem;
+		backdrop-filter: blur(8px);
+	}
+
+	.weather-toggle-control input {
+		inline-size: 1rem;
+		block-size: 1rem;
+		accent-color: #ffc67f;
+	}
+
+	.weather-satellite-control select {
 		background: rgba(12, 24, 42, 0.95);
 		color: #f5f8ff;
 		border: 1px solid rgba(166, 198, 255, 0.35);
