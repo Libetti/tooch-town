@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { PUBLIC_MAPTILER_KEY } from '$env/static/public';
+	import { createWeatherRasterLayerManager } from '$lib/weather/weather-raster-layer';
 	import { onMount } from 'svelte';
 	import maplibregl, { type Map, type StyleSpecification } from 'maplibre-gl';
 	import 'maplibre-gl/dist/maplibre-gl.css';
@@ -46,9 +47,14 @@
 	export let weatherTileTemplate: string | undefined = undefined;
 	export let onMapReady: ((map: Map) => void) | undefined = undefined;
 
-	const WEATHER_SOURCE_ID = 'weather-cmi';
-	const WEATHER_LAYER_ID = 'weather-cmi-layer';
-	const WEATHER_LAYER_OPACITY = 0.75;
+	const weatherLayerManager = createWeatherRasterLayerManager({
+		sourceId: 'weather-cmi',
+		layerId: 'weather-cmi-layer',
+		beforeLayerId: 'moon-orbit-layer',
+		opacity: 0.72,
+		fadeOutZoomStart: 8,
+		fadeOutZoomEnd: 10
+	});
 
 	const wrapLongitude = (longitude: number): number => {
 		return ((((longitude + 180) % 360) + 360) % 360) - 180;
@@ -82,39 +88,6 @@
 		}
 	};
 
-	const removeWeatherLayer = (targetMap: Map): void => {
-		if (targetMap.getLayer(WEATHER_LAYER_ID)) {
-			targetMap.removeLayer(WEATHER_LAYER_ID);
-		}
-		if (targetMap.getSource(WEATHER_SOURCE_ID)) {
-			targetMap.removeSource(WEATHER_SOURCE_ID);
-		}
-	};
-
-	const syncWeatherLayer = (targetMap: Map): void => {
-		if (!targetMap.isStyleLoaded()) return;
-
-		if (!weatherVisible || !weatherTileTemplate) {
-			removeWeatherLayer(targetMap);
-			return;
-		}
-
-		removeWeatherLayer(targetMap);
-		targetMap.addSource(WEATHER_SOURCE_ID, {
-			type: 'raster',
-			tiles: [weatherTileTemplate],
-			tileSize: 256
-		});
-		targetMap.addLayer({
-			id: WEATHER_LAYER_ID,
-			type: 'raster',
-			source: WEATHER_SOURCE_ID,
-			paint: {
-				'raster-opacity': WEATHER_LAYER_OPACITY
-			}
-		});
-	};
-
 	onMount(() => {
 		const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -145,7 +118,12 @@
 
 			map?.setProjection({ type: 'globe' });
 			if (map) makeMapBackgroundTransparent(map);
-			if (map) syncWeatherLayer(map);
+			if (map) {
+				weatherLayerManager.sync(map, {
+					visible: weatherVisible,
+					tileTemplate: weatherTileTemplate
+				});
+			}
 			if (map) onMapReady?.(map);
 
 			if (prefersReducedMotion || !map) return;
@@ -176,7 +154,7 @@
 
 		return () => {
 			if (frameId !== undefined) cancelAnimationFrame(frameId);
-			if (map) removeWeatherLayer(map);
+			if (map) weatherLayerManager.clear(map);
 			map?.remove();
 			map = undefined;
 		};
@@ -192,12 +170,20 @@
 		map.once('style.load', () => {
 			map?.setProjection({ type: 'globe' });
 			if (map) makeMapBackgroundTransparent(map);
-			if (map) syncWeatherLayer(map);
+			if (map) {
+				weatherLayerManager.resetAppliedState();
+				weatherLayerManager.sync(map, {
+					visible: weatherVisible,
+					tileTemplate: weatherTileTemplate
+				});
+			}
 		});
 	}
 
 	$: if (map) {
-		syncWeatherLayer(map);
+		const visible = weatherVisible;
+		const tileTemplate = weatherTileTemplate;
+		weatherLayerManager.sync(map, { visible, tileTemplate });
 	}
 </script>
 

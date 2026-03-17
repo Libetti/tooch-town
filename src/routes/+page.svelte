@@ -12,7 +12,7 @@
 	let cardsCollapsed = $state(false);
 	let selectedBaseLayer = $state<'satellite' | 'streets'>('satellite');
 	let selectedWeatherSatellite = $state<'goes-east' | 'goes-west'>('goes-east');
-	let weatherLayerEnabled = $state(true);
+	let weatherLayerEnabled = $state(false);
 	let weatherTileTemplate = $state<string | undefined>(undefined);
 	let removeMoonOrbitLayer: (() => void) | undefined;
 
@@ -24,7 +24,7 @@
 		apiPath: '/api/imagery/cmi/ch13/frames',
 		tilePathPrefix: '/api/imagery/cmi/ch13/tiles',
 		satellite: 'goes-east',
-		visible: true,
+		visible: false,
 		frameLimit: 12,
 		pollHintSeconds: 10,
 		animationIntervalMs: 700
@@ -216,7 +216,14 @@
 		</label>
 		<label class="weather-toggle-control" for="weather-toggle">
 			Weather
-			<input id="weather-toggle" type="checkbox" bind:checked={weatherLayerEnabled} />
+			<input
+				id="weather-toggle"
+				type="checkbox"
+				checked={weatherLayerEnabled}
+				oninput={(event) => {
+					weatherLayerEnabled = (event.currentTarget as HTMLInputElement).checked;
+				}}
+			/>
 		</label>
 		<label class="weather-satellite-control" for="weather-satellite-select">
 			Satellite

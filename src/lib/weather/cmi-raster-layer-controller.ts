@@ -35,7 +35,7 @@ type CmiRasterLayerController = {
 	setVisible: (visible: boolean) => void;
 };
 
-const FALLBACK_POLL_INTERVAL_MS = 10_000;
+const FALLBACK_POLL_INTERVAL_MS = 30_000;
 
 const isValidSatellite = (value: string): value is Satellite =>
 	value === 'goes-east' || value === 'goes-west';
@@ -60,7 +60,8 @@ export const createCmiRasterLayerController = ({
 	const tileTemplateStore = writable<string | undefined>(undefined);
 
 	const normalizedApiPath = apiPath.trim() || '/api/imagery/cmi/ch13/frames';
-	const normalizedTilePathPrefix = tilePathPrefix.replace(/\/+$/, '') || '/api/imagery/cmi/ch13/tiles';
+	const normalizedTilePathPrefix =
+		tilePathPrefix.replace(/\/+$/, '') || '/api/imagery/cmi/ch13/tiles';
 
 	let activeSatellite: Satellite = satellite;
 	let weatherVisible = visible;
@@ -119,7 +120,10 @@ export const createCmiRasterLayerController = ({
 		if (animationIntervalId !== undefined) return;
 		animationIntervalId = setInterval(() => {
 			if (!weatherVisible || frames.length <= 1) return;
-			currentFrameIndex = (currentFrameIndex + 1) % frames.length;
+			// Animate forward through available frames once, then hold on the latest frame
+			// until fresh metadata arrives.
+			if (currentFrameIndex >= frames.length - 1) return;
+			currentFrameIndex += 1;
 			publishCurrentFrame();
 		}, animationIntervalMs);
 	};
