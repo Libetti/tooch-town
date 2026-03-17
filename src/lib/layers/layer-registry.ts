@@ -5,6 +5,7 @@ export type WeatherSatelliteId = 'goes-east' | 'goes-west';
 export type BaseMapOption = {
 	id: BaseLayerId;
 	label: string;
+	description?: string;
 };
 
 export type ToggleControlDefinition = {

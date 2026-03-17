@@ -116,7 +116,7 @@
 		>
 			<header class="panel-header">
 				<h2 id="layer-sidebar-title">Layers</h2>
-				<button type="button" class="close-sidebar" onclick={closeSidebar}>Close Layers</button>
+				<button type="button" class="close-sidebar" onclick={closeSidebar}>X</button>
 			</header>
 
 			<BaseMapSection
@@ -187,8 +187,15 @@
 		border-radius: 999px;
 		background: rgba(12, 24, 42, 0.95);
 		color: #f5f8ff;
-		font-size: 0.84rem;
-		padding: 0.35rem 0.75rem;
+		font-size: 0.82rem;
+		font-weight: 500;
+		width: 1.75rem;
+		height: 1.75rem;
+		padding: 0;
+		line-height: 1;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
 		cursor: pointer;
 	}
 

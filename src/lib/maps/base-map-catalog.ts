@@ -233,6 +233,27 @@ const createMapTilerStyleUrl = (styleId: string, maptilerKey: string): string =>
 	return `https://api.maptiler.com/maps/${styleId}/style.json?key=${maptilerKey}`;
 };
 
+const getBaseMapDescription = (baseLayerId: BaseLayerId): string => {
+	if (baseLayerId === 'satellite') return 'Aerial imagery with minimal labels.';
+	if (baseLayerId === 'hybrid') return 'Satellite imagery with roads and labels.';
+	if (baseLayerId === 'openstreetmap') return 'Classic OpenStreetMap cartography.';
+	if (baseLayerId === 'ocean') return 'Marine-focused map with ocean detail.';
+	if (baseLayerId === 'dataviz') return 'High-contrast style for data overlays.';
+	if (baseLayerId === 'dataviz-dark') return 'Dark data visualization basemap.';
+	if (baseLayerId === 'dataviz-light') return 'Light data visualization basemap.';
+	if (baseLayerId === 'backdrop') return 'Muted backdrop to keep overlays prominent.';
+	if (baseLayerId === 'backdrop-dark') return 'Dark muted backdrop for overlays.';
+	if (baseLayerId.includes('streets')) return 'General-purpose street map for everyday context.';
+	if (baseLayerId.includes('outdoor')) return 'Terrain-oriented map for hiking and outdoor routes.';
+	if (baseLayerId.includes('winter')) return 'Winter-themed terrain style.';
+	if (baseLayerId.includes('basic')) return 'Simple neutral basemap with reduced detail.';
+	if (baseLayerId.includes('bright')) return 'Colorful high-clarity cartographic style.';
+	if (baseLayerId.includes('topo')) return 'Topographic style with elevation-focused detail.';
+	if (baseLayerId.includes('voyager')) return 'Balanced reference style with readable labels.';
+	if (baseLayerId.includes('toner')) return 'Black-and-white high-contrast style.';
+	return 'MapTiler basemap style.';
+};
+
 const getRequiredBaseMap = (
 	baseMapId: BaseLayerId,
 	collection: Map<BaseLayerId, BaseMapCatalogEntry>
@@ -246,13 +267,13 @@ export const getBaseMapOptions = (maptilerKey?: string): BaseMapOption[] => {
 	if (maptilerKey) {
 		return BASE_LAYER_IDS.map((baseLayerId) => {
 			const baseMap = getRequiredBaseMap(baseLayerId, MAPTILER_BASE_MAPS_BY_ID);
-			return { id: baseLayerId, label: baseMap.label };
+			return { id: baseLayerId, label: baseMap.label, description: getBaseMapDescription(baseLayerId) };
 		});
 	}
 
 	return KEYLESS_BASE_LAYER_IDS.map((baseLayerId) => {
 		const baseMap = getRequiredBaseMap(baseLayerId, KEYLESS_BASE_MAPS_BY_ID);
-		return { id: baseLayerId, label: baseMap.label };
+		return { id: baseLayerId, label: baseMap.label, description: getBaseMapDescription(baseLayerId) };
 	});
 };
 
