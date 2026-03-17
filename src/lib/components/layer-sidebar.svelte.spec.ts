@@ -42,21 +42,21 @@ describe('LayerSidebar', () => {
 			selectedBaseLayer: 'satellite',
 			weatherEnabled: false,
 			selectedWeatherSatellite: 'goes-east',
-			registry: makeRegistry(false)
-		});
-
-		view.component.$on('baseLayerChange', (event: CustomEvent<{ value: string }>) => {
-			baseLayerChanges.push(event.detail);
-		});
-		view.component.$on('layerToggle', (event: CustomEvent<{ layerId: string; enabled: boolean }>) => {
-			layerToggles.push(event.detail);
-		});
-		view.component.$on(
-			'layerControlChange',
-			(event: CustomEvent<{ layerId: string; controlId: string; value: string | number | boolean }>) => {
-				controlChanges.push(event.detail);
+			registry: makeRegistry(false),
+			onBaseLayerChange: (detail: { value: string }) => {
+				baseLayerChanges.push(detail);
+			},
+			onLayerToggle: (detail: { layerId: string; enabled: boolean }) => {
+				layerToggles.push(detail);
+			},
+			onLayerControlChange: (detail: {
+				layerId: string;
+				controlId: string;
+				value: string | number | boolean;
+			}) => {
+				controlChanges.push(detail);
 			}
-		);
+		});
 
 		await expect.element(page.getByRole('dialog', { name: 'Layers' })).toBeInTheDocument();
 		await expect.element(page.getByRole('radio', { name: 'Satellite' })).toBeInTheDocument();
@@ -70,7 +70,20 @@ describe('LayerSidebar', () => {
 			selectedBaseLayer: 'streets',
 			weatherEnabled: true,
 			selectedWeatherSatellite: 'goes-east',
-			registry: makeRegistry(true)
+			registry: makeRegistry(true),
+			onBaseLayerChange: (detail: { value: string }) => {
+				baseLayerChanges.push(detail);
+			},
+			onLayerToggle: (detail: { layerId: string; enabled: boolean }) => {
+				layerToggles.push(detail);
+			},
+			onLayerControlChange: (detail: {
+				layerId: string;
+				controlId: string;
+				value: string | number | boolean;
+			}) => {
+				controlChanges.push(detail);
+			}
 		});
 
 		const satelliteSelect = page.getByLabelText('Satellite Feed');

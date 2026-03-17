@@ -1,14 +1,8 @@
 <script lang="ts">
-	import { createEventDispatcher, tick } from 'svelte';
-	import type {
-		BaseLayerId,
-		ControlDefinition,
-		LayerRegistry,
-		SelectControlDefinition,
-		SliderControlDefinition,
-		ToggleControlDefinition,
-		WeatherSatelliteId
-	} from '$lib/layers/layer-registry';
+	import { tick } from 'svelte';
+	import BaseMapSection from '$lib/components/layer-sidebar/BaseMapSection.svelte';
+	import DataLayersSection from '$lib/components/layer-sidebar/DataLayersSection.svelte';
+	import type { BaseLayerId, LayerRegistry, WeatherSatelliteId } from '$lib/layers/layer-registry';
 
 	type Props = {
 		open?: boolean;
@@ -16,22 +10,25 @@
 		weatherEnabled?: boolean;
 		selectedWeatherSatellite?: WeatherSatelliteId;
 		registry?: LayerRegistry;
+		onClose?: () => void;
+		onBaseLayerChange?: (detail: { value: BaseLayerId }) => void;
+		onLayerToggle?: (detail: { layerId: string; enabled: boolean }) => void;
+		onLayerControlChange?: (detail: {
+			layerId: string;
+			controlId: string;
+			value: string | number | boolean;
+		}) => void;
 	};
 
 	let {
 		open = false,
 		selectedBaseLayer = 'satellite',
-		weatherEnabled = false,
-		selectedWeatherSatellite = 'goes-east',
-		registry = { baseMaps: [], layers: [] }
+		registry = { baseMaps: [], layers: [] },
+		onClose,
+		onBaseLayerChange,
+		onLayerToggle,
+		onLayerControlChange
 	}: Props = $props();
-
-	const dispatch = createEventDispatcher<{
-		close: void;
-		baseLayerChange: { value: BaseLayerId };
-		layerToggle: { layerId: string; enabled: boolean };
-		layerControlChange: { layerId: string; controlId: string; value: string | number | boolean };
-	}>();
 
 	let panelElement: HTMLElement | null = null;
 
@@ -39,19 +36,7 @@
 		'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 	const closeSidebar = () => {
-		dispatch('close');
-	};
-
-	const isSelectControl = (control: ControlDefinition): control is SelectControlDefinition => {
-		return control.kind === 'select';
-	};
-
-	const isToggleControl = (control: ControlDefinition): control is ToggleControlDefinition => {
-		return control.kind === 'toggle';
-	};
-
-	const isSliderControl = (control: ControlDefinition): control is SliderControlDefinition => {
-		return control.kind === 'slider';
+		onClose?.();
 	};
 
 	const focusFirstElement = () => {
@@ -133,126 +118,17 @@
 				<button type="button" class="close-sidebar" onclick={closeSidebar}>Close Layers</button>
 			</header>
 
-			<section class="sidebar-section" aria-labelledby="base-map-title">
-				<h3 id="base-map-title">Base Map</h3>
-				<fieldset class="base-map-options">
-					<legend class="sr-only">Base map options</legend>
-					{#each registry.baseMaps as option (option.id)}
-						<label class="base-map-option">
-							<input
-								class="toggle-box"
-								type="radio"
-								name="base-map"
-								value={option.id}
-								checked={selectedBaseLayer === option.id}
-								onchange={() => {
-									dispatch('baseLayerChange', { value: option.id });
-								}}
-							/>
-							<span>{option.label}</span>
-						</label>
-					{/each}
-				</fieldset>
-			</section>
+			<BaseMapSection
+				baseMaps={registry.baseMaps}
+				{selectedBaseLayer}
+				{onBaseLayerChange}
+			/>
 
-			<section class="sidebar-section" aria-labelledby="data-layers-title">
-				<h3 id="data-layers-title">Data Layers</h3>
-				<div class="layer-list">
-					{#each registry.layers as layer (layer.id)}
-						<article class="layer-card">
-							<div class="layer-toggle-row">
-								<label class="layer-toggle-label" for={`toggle-${layer.id}`}>
-									<input
-										id={`toggle-${layer.id}`}
-										class="toggle-box"
-										type="checkbox"
-										checked={layer.enabled}
-										oninput={(event) => {
-											dispatch('layerToggle', {
-												layerId: layer.id,
-												enabled: (event.currentTarget as HTMLInputElement).checked
-											});
-										}}
-									/>
-									<span>{layer.label}</span>
-								</label>
-							</div>
-							{#if layer.description}
-								<p class="layer-description">{layer.description}</p>
-							{/if}
-
-							{#if layer.controls && layer.controls.length > 0}
-								<div class="layer-controls">
-									{#each layer.controls as control (control.id)}
-										{#if isSelectControl(control)}
-											<label class="control-block" for={`control-${layer.id}-${control.id}`}>
-												<span>{control.label}</span>
-												<select
-													id={`control-${layer.id}-${control.id}`}
-													value={control.value}
-													disabled={control.disabled}
-													onchange={(event) => {
-														dispatch('layerControlChange', {
-															layerId: layer.id,
-															controlId: control.id,
-															value: (event.currentTarget as HTMLSelectElement).value
-														});
-													}}
-												>
-													{#each control.options as option (option.value)}
-														<option value={option.value}>{option.label}</option>
-													{/each}
-												</select>
-											</label>
-										{:else if isToggleControl(control)}
-											<label class="control-inline" for={`control-${layer.id}-${control.id}`}>
-												<input
-													id={`control-${layer.id}-${control.id}`}
-													class="toggle-box"
-													type="checkbox"
-													checked={control.value}
-													disabled={control.disabled}
-													oninput={(event) => {
-														dispatch('layerControlChange', {
-															layerId: layer.id,
-															controlId: control.id,
-															value: (event.currentTarget as HTMLInputElement).checked
-														});
-													}}
-												/>
-												<span>{control.label}</span>
-											</label>
-										{:else if isSliderControl(control)}
-											<label class="control-block" for={`control-${layer.id}-${control.id}`}>
-												<span>{control.label}</span>
-												<input
-													id={`control-${layer.id}-${control.id}`}
-													type="range"
-													min={control.min}
-													max={control.max}
-													step={control.step}
-													value={control.value}
-													disabled={control.disabled}
-													oninput={(event) => {
-														dispatch('layerControlChange', {
-															layerId: layer.id,
-															controlId: control.id,
-															value: Number((event.currentTarget as HTMLInputElement).value)
-														});
-													}}
-												/>
-											</label>
-										{/if}
-										{#if control.description}
-											<p class="control-description">{control.description}</p>
-										{/if}
-									{/each}
-								</div>
-							{/if}
-						</article>
-					{/each}
-				</div>
-			</section>
+			<DataLayersSection
+				layers={registry.layers}
+				{onLayerToggle}
+				{onLayerControlChange}
+			/>
 		</aside>
 	</div>
 {/if}
@@ -313,162 +189,6 @@
 		font-size: 0.84rem;
 		padding: 0.35rem 0.75rem;
 		cursor: pointer;
-	}
-
-	.sidebar-section {
-		display: grid;
-		gap: 0.7rem;
-	}
-
-	.sidebar-section h3 {
-		margin: 0;
-		font-size: 0.95rem;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-		color: rgba(229, 239, 255, 0.84);
-	}
-
-	.base-map-options {
-		margin: 0;
-		padding: 0;
-		display: grid;
-		gap: 0.55rem;
-		border: 0;
-	}
-
-	.base-map-option,
-	.layer-card,
-	.control-inline,
-	.control-block {
-		border: 1px solid var(--line);
-		background: rgba(10, 22, 39, 0.82);
-		border-radius: 0.75rem;
-	}
-
-	.base-map-option {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		padding: 0.55rem 0.7rem;
-		font-size: 0.92rem;
-	}
-
-	.layer-list {
-		display: grid;
-		gap: 0.65rem;
-	}
-
-	.layer-card {
-		display: grid;
-		gap: 0.55rem;
-		padding: 0.65rem 0.75rem;
-	}
-
-	.layer-toggle-row {
-		display: flex;
-		justify-content: flex-start;
-		align-items: center;
-	}
-
-	.layer-toggle-label {
-		display: flex;
-		align-items: center;
-		gap: 0.55rem;
-		font-size: 0.92rem;
-		font-weight: 600;
-	}
-
-	.toggle-box {
-		appearance: none;
-		-webkit-appearance: none;
-		width: 0.95rem;
-		height: 0.95rem;
-		border-radius: 0.22rem;
-		border: 1px solid rgba(166, 198, 255, 0.55);
-		background: rgba(12, 24, 42, 0.9);
-		cursor: pointer;
-		transition:
-			background-color 140ms ease,
-			border-color 140ms ease,
-			box-shadow 140ms ease;
-	}
-
-	.toggle-box:checked {
-		background: #34bf73;
-		border-color: #34bf73;
-		box-shadow: 0 0 0 2px rgba(52, 191, 115, 0.24);
-	}
-
-	.toggle-box:focus-visible {
-		outline: 2px solid rgba(52, 191, 115, 0.85);
-		outline-offset: 2px;
-	}
-
-	.toggle-box:disabled {
-		opacity: 0.55;
-		cursor: not-allowed;
-	}
-
-	.layer-description {
-		margin: 0;
-		font-size: 0.82rem;
-		color: rgba(214, 228, 250, 0.78);
-	}
-
-	.layer-controls {
-		display: grid;
-		gap: 0.5rem;
-	}
-
-	.control-inline,
-	.control-block {
-		display: flex;
-		align-items: center;
-		gap: 0.55rem;
-		padding: 0.5rem 0.6rem;
-		font-size: 0.84rem;
-	}
-
-	.control-block {
-		flex-direction: column;
-		align-items: flex-start;
-	}
-
-	.control-block input,
-	.control-block select {
-		accent-color: #ffc67f;
-	}
-
-	.control-block select,
-	.control-block input[type='range'] {
-		width: 100%;
-	}
-
-	.control-block select {
-		background: rgba(12, 24, 42, 0.95);
-		color: #f5f8ff;
-		border: 1px solid rgba(166, 198, 255, 0.35);
-		border-radius: 0.6rem;
-		padding: 0.35rem 0.5rem;
-		font-size: 0.84rem;
-	}
-
-	.control-description {
-		margin: -0.25rem 0 0;
-		font-size: 0.76rem;
-		color: rgba(214, 228, 250, 0.72);
-	}
-
-	.sr-only {
-		position: absolute;
-		width: 1px;
-		height: 1px;
-		padding: 0;
-		margin: -1px;
-		overflow: hidden;
-		clip: rect(0, 0, 0, 0);
-		white-space: nowrap;
-		border: 0;
 	}
 
 	@keyframes sidebar-slide-in {

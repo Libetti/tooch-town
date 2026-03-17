@@ -260,22 +260,22 @@
 	weatherEnabled={weatherLayerEnabled}
 	selectedWeatherSatellite={selectedWeatherSatellite}
 	registry={layerRegistry}
-	on:close={() => {
+	onClose={() => {
 		layerSidebarOpen = false;
 	}}
-	on:baseLayerChange={(event) => {
-		selectedBaseLayer = event.detail.value;
+	onBaseLayerChange={(detail) => {
+		selectedBaseLayer = detail.value;
 	}}
-	on:layerToggle={(event) => {
-		if (event.detail.layerId !== 'weather-cmi') return;
-		weatherLayerEnabled = event.detail.enabled;
+	onLayerToggle={(detail) => {
+		if (detail.layerId !== 'weather-cmi') return;
+		weatherLayerEnabled = detail.enabled;
 	}}
-	on:layerControlChange={(event) => {
-		if (event.detail.layerId !== 'weather-cmi') return;
-		if (event.detail.controlId !== 'satellite') return;
-		if (typeof event.detail.value !== 'string') return;
-		if (event.detail.value !== 'goes-east' && event.detail.value !== 'goes-west') return;
-		selectedWeatherSatellite = event.detail.value;
+	onLayerControlChange={(detail) => {
+		if (detail.layerId !== 'weather-cmi') return;
+		if (detail.controlId !== 'satellite') return;
+		if (typeof detail.value !== 'string') return;
+		if (detail.value !== 'goes-east' && detail.value !== 'goes-west') return;
+		selectedWeatherSatellite = detail.value;
 	}}
 />
 
