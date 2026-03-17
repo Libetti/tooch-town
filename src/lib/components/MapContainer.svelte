@@ -54,17 +54,6 @@
 		targetMap.touchZoomRotate.disable();
 	};
 
-	const makeMapBackgroundTransparent = (targetMap: Map) => {
-		const style = targetMap.getStyle();
-		if (!style?.layers) return;
-
-		for (const layer of style.layers) {
-			if (layer.type === 'background') {
-				targetMap.setPaintProperty(layer.id, 'background-opacity', 0);
-			}
-		}
-	};
-
 	onMount(() => {
 		const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -94,7 +83,6 @@
 			if (map) applyInteractionState(map, interactionsEnabled);
 
 			map?.setProjection({ type: 'globe' });
-			if (map) makeMapBackgroundTransparent(map);
 			if (map) {
 				weatherLayerManager.sync(map, {
 					visible: weatherVisible,
@@ -146,7 +134,6 @@
 		map.setStyle(styleUrl);
 		map.once('style.load', () => {
 			map?.setProjection({ type: 'globe' });
-			if (map) makeMapBackgroundTransparent(map);
 			if (map) {
 				weatherLayerManager.resetAppliedState();
 				weatherLayerManager.sync(map, {
