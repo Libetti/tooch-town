@@ -3,7 +3,7 @@
 	import { createLightningLayerController } from '$lib/lightning/lightning-layer-controller';
 	import { createCmiRasterLayerController } from '$lib/weather/cmi-raster-layer-controller';
 	import { mountMoonOrbitLayer } from '$lib/space/moon-orbit-layer';
-	import SpinningGlobeBackground from '$lib/components/SpinningGlobeBackground.svelte';
+	import MapContainer from '$lib/components/MapContainer.svelte';
 	import { onMount } from 'svelte';
 	import type { StyleSpecification } from 'maplibre-gl';
 	import type { PageData } from './$types';
@@ -122,7 +122,7 @@
 	/>
 </svelte:head>
 
-<SpinningGlobeBackground
+<MapContainer
 	styleUrl={selectedStyleUrl}
 	center={data.initialCenter}
 	zoom={2}
