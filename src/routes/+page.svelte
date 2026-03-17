@@ -18,18 +18,13 @@
 
 	const lightningLayerController = createLightningLayerController({
 		apiPath: '/api/lightning/recent',
-		scenegraphPath: '/models/Thunderstorm.glb',
-		pollIntervalMs:15_000
+		pollIntervalMs: 15_000
 	});
 
 	onMount(() => {
-		const unsubscribe = lightningLayerController.layers.subscribe((layers) => {
-			deckLayers = layers;
-		});
 		lightningLayerController.start();
 
 		return () => {
-			unsubscribe();
 			lightningLayerController.stop();
 			removeMoonOrbitLayer?.();
 			removeMoonOrbitLayer = undefined;
@@ -113,6 +108,7 @@
 	interactionsEnabled={cardsCollapsed}
 	onMapReady={(map) => {
 		deckMap = map;
+		lightningLayerController.attach(map);
 		removeMoonOrbitLayer?.();
 		removeMoonOrbitLayer = mountMoonOrbitLayer(map, {
 			layerId: 'moon-orbit-layer',
@@ -124,7 +120,7 @@
 		});
 	}}
 />
-<DeckGlOverlay map={deckMap} layers={deckLayers} animate={false} />
+<DeckGlOverlay map={deckMap} layers={deckLayers} />
 
 {#if !cardsCollapsed}
 	<main class="landing">

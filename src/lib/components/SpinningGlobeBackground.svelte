@@ -162,7 +162,6 @@
 	<div class="glimmer glimmer-a"></div>
 	<div class="glimmer glimmer-b"></div>
 	<div bind:this={mapElement} class:interactive={interactionsEnabled} class="globe-map"></div>
-	<div class="space-vignette"></div>
 </div>
 
 <style>
@@ -177,8 +176,7 @@
 
 	.space-gradient,
 	.starfield,
-	.glimmer,
-	.space-vignette {
+	.glimmer {
 		position: absolute;
 		inset: 0;
 	}
@@ -271,18 +269,6 @@
 		pointer-events: auto;
 	}
 
-	.space-vignette {
-		background:
-			radial-gradient(
-				circle at 50% 45%,
-				rgba(110, 182, 255, 0.2) 0%,
-				rgba(75, 139, 222, 0.11) 27%,
-				rgba(7, 18, 38, 0) 48%,
-				rgba(2, 8, 20, 0.66) 100%
-			),
-			linear-gradient(to bottom, rgba(2, 8, 20, 0.26), rgba(2, 8, 20, 0.6));
-	}
-
 	@keyframes spaceDrift {
 		from {
 			transform: translate3d(0, 0, 0);
@@ -322,6 +308,25 @@
 	:global(.globe-shell .maplibregl-ctrl-bottom-right),
 	:global(.globe-shell .maplibregl-ctrl-top-left),
 	:global(.globe-shell .maplibregl-ctrl-top-right) {
+		display: none;
+	}
+
+	:global(.globe-shell .lightning-strike-popup) {
+		z-index: 6;
+	}
+
+	:global(.globe-shell .lightning-strike-popup .maplibregl-popup-content) {
+		background: rgba(7, 16, 29, 0.94);
+		color: #e8f1ff;
+		border: 1px solid rgba(166, 198, 255, 0.32);
+		border-radius: 0.7rem;
+		box-shadow: 0 16px 34px rgba(1, 6, 16, 0.55);
+		padding: 0.7rem 0.82rem;
+		line-height: 1.4;
+		font-family: 'Avenir Next', Avenir, 'Segoe UI', sans-serif;
+	}
+
+	:global(.globe-shell .lightning-strike-popup .maplibregl-popup-tip) {
 		display: none;
 	}
 
