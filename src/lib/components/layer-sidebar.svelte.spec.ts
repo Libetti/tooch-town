@@ -64,6 +64,7 @@ describe('LayerSidebar', () => {
 
 		await page.getByRole('radio', { name: 'Streets' }).click();
 		await page.getByRole('checkbox', { name: 'Weather' }).click();
+		await page.getByRole('button', { name: 'Options' }).click();
 
 		await view.rerender({
 			open: true,

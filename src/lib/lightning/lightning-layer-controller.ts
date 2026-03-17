@@ -75,6 +75,9 @@ type LightningLayerController = {
 	attach: (map: MapLibreMap) => void;
 	start: () => void;
 	stop: () => void;
+	setHeatmapVisible: (visible: boolean) => void;
+	setStrikesVisible: (visible: boolean) => void;
+	setSatelliteFilter: (satellite: Satellite | 'all') => void;
 };
 
 const LIGHTNING_SOURCE_ID = 'lightning-source';
@@ -214,6 +217,9 @@ export const createLightningLayerController = ({
 		layerId: LIGHTNING_STRIKE_LAYER_ID
 	});
 	let running = false;
+	let heatmapVisible = true;
+	let strikesVisible = true;
+	let satelliteFilter: Satellite | 'all' = 'all';
 
 	const getSource = (): MapLibreGeoJsonSource | undefined => {
 		if (!mapRef) return undefined;
@@ -233,6 +239,37 @@ export const createLightningLayerController = ({
 		}
 		if (!mapRef.getLayer(LIGHTNING_STRIKE_LAYER_ID)) {
 			mapRef.addLayer(buildStrikeLayer());
+		}
+		applyLayerPresentation();
+	};
+
+	const applyLayerPresentation = (): void => {
+		if (!mapRef) return;
+		if (mapRef.getLayer(LIGHTNING_LAYER_ID)) {
+			mapRef.setLayoutProperty(
+				LIGHTNING_LAYER_ID,
+				'visibility',
+				heatmapVisible ? 'visible' : 'none'
+			);
+		}
+		if (mapRef.getLayer(LIGHTNING_STRIKE_LAYER_ID)) {
+			mapRef.setLayoutProperty(
+				LIGHTNING_STRIKE_LAYER_ID,
+				'visibility',
+				strikesVisible ? 'visible' : 'none'
+			);
+		}
+		if (mapRef.getLayer(LIGHTNING_LAYER_ID)) {
+			mapRef.setFilter(
+				LIGHTNING_LAYER_ID,
+				satelliteFilter === 'all' ? null : ['==', ['get', 'satellite'], satelliteFilter]
+			);
+		}
+		if (mapRef.getLayer(LIGHTNING_STRIKE_LAYER_ID)) {
+			mapRef.setFilter(
+				LIGHTNING_STRIKE_LAYER_ID,
+				satelliteFilter === 'all' ? null : ['==', ['get', 'satellite'], satelliteFilter]
+			);
 		}
 	};
 
@@ -406,6 +443,21 @@ export const createLightningLayerController = ({
 		}, FADE_TICK_MS);
 	};
 
+	const setHeatmapVisible = (visible: boolean): void => {
+		heatmapVisible = visible;
+		applyLayerPresentation();
+	};
+
+	const setStrikesVisible = (visible: boolean): void => {
+		strikesVisible = visible;
+		applyLayerPresentation();
+	};
+
+	const setSatelliteFilter = (satellite: Satellite | 'all'): void => {
+		satelliteFilter = satellite;
+		applyLayerPresentation();
+	};
+
 	const stop = (): void => {
 		running = false;
 		if (pollIntervalId !== undefined) {
@@ -424,6 +476,9 @@ export const createLightningLayerController = ({
 	return {
 		attach,
 		start,
-		stop
+		stop,
+		setHeatmapVisible,
+		setStrikesVisible,
+		setSatelliteFilter
 	};
 };

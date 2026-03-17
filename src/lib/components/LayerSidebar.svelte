@@ -145,7 +145,7 @@
 		position: absolute;
 		inset: 0;
 		border: 0;
-		background: rgba(2, 7, 15, 0.52);
+		background: transparent;
 		animation: sidebar-fade 180ms ease-out;
 	}
 

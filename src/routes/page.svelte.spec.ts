@@ -56,6 +56,7 @@ describe('/+page.svelte', () => {
 		await expect.element(streetsRadio).toBeChecked();
 
 		const weatherToggle = page.getByRole('checkbox', { name: 'Weather' });
+		await page.getByRole('button', { name: 'Options' }).nth(1).click();
 		const satelliteSelect = page.getByLabelText('Satellite Feed');
 		await expect.element(satelliteSelect).toBeDisabled();
 
