@@ -17,7 +17,7 @@
 		{#each baseMaps as option (option.id)}
 			<label class="base-map-option sidebar-card">
 				<input
-					class="toggle-box"
+					class="toggle-circle"
 					type="radio"
 					name="base-map"
 					value={option.id}

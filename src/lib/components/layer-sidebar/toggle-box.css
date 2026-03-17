@@ -1,4 +1,4 @@
-:global(.toggle-box) {
+.toggle-box {
 	appearance: none;
 	-webkit-appearance: none;
 	width: 0.95rem;
@@ -13,23 +13,23 @@
 		box-shadow 140ms ease;
 }
 
-:global(.toggle-box:checked) {
-	background: #34bf73;
-	border-color: #34bf73;
-	box-shadow: 0 0 0 2px rgba(52, 191, 115, 0.24);
+.toggle-box:checked {
+	background: #49b88a;
+	border-color: #49b88a;
+	box-shadow: 0 0 0 2px rgba(73, 184, 138, 0.24);
 }
 
-:global(.toggle-box:focus-visible) {
-	outline: 2px solid rgba(52, 191, 115, 0.85);
+.toggle-box:focus-visible {
+	outline: 2px solid rgba(73, 184, 138, 0.85);
 	outline-offset: 2px;
 }
 
-:global(.toggle-box:disabled) {
+.toggle-box:disabled {
 	opacity: 0.55;
 	cursor: not-allowed;
 }
 
-:global(.toggle-circle) {
+.toggle-circle {
 	appearance: none;
 	-webkit-appearance: none;
 	width: 0.95rem;
@@ -44,18 +44,18 @@
 		box-shadow 140ms ease;
 }
 
-:global(.toggle-circle:checked) {
-	background: #34bf73;
-	border-color: #34bf73;
-	box-shadow: 0 0 0 2px rgba(52, 191, 115, 0.24);
+.toggle-circle:checked {
+	background: #49b88a;
+	border-color: #49b88a;
+	box-shadow: 0 0 0 2px rgba(73, 184, 138, 0.24);
 }
 
-:global(.toggle-circle:focus-visible) {
-	outline: 2px solid rgba(52, 191, 115, 0.85);
+.toggle-circle:focus-visible {
+	outline: 2px solid rgba(73, 184, 138, 0.85);
 	outline-offset: 2px;
 }
 
-:global(.toggle-circle:disabled) {
+.toggle-circle:disabled {
 	opacity: 0.55;
 	cursor: not-allowed;
 }
