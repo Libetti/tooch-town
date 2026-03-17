@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { PUBLIC_MAPTILER_KEY } from '$env/static/public';
+	import { DEFAULT_BASE_LAYER_ID, getBaseMapStyle } from '$lib/maps/base-map-catalog';
 	import { createWeatherRasterLayerManager } from '$lib/weather/weather-raster-layer';
 	import { onMount } from 'svelte';
 	import maplibregl, { type Map, type StyleSpecification } from 'maplibre-gl';
@@ -10,34 +11,10 @@
 	let frameId: number | undefined;
 	let activeStyle: string | StyleSpecification | undefined;
 
-	const LEGACY_SATELLITE_STYLE: StyleSpecification = {
-		version: 8,
-		sources: {
-			esriSatellite: {
-				type: 'raster',
-				tiles: [
-					'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
-				],
-				tileSize: 256,
-				attribution: 'Source: Esri, Maxar, Earthstar Geographics, and the GIS user community'
-			}
-		},
-		layers: [
-			{
-				id: 'esri-satellite-base',
-				type: 'raster',
-				source: 'esriSatellite',
-				minzoom: 0,
-				maxzoom: 22
-			}
-		]
-	};
-
-	const MAPTILER_SATELLITE_STYLE = PUBLIC_MAPTILER_KEY
-		? `https://api.maptiler.com/maps/satellite/style.json?key=${PUBLIC_MAPTILER_KEY}`
-		: LEGACY_SATELLITE_STYLE;
-
-	export let styleUrl: string | StyleSpecification = MAPTILER_SATELLITE_STYLE;
+	export let styleUrl: string | StyleSpecification = getBaseMapStyle(
+		DEFAULT_BASE_LAYER_ID,
+		PUBLIC_MAPTILER_KEY
+	);
 	export let center: [number, number] = [-75.566, 39.662];
 	export let zoom = 1.15;
 	export let pitch = 8;

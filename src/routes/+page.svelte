@@ -3,16 +3,21 @@
 	import { createLightningLayerController } from '$lib/lightning/lightning-layer-controller';
 	import { createCmiRasterLayerController } from '$lib/weather/cmi-raster-layer-controller';
 	import { mountMoonOrbitLayer } from '$lib/space/moon-orbit-layer';
+	import {
+		DEFAULT_BASE_LAYER_ID,
+		getBaseMapOptions,
+		getBaseMapStyle
+	} from '$lib/maps/base-map-catalog';
+	import type { BaseLayerId } from '$lib/maps/base-layer-ids';
 	import MapContainer from '$lib/components/MapContainer.svelte';
 	import LayerSidebar from '$lib/components/LayerSidebar.svelte';
 	import { onMount } from 'svelte';
-	import type { StyleSpecification } from 'maplibre-gl';
 	import type { LayerRegistry } from '$lib/layers/layer-registry';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
 	let cardsCollapsed = $state(false);
-	let selectedBaseLayer = $state<'satellite' | 'streets'>('satellite');
+	let selectedBaseLayer = $state<BaseLayerId>(DEFAULT_BASE_LAYER_ID);
 	let selectedWeatherSatellite = $state<'goes-east' | 'goes-west'>('goes-east');
 	let weatherLayerEnabled = $state(false);
 	let weatherTileTemplate = $state<string | undefined>(undefined);
@@ -61,43 +66,8 @@
 		};
 	});
 
-	const FALLBACK_STREETS_STYLE: StyleSpecification = {
-		version: 8,
-		sources: {
-			osm: {
-				type: 'raster',
-				tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-				tileSize: 256,
-				attribution: '© OpenStreetMap contributors'
-			}
-		},
-		layers: [{ id: 'osm-base', type: 'raster', source: 'osm' }]
-	};
-	const FALLBACK_SATELLITE_STYLE: StyleSpecification = {
-		version: 8,
-		sources: {
-			esriSatellite: {
-				type: 'raster',
-				tiles: [
-					'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
-				],
-				tileSize: 256,
-				attribution: 'Source: Esri, Maxar, Earthstar Geographics, and the GIS user community'
-			}
-		},
-		layers: [{ id: 'esri-satellite-base', type: 'raster', source: 'esriSatellite' }]
-	};
-	const SATELLITE_STYLE_URL = PUBLIC_MAPTILER_KEY
-		? `https://api.maptiler.com/maps/satellite/style.json?key=${PUBLIC_MAPTILER_KEY}`
-		: undefined;
-	const STREETS_STYLE_URL = PUBLIC_MAPTILER_KEY
-		? `https://api.maptiler.com/maps/streets/style.json?key=${PUBLIC_MAPTILER_KEY}`
-		: undefined;
-	const selectedStyleUrl = $derived<string | StyleSpecification>(
-		selectedBaseLayer === 'streets'
-			? (STREETS_STYLE_URL ?? FALLBACK_STREETS_STYLE)
-			: (SATELLITE_STYLE_URL ?? FALLBACK_SATELLITE_STYLE)
-	);
+	const baseMapOptions = getBaseMapOptions(PUBLIC_MAPTILER_KEY);
+	const selectedStyleUrl = $derived(getBaseMapStyle(selectedBaseLayer, PUBLIC_MAPTILER_KEY));
 
 	const projects = [
 		{
@@ -121,10 +91,7 @@
 	];
 
 	const layerRegistry = $derived<LayerRegistry>({
-		baseMaps: [
-			{ id: 'satellite', label: 'Satellite' },
-			{ id: 'streets', label: 'Streets' }
-		],
+		baseMaps: baseMapOptions,
 		layers: [
 			{
 				id: 'weather-cmi',

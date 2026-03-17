@@ -2,7 +2,8 @@
 	import { tick } from 'svelte';
 	import BaseMapSection from '$lib/components/layer-sidebar/BaseMapSection.svelte';
 	import DataLayersSection from '$lib/components/layer-sidebar/DataLayersSection.svelte';
-	import type { BaseLayerId, LayerRegistry, WeatherSatelliteId } from '$lib/layers/layer-registry';
+	import type { BaseLayerId } from '$lib/maps/base-layer-ids';
+	import type { LayerRegistry, WeatherSatelliteId } from '$lib/layers/layer-registry';
 
 	type Props = {
 		open?: boolean;
@@ -115,7 +116,7 @@
 		>
 			<header class="panel-header">
 				<h2 id="layer-sidebar-title">Layers</h2>
-				<button type="button" class="close-sidebar" onclick={closeSidebar}>Close Layers</button>
+				<button type="button" class="close-sidebar" onclick={closeSidebar}>X</button>
 			</header>
 
 			<BaseMapSection
@@ -186,8 +187,15 @@
 		border-radius: 999px;
 		background: rgba(12, 24, 42, 0.95);
 		color: #f5f8ff;
-		font-size: 0.84rem;
-		padding: 0.35rem 0.75rem;
+		font-size: 0.82rem;
+		font-weight: 500;
+		width: 1.75rem;
+		height: 1.75rem;
+		padding: 0;
+		line-height: 1;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
 		cursor: pointer;
 	}
 

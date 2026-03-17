@@ -1,9 +1,11 @@
-export type BaseLayerId = 'satellite' | 'streets';
+import type { BaseLayerId } from '$lib/maps/base-layer-ids';
+
 export type WeatherSatelliteId = 'goes-east' | 'goes-west';
 
 export type BaseMapOption = {
 	id: BaseLayerId;
 	label: string;
+	description?: string;
 };
 
 export type ToggleControlDefinition = {
