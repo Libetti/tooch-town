@@ -2,7 +2,8 @@
 	import { tick } from 'svelte';
 	import BaseMapSection from '$lib/components/layer-sidebar/BaseMapSection.svelte';
 	import DataLayersSection from '$lib/components/layer-sidebar/DataLayersSection.svelte';
-	import type { BaseLayerId, LayerRegistry, WeatherSatelliteId } from '$lib/layers/layer-registry';
+	import type { BaseLayerId } from '$lib/maps/base-layer-ids';
+	import type { LayerRegistry, WeatherSatelliteId } from '$lib/layers/layer-registry';
 
 	type Props = {
 		open?: boolean;

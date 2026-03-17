@@ -1,5 +1,6 @@
 <script lang="ts">
-	import type { BaseLayerId, BaseMapOption } from '$lib/layers/layer-registry';
+	import type { BaseLayerId } from '$lib/maps/base-layer-ids';
+	import type { BaseMapOption } from '$lib/layers/layer-registry';
 
 	type Props = {
 		selectedBaseLayer: BaseLayerId;
