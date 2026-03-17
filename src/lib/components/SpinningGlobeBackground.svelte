@@ -42,7 +42,13 @@
 	export let pitch = 8;
 	export let spinDegreesPerSecond = 0.45;
 	export let interactionsEnabled = false;
+	export let weatherVisible = true;
+	export let weatherTileTemplate: string | undefined = undefined;
 	export let onMapReady: ((map: Map) => void) | undefined = undefined;
+
+	const WEATHER_SOURCE_ID = 'weather-cmi';
+	const WEATHER_LAYER_ID = 'weather-cmi-layer';
+	const WEATHER_LAYER_OPACITY = 0.75;
 
 	const wrapLongitude = (longitude: number): number => {
 		return ((((longitude + 180) % 360) + 360) % 360) - 180;
@@ -76,6 +82,39 @@
 		}
 	};
 
+	const removeWeatherLayer = (targetMap: Map): void => {
+		if (targetMap.getLayer(WEATHER_LAYER_ID)) {
+			targetMap.removeLayer(WEATHER_LAYER_ID);
+		}
+		if (targetMap.getSource(WEATHER_SOURCE_ID)) {
+			targetMap.removeSource(WEATHER_SOURCE_ID);
+		}
+	};
+
+	const syncWeatherLayer = (targetMap: Map): void => {
+		if (!targetMap.isStyleLoaded()) return;
+
+		if (!weatherVisible || !weatherTileTemplate) {
+			removeWeatherLayer(targetMap);
+			return;
+		}
+
+		removeWeatherLayer(targetMap);
+		targetMap.addSource(WEATHER_SOURCE_ID, {
+			type: 'raster',
+			tiles: [weatherTileTemplate],
+			tileSize: 256
+		});
+		targetMap.addLayer({
+			id: WEATHER_LAYER_ID,
+			type: 'raster',
+			source: WEATHER_SOURCE_ID,
+			paint: {
+				'raster-opacity': WEATHER_LAYER_OPACITY
+			}
+		});
+	};
+
 	onMount(() => {
 		const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -106,6 +145,7 @@
 
 			map?.setProjection({ type: 'globe' });
 			if (map) makeMapBackgroundTransparent(map);
+			if (map) syncWeatherLayer(map);
 			if (map) onMapReady?.(map);
 
 			if (prefersReducedMotion || !map) return;
@@ -136,6 +176,7 @@
 
 		return () => {
 			if (frameId !== undefined) cancelAnimationFrame(frameId);
+			if (map) removeWeatherLayer(map);
 			map?.remove();
 			map = undefined;
 		};
@@ -151,7 +192,12 @@
 		map.once('style.load', () => {
 			map?.setProjection({ type: 'globe' });
 			if (map) makeMapBackgroundTransparent(map);
+			if (map) syncWeatherLayer(map);
 		});
+	}
+
+	$: if (map) {
+		syncWeatherLayer(map);
 	}
 </script>
 
