@@ -3,9 +3,11 @@
 	import { createLightningLayerController } from '$lib/lightning/lightning-layer-controller';
 	import { createCmiRasterLayerController } from '$lib/weather/cmi-raster-layer-controller';
 	import { mountMoonOrbitLayer } from '$lib/space/moon-orbit-layer';
-	import SpinningGlobeBackground from '$lib/components/SpinningGlobeBackground.svelte';
+	import MapContainer from '$lib/components/MapContainer.svelte';
+	import LayerSidebar from '$lib/components/LayerSidebar.svelte';
 	import { onMount } from 'svelte';
 	import type { StyleSpecification } from 'maplibre-gl';
+	import type { LayerRegistry } from '$lib/layers/layer-registry';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -14,6 +16,7 @@
 	let selectedWeatherSatellite = $state<'goes-east' | 'goes-west'>('goes-east');
 	let weatherLayerEnabled = $state(false);
 	let weatherTileTemplate = $state<string | undefined>(undefined);
+	let layerSidebarOpen = $state(false);
 	let removeMoonOrbitLayer: (() => void) | undefined;
 
 	const lightningLayerController = createLightningLayerController({
@@ -36,6 +39,10 @@
 
 	$effect(() => {
 		cmiRasterLayerController.setVisible(weatherLayerEnabled);
+	});
+
+	$effect(() => {
+		if (!cardsCollapsed) layerSidebarOpen = false;
 	});
 
 	onMount(() => {
@@ -112,6 +119,34 @@
 			label: 'DO NOT TOUCH'
 		}
 	];
+
+	const layerRegistry = $derived<LayerRegistry>({
+		baseMaps: [
+			{ id: 'satellite', label: 'Satellite' },
+			{ id: 'streets', label: 'Streets' }
+		],
+		layers: [
+			{
+				id: 'weather-cmi',
+				label: 'Weather',
+				enabled: weatherLayerEnabled,
+				description: 'GOES channel 13 cloud-top infrared imagery.',
+				controls: [
+					{
+						kind: 'select',
+						id: 'satellite',
+						label: 'Satellite Feed',
+						value: selectedWeatherSatellite,
+						disabled: !weatherLayerEnabled,
+						options: [
+							{ value: 'goes-east', label: 'GOES-East' },
+							{ value: 'goes-west', label: 'GOES-West' }
+						]
+					}
+				]
+			}
+		]
+	});
 </script>
 
 <svelte:head>
@@ -122,7 +157,7 @@
 	/>
 </svelte:head>
 
-<SpinningGlobeBackground
+<MapContainer
 	styleUrl={selectedStyleUrl}
 	center={data.initialCenter}
 	zoom={2}
@@ -205,39 +240,44 @@
 			class="restore-cards"
 			onclick={() => {
 				cardsCollapsed = false;
-			}}>Open Cards</button
+			}}>Open Menu</button
 		>
-		<label class="base-layer-control" for="base-layer-select">
-			Base Layer
-			<select id="base-layer-select" bind:value={selectedBaseLayer}>
-				<option value="satellite">Satellite</option>
-				<option value="streets">Streets</option>
-			</select>
-		</label>
-		<label class="weather-toggle-control" for="weather-toggle">
-			Weather
-			<input
-				id="weather-toggle"
-				type="checkbox"
-				checked={weatherLayerEnabled}
-				oninput={(event) => {
-					weatherLayerEnabled = (event.currentTarget as HTMLInputElement).checked;
-				}}
-			/>
-		</label>
-		<label class="weather-satellite-control" for="weather-satellite-select">
-			Satellite
-			<select
-				id="weather-satellite-select"
-				bind:value={selectedWeatherSatellite}
-				disabled={!weatherLayerEnabled}
-			>
-				<option value="goes-east">GOES-East</option>
-				<option value="goes-west">GOES-West</option>
-			</select>
-		</label>
+		<button
+			type="button"
+			class="open-layers"
+			aria-haspopup="dialog"
+			aria-expanded={layerSidebarOpen}
+			onclick={() => {
+				layerSidebarOpen = true;
+			}}>Layers</button
+		>
 	</div>
 {/if}
+
+<LayerSidebar
+	open={layerSidebarOpen}
+	selectedBaseLayer={selectedBaseLayer}
+	weatherEnabled={weatherLayerEnabled}
+	selectedWeatherSatellite={selectedWeatherSatellite}
+	registry={layerRegistry}
+	onClose={() => {
+		layerSidebarOpen = false;
+	}}
+	onBaseLayerChange={(detail) => {
+		selectedBaseLayer = detail.value;
+	}}
+	onLayerToggle={(detail) => {
+		if (detail.layerId !== 'weather-cmi') return;
+		weatherLayerEnabled = detail.enabled;
+	}}
+	onLayerControlChange={(detail) => {
+		if (detail.layerId !== 'weather-cmi') return;
+		if (detail.controlId !== 'satellite') return;
+		if (typeof detail.value !== 'string') return;
+		if (detail.value !== 'goes-east' && detail.value !== 'goes-west') return;
+		selectedWeatherSatellite = detail.value;
+	}}
+/>
 
 <style>
 	:global(body) {
@@ -371,7 +411,7 @@
 		background: rgba(12, 24, 42, 0.92);
 	}
 
-	.base-layer-control {
+	.open-layers {
 		display: flex;
 		align-items: center;
 		gap: 0.45rem;
@@ -379,47 +419,14 @@
 		background: rgba(7, 16, 29, 0.84);
 		color: #f5f8ff;
 		border-radius: 999px;
-		padding: 0.35rem 0.55rem 0.35rem 0.75rem;
-		font-size: 0.82rem;
+		padding: 0.52rem 1rem;
+		font-size: 0.9rem;
 		backdrop-filter: blur(8px);
+		cursor: pointer;
 	}
 
-	.base-layer-control select {
-		background: rgba(12, 24, 42, 0.95);
-		color: #f5f8ff;
-		border: 1px solid rgba(166, 198, 255, 0.35);
-		border-radius: 999px;
-		padding: 0.2rem 0.5rem;
-		font-size: 0.82rem;
-	}
-
-	.weather-toggle-control,
-	.weather-satellite-control {
-		display: flex;
-		align-items: center;
-		gap: 0.45rem;
-		border: 1px solid rgba(166, 198, 255, 0.3);
-		background: rgba(7, 16, 29, 0.84);
-		color: #f5f8ff;
-		border-radius: 999px;
-		padding: 0.35rem 0.55rem 0.35rem 0.75rem;
-		font-size: 0.82rem;
-		backdrop-filter: blur(8px);
-	}
-
-	.weather-toggle-control input {
-		inline-size: 1rem;
-		block-size: 1rem;
-		accent-color: #ffc67f;
-	}
-
-	.weather-satellite-control select {
-		background: rgba(12, 24, 42, 0.95);
-		color: #f5f8ff;
-		border: 1px solid rgba(166, 198, 255, 0.35);
-		border-radius: 999px;
-		padding: 0.2rem 0.5rem;
-		font-size: 0.82rem;
+	.open-layers:hover {
+		background: rgba(12, 24, 42, 0.92);
 	}
 
 	.content-grid {

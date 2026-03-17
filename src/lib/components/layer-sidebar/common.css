@@ -1,0 +1,30 @@
+.sidebar-section {
+	display: grid;
+	gap: 0.7rem;
+}
+
+.sidebar-section h3 {
+	margin: 0;
+	font-size: 0.95rem;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: rgba(229, 239, 255, 0.84);
+}
+
+.sidebar-card {
+	border: 1px solid rgba(166, 198, 255, 0.28);
+	background: rgba(10, 22, 39, 0.82);
+	border-radius: 0.75rem;
+}
+
+.sr-only {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border: 0;
+}
