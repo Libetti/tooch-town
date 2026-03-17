@@ -1,13 +1,11 @@
 <script lang="ts">
 	import { PUBLIC_MAPTILER_KEY } from '$env/static/public';
-	import type { DeckProps } from '@deck.gl/core';
-	import DeckGlOverlay from '$lib/components/DeckGlOverlay.svelte';
 	import { createLightningLayerController } from '$lib/lightning/lightning-layer-controller';
 	import { createCmiRasterLayerController } from '$lib/weather/cmi-raster-layer-controller';
 	import { mountMoonOrbitLayer } from '$lib/space/moon-orbit-layer';
 	import SpinningGlobeBackground from '$lib/components/SpinningGlobeBackground.svelte';
 	import { onMount } from 'svelte';
-	import type { Map, StyleSpecification } from 'maplibre-gl';
+	import type { StyleSpecification } from 'maplibre-gl';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -15,14 +13,11 @@
 	let selectedBaseLayer = $state<'satellite' | 'streets'>('satellite');
 	let selectedWeatherSatellite = $state<'goes-east' | 'goes-west'>('goes-east');
 	let weatherLayerEnabled = $state(true);
-	let deckMap = $state<Map | undefined>(undefined);
-	let deckLayers = $state<DeckProps['layers']>([]);
 	let weatherTileTemplate = $state<string | undefined>(undefined);
 	let removeMoonOrbitLayer: (() => void) | undefined;
 
 	const lightningLayerController = createLightningLayerController({
 		apiPath: '/api/lightning/recent',
-		scenegraphPath: '/models/Thunderstorm.glb',
 		pollIntervalMs: 15_000
 	});
 	const cmiRasterLayerController = createCmiRasterLayerController({
@@ -44,9 +39,6 @@
 	});
 
 	onMount(() => {
-		const unsubscribe = lightningLayerController.layers.subscribe((layers) => {
-			deckLayers = layers;
-		});
 		const unsubscribeWeather = cmiRasterLayerController.tileTemplate.subscribe((tileTemplate) => {
 			weatherTileTemplate = tileTemplate;
 		});
@@ -54,7 +46,6 @@
 		cmiRasterLayerController.start();
 
 		return () => {
-			unsubscribe();
 			unsubscribeWeather();
 			lightningLayerController.stop();
 			cmiRasterLayerController.stop();
@@ -141,7 +132,7 @@
 	weatherVisible={weatherLayerEnabled}
 	weatherTileTemplate={weatherTileTemplate}
 	onMapReady={(map) => {
-		deckMap = map;
+		lightningLayerController.attach(map);
 		removeMoonOrbitLayer?.();
 		removeMoonOrbitLayer = mountMoonOrbitLayer(map, {
 			layerId: 'moon-orbit-layer',
@@ -153,7 +144,6 @@
 		});
 	}}
 />
-<DeckGlOverlay map={deckMap} layers={deckLayers} animate={false} />
 
 {#if !cardsCollapsed}
 	<main class="landing">

@@ -22,7 +22,7 @@ export const createMoonOrbitLayer = ({
 	orbitAltitudeMeters = 450_000,
 	orbitInclinationDeg = 23.5,
 	modelScaleMeters = 50_000,
-	initialPhaseDeg = 0,
+	initialPhaseDeg = 0
 }: MoonOrbitLayerOptions): CustomLayerInterface => {
 	let mapRef: Map | undefined;
 	let renderer: THREE.WebGLRenderer | undefined;
@@ -129,7 +129,6 @@ export const createMoonOrbitLayer = ({
 			renderer.resetState();
 			renderer.render(scene, camera);
 			mapRef.triggerRepaint();
-			gl.flush();
 		},
 
 		onRemove() {
