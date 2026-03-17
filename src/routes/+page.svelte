@@ -20,6 +20,10 @@
 	let selectedBaseLayer = $state<BaseLayerId>(DEFAULT_BASE_LAYER_ID);
 	let selectedWeatherSatellite = $state<'goes-east' | 'goes-west'>('goes-east');
 	let weatherLayerEnabled = $state(false);
+	let lightningLayerEnabled = $state(true);
+	let lightningHeatmapVisible = $state(true);
+	let lightningStrikesVisible = $state(true);
+	let selectedLightningSatellite = $state<'all' | 'goes-east' | 'goes-west'>('all');
 	let weatherTileTemplate = $state<string | undefined>(undefined);
 	let layerSidebarOpen = $state(false);
 	let removeMoonOrbitLayer: (() => void) | undefined;
@@ -47,6 +51,26 @@
 	});
 
 	$effect(() => {
+		lightningLayerController.setHeatmapVisible(lightningHeatmapVisible);
+	});
+
+	$effect(() => {
+		lightningLayerController.setStrikesVisible(lightningStrikesVisible);
+	});
+
+	$effect(() => {
+		lightningLayerController.setSatelliteFilter(selectedLightningSatellite);
+	});
+
+	$effect(() => {
+		if (lightningLayerEnabled) {
+			lightningLayerController.start();
+			return;
+		}
+		lightningLayerController.stop();
+	});
+
+	$effect(() => {
 		if (!cardsCollapsed) layerSidebarOpen = false;
 	});
 
@@ -54,7 +78,6 @@
 		const unsubscribeWeather = cmiRasterLayerController.tileTemplate.subscribe((tileTemplate) => {
 			weatherTileTemplate = tileTemplate;
 		});
-		lightningLayerController.start();
 		cmiRasterLayerController.start();
 
 		return () => {
@@ -93,6 +116,40 @@
 	const layerRegistry = $derived<LayerRegistry>({
 		baseMaps: baseMapOptions,
 		layers: [
+			{
+				id: 'lightning',
+				label: 'Lightning',
+				enabled: lightningLayerEnabled,
+				description: 'GLM lightning strikes rendered as a decaying heatmap and strike points.',
+				controls: [
+					{
+						kind: 'toggle',
+						id: 'heatmap',
+						label: 'Heatmap',
+						value: lightningHeatmapVisible,
+						disabled: !lightningLayerEnabled
+					},
+					{
+						kind: 'toggle',
+						id: 'strikes',
+						label: 'Strike Points',
+						value: lightningStrikesVisible,
+						disabled: !lightningLayerEnabled
+					},
+					{
+						kind: 'select',
+						id: 'satellite',
+						label: 'Satellite Feed',
+						value: selectedLightningSatellite,
+						disabled: !lightningLayerEnabled,
+						options: [
+							{ value: 'all', label: 'All' },
+							{ value: 'goes-east', label: 'GOES-East' },
+							{ value: 'goes-west', label: 'GOES-West' }
+						]
+					}
+				]
+			},
 			{
 				id: 'weather-cmi',
 				label: 'Weather',
@@ -234,15 +291,44 @@
 		selectedBaseLayer = detail.value;
 	}}
 	onLayerToggle={(detail) => {
-		if (detail.layerId !== 'weather-cmi') return;
-		weatherLayerEnabled = detail.enabled;
+		if (detail.layerId === 'weather-cmi') {
+			weatherLayerEnabled = detail.enabled;
+			return;
+		}
+		if (detail.layerId === 'lightning') {
+			lightningLayerEnabled = detail.enabled;
+		}
 	}}
 	onLayerControlChange={(detail) => {
-		if (detail.layerId !== 'weather-cmi') return;
-		if (detail.controlId !== 'satellite') return;
-		if (typeof detail.value !== 'string') return;
-		if (detail.value !== 'goes-east' && detail.value !== 'goes-west') return;
-		selectedWeatherSatellite = detail.value;
+		if (detail.layerId === 'weather-cmi') {
+			if (detail.controlId !== 'satellite') return;
+			if (typeof detail.value !== 'string') return;
+			if (detail.value !== 'goes-east' && detail.value !== 'goes-west') return;
+			selectedWeatherSatellite = detail.value;
+			return;
+		}
+		if (detail.layerId === 'lightning') {
+			if (detail.controlId === 'heatmap') {
+				if (typeof detail.value !== 'boolean') return;
+				lightningHeatmapVisible = detail.value;
+				return;
+			}
+			if (detail.controlId === 'strikes') {
+				if (typeof detail.value !== 'boolean') return;
+				lightningStrikesVisible = detail.value;
+				return;
+			}
+			if (detail.controlId === 'satellite') {
+				if (typeof detail.value !== 'string') return;
+				if (
+					detail.value !== 'all' &&
+					detail.value !== 'goes-east' &&
+					detail.value !== 'goes-west'
+				)
+					return;
+				selectedLightningSatellite = detail.value;
+			}
+		}
 	}}
 />
 

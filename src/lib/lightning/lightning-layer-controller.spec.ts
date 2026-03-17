@@ -80,6 +80,8 @@ const createMockMap = (): MockMap => {
 		removeLayer: vi.fn((layerId: string) => {
 			state.layers.delete(layerId);
 		}),
+		setLayoutProperty: vi.fn(),
+		setFilter: vi.fn(),
 		on,
 		off
 	};
