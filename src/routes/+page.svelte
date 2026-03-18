@@ -3,13 +3,17 @@
 	import { createLightningLayerController } from '$lib/lightning/lightning-layer-controller';
 	import { createCmiRasterLayerController } from '$lib/weather/cmi-raster-layer-controller';
 	import { mountMoonOrbitLayer } from '$lib/space/moon-orbit-layer';
-	import { mountSpaceBattleLayer } from '$lib/space/space-battle-layer';
+	import {
+		mountSpaceBattleLayer,
+		type SpaceBattleLayerController
+	} from '$lib/space/space-battle-layer';
 	import {
 		DEFAULT_BASE_LAYER_ID,
 		getBaseMapOptions,
 		getBaseMapStyle
 	} from '$lib/maps/base-map-catalog';
 	import type { BaseLayerId } from '$lib/maps/base-layer-ids';
+	import type { Map as MapLibreMap } from 'maplibre-gl';
 	import MapContainer from '$lib/components/MapContainer.svelte';
 	import LayerSidebar from '$lib/components/LayerSidebar.svelte';
 	import { onMount } from 'svelte';
@@ -22,13 +26,15 @@
 	let selectedWeatherSatellite = $state<'goes-east' | 'goes-west'>('goes-east');
 	let weatherLayerEnabled = $state(false);
 	let lightningLayerEnabled = $state(true);
+	let spaceBattleLayerEnabled = $state(true);
 	let lightningHeatmapVisible = $state(true);
 	let lightningStrikesVisible = $state(true);
 	let selectedLightningSatellite = $state<'all' | 'goes-east' | 'goes-west'>('all');
 	let weatherTileTemplate = $state<string | undefined>(undefined);
 	let layerSidebarOpen = $state(false);
 	let removeMoonOrbitLayer: (() => void) | undefined;
-	let removeSpaceBattleLayer: (() => void) | undefined;
+	let spaceBattleLayerController: SpaceBattleLayerController | undefined;
+	let mapRef: MapLibreMap | undefined;
 
 	const lightningLayerController = createLightningLayerController({
 		apiPath: '/api/lightning/recent',
@@ -76,6 +82,102 @@
 		if (!cardsCollapsed) layerSidebarOpen = false;
 	});
 
+	const syncSpaceBattleLayer = (map: MapLibreMap) => {
+		if (!spaceBattleLayerController) {
+			spaceBattleLayerController = mountSpaceBattleLayer(map, {
+				visible: spaceBattleLayerEnabled,
+				layerId: 'space-battle-layer',
+				defaultAltitudeMeters: 2_000_000,
+				ships: [
+					{
+						id: 'lucrehulk',
+						modelUrl: '/models/lucrehulk.glb',
+						longitude: -90.3,
+						latitude: 30.3,
+						scaleMeters: 120_000,
+						altitudeMeters: 4_700_000,
+						rotationDeg: [120, 60, 240]
+					},
+					{
+						id: 'munificent-s7',
+						modelUrl: '/models/munificent_basic.glb',
+						longitude: -75.3,
+						latitude: 43.3,
+						scaleMeters: 150_000,
+						altitudeMeters: 4_500_000,
+						rotationDeg: [-180, 120, 0]
+					},
+					{
+						id: 'munificent-s7-1',
+						modelUrl: '/models/munificent_basic.glb',
+						longitude: -80.3,
+						latitude: 14.3,
+						scaleMeters: 150_000,
+						altitudeMeters: 4_500_000,
+						rotationDeg: [150, 70, 140]
+					},
+					{
+						id: 'munificent-frigate',
+						modelUrl: '/models/munificent_frigate.glb',
+						longitude: -80.3,
+						latitude: 40.3,
+						scaleMeters: 2_000,
+						altitudeMeters: 4_200_000,
+						rotationDeg: [180, 90, 180]
+					},
+					{
+						id: 'separatist-dreadnaught',
+						modelUrl: '/models/separatist_dreadnaught.glb',
+						longitude: -29.2,
+						latitude: 30.8,
+						altitudeMeters: 1_450_000,
+						scaleMeters: 100_000,
+						rotationDeg: [190, 90, 180]
+					},
+					{
+						id: 'venator-1',
+						modelUrl: '/models/venator.glb',
+						longitude: -29.2,
+						latitude: 39.8,
+						altitudeMeters: 2_150_000,
+						scaleMeters: 300_000,
+						rotationDeg: [180, 300, 180]
+					},
+					{
+						id: 'venator-2',
+						modelUrl: '/models/venator.glb',
+						longitude: -29.2,
+						latitude: 19.8,
+						altitudeMeters: 1_650_000,
+						scaleMeters: 300_000,
+						rotationDeg: [190, 290, 180]
+					},
+					{
+						id: 'arquitens-1',
+						modelUrl: '/models/arquitens.glb',
+						longitude: -50,
+						latitude: -35.8,
+						scaleMeters: 70_000,
+						rotationDeg: [0, 200, 0],
+						altitudeMeters: 1_000_000
+					},
+					{
+						id: 'arquitens-2',
+						modelUrl: '/models/arquitens.glb',
+						longitude: -60,
+						latitude: -35.8,
+						scaleMeters: 70_000,
+						rotationDeg: [0, 210, 0],
+						altitudeMeters: 600_000
+					}
+				]
+			});
+			return;
+		}
+
+		spaceBattleLayerController.setVisible(spaceBattleLayerEnabled);
+	};
+
 	onMount(() => {
 		const unsubscribeWeather = cmiRasterLayerController.tileTemplate.subscribe((tileTemplate) => {
 			weatherTileTemplate = tileTemplate;
@@ -88,8 +190,9 @@
 			cmiRasterLayerController.stop();
 			removeMoonOrbitLayer?.();
 			removeMoonOrbitLayer = undefined;
-			removeSpaceBattleLayer?.();
-			removeSpaceBattleLayer = undefined;
+			spaceBattleLayerController?.destroy();
+			spaceBattleLayerController = undefined;
+			mapRef = undefined;
 		};
 	});
 
@@ -172,6 +275,12 @@
 						]
 					}
 				]
+			},
+			{
+				id: 'space-battle',
+				label: 'Space Battle',
+				enabled: spaceBattleLayerEnabled,
+				description: 'Multi-ship 3D fleet scenegraph formation.'
 			}
 		]
 	});
@@ -196,8 +305,8 @@
 	{weatherTileTemplate}
 	onMapReady={(map) => {
 		lightningLayerController.attach(map);
+		mapRef = map;
 		removeMoonOrbitLayer?.();
-		removeSpaceBattleLayer?.();
 		removeMoonOrbitLayer = mountMoonOrbitLayer(map, {
 			layerId: 'moon-orbit-layer',
 			modelUrl: '/models/Moon_Glb.glb',
@@ -206,93 +315,7 @@
 			orbitInclinationDeg: 26,
 			modelScaleMeters: 1_600_000
 		});
-		removeSpaceBattleLayer = mountSpaceBattleLayer(map, {
-			layerId: 'space-battle-layer',
-			defaultAltitudeMeters: 2_000_000,
-			ships: [
-				{
-					id: 'lucrehulk',
-					modelUrl: '/models/lucrehulk.glb',
-					longitude: -90.3,
-					latitude: 30.3,
-					scaleMeters: 120_000,
-					altitudeMeters: 4_700_000,
-					rotationDeg: [120, 60, 240]
-				},
-				{
-					id: 'munificent-s7',
-					modelUrl: '/models/munificent_basic.glb',
-					longitude: -75.3,
-					latitude: 43.3,
-					scaleMeters: 150_000,
-					altitudeMeters: 4_500_000,
-					rotationDeg: [-30, 120, 0]
-				},
-				{
-					id: 'munificent-s7-1',
-					modelUrl: '/models/munificent_basic.glb',
-					longitude: -80.3,
-					latitude: 14.3,
-					scaleMeters: 150_000,
-					altitudeMeters: 4_500_000,
-					rotationDeg: [150, 70, 140]
-				},
-				{
-					id: 'munificent-frigate',
-					modelUrl: '/models/munificent_frigate.glb',
-					longitude: -80.3,
-					latitude: 40.3,
-					scaleMeters: 2_000,
-					altitudeMeters: 4_200_000,
-					rotationDeg: [180, 90, 180]
-				},
-				{
-					id: 'separatist-dreadnaught',
-					modelUrl: '/models/separatist_dreadnaught.glb',
-					longitude: -29.2,
-					latitude: 30.8,
-					altitudeMeters: 1_450_000,
-					scaleMeters: 100_000,
-					rotationDeg: [190, 90, 180]
-				},
-				{
-					id: 'venator-1',
-					modelUrl: '/models/venator.glb',
-					longitude: -29.2,
-					latitude: 39.8,
-					altitudeMeters: 2_150_000,
-					scaleMeters: 300_000,
-					rotationDeg: [180, 300, 180]
-				},
-				{
-					id: 'venator-2',
-					modelUrl: '/models/venator.glb',
-					longitude: -29.2,
-					latitude: 19.8,
-					altitudeMeters: 1_650_000,
-					scaleMeters: 300_000,
-					rotationDeg: [190, 290, 180]
-				},
-				{
-					id: 'arquitens-1',
-					modelUrl: '/models/arquitens.glb',
-					longitude: -50,
-					latitude: -35.8,
-					scaleMeters: 70_000,
-					rotationDeg: [0, 200, 0],
-					altitudeMeters: 1_000_000,
-				},
-				{
-					id: 'arquitens-2',
-					modelUrl: '/models/arquitens.glb',
-					longitude: -60,
-					latitude: -35.8,
-					scaleMeters: 70_000,
-					rotationDeg: [0, 210, 0],
-					altitudeMeters: 600_000,
-				}
-			]
-		});
+		syncSpaceBattleLayer(map);
 	}}
 />
 
@@ -389,6 +412,11 @@
 		}
 		if (detail.layerId === 'lightning') {
 			lightningLayerEnabled = detail.enabled;
+			return;
+		}
+		if (detail.layerId === 'space-battle') {
+			spaceBattleLayerEnabled = detail.enabled;
+			if (mapRef) syncSpaceBattleLayer(mapRef);
 		}
 	}}
 	onLayerControlChange={(detail) => {

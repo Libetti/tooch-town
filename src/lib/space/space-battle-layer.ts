@@ -15,6 +15,7 @@ export type SpaceBattleShipPlacement = {
 export type SpaceBattleLayerOptions = {
 	layerId?: string;
 	ships: SpaceBattleShipPlacement[];
+	visible?: boolean;
 	defaultAltitudeMeters?: number;
 	defaultScaleMeters?: number;
 	defaultRotationDeg?: [number, number, number];
@@ -25,6 +26,10 @@ type MountedShip = {
 	anchor: THREE.Group;
 	fallbackMesh?: THREE.Mesh;
 	fallbackMaterial?: THREE.MeshStandardMaterial;
+};
+
+type SpaceBattleCustomLayer = CustomLayerInterface & {
+	setVisibility: (visible: boolean) => void;
 };
 
 const applyRotation = (target: THREE.Object3D, rotationDeg: [number, number, number]) => {
@@ -52,14 +57,16 @@ const disposeObject3D = (object: THREE.Object3D): void => {
 export const createSpaceBattleLayer = ({
 	layerId = 'space-battle-layer',
 	ships,
+	visible = true,
 	defaultAltitudeMeters = 900_000,
 	defaultScaleMeters = 60_000,
 	defaultRotationDeg = [0, 0, 0]
-}: SpaceBattleLayerOptions): CustomLayerInterface => {
+}: SpaceBattleLayerOptions): SpaceBattleCustomLayer => {
 	let mapRef: Map | undefined;
 	let renderer: THREE.WebGLRenderer | undefined;
 	const mountedShips: MountedShip[] = [];
 	let disposed = false;
+	let isVisible = visible;
 
 	const camera = new THREE.Camera();
 	const scene = new THREE.Scene();
@@ -134,6 +141,7 @@ export const createSpaceBattleLayer = ({
 
 		render(_gl, options: CustomRenderMethodInput) {
 			if (!renderer || !mapRef || disposed) return;
+			if (!isVisible) return;
 
 			const globeMatrix = new THREE.Matrix4().fromArray(
 				options.defaultProjectionData.mainMatrix as unknown as number[]
@@ -167,6 +175,11 @@ export const createSpaceBattleLayer = ({
 			mapRef.triggerRepaint();
 		},
 
+		setVisibility(visibleState: boolean) {
+			isVisible = visibleState;
+			mapRef?.triggerRepaint();
+		},
+
 		onRemove() {
 			disposed = true;
 			for (const mountedShip of mountedShips) {
@@ -186,14 +199,19 @@ export const createSpaceBattleLayer = ({
 			renderer = undefined;
 			mapRef = undefined;
 		}
-	};
+	} as SpaceBattleCustomLayer;
+};
+
+export type SpaceBattleLayerController = {
+	setVisible: (visible: boolean) => void;
+	destroy: () => void;
 };
 
 export const mountSpaceBattleLayer = (
 	map: Map,
 	options: SpaceBattleLayerOptions
-): (() => void) => {
-	const layer = createSpaceBattleLayer(options);
+): SpaceBattleLayerController => {
+	const layer = createSpaceBattleLayer(options) as SpaceBattleCustomLayer;
 	const layerId = layer.id;
 	let active = true;
 
@@ -215,10 +233,11 @@ export const mountSpaceBattleLayer = (
 	const onIdle = () => tryAdd();
 
 	tryAdd();
+	layer.setVisibility(options.visible ?? true);
 	map.on('style.load', onStyleLoad);
 	map.on('idle', onIdle);
 
-	return () => {
+	const destroy = () => {
 		active = false;
 		map.off('style.load', onStyleLoad);
 		map.off('idle', onIdle);
@@ -226,5 +245,12 @@ export const mountSpaceBattleLayer = (
 		if (map.getLayer(layerId)) {
 			map.removeLayer(layerId);
 		}
+	};
+
+	return {
+		setVisible(visible) {
+			layer.setVisibility(visible);
+		},
+		destroy
 	};
 };
