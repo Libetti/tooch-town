@@ -219,14 +219,14 @@
 					altitudeMeters: 4_700_000,
 					rotationDeg: [120, 60, 240]
 				},
-								{
+				{
 					id: 'munificent-s7',
 					modelUrl: '/models/munificent_basic.glb',
 					longitude: -75.3,
 					latitude: 43.3,
 					scaleMeters: 150_000,
 					altitudeMeters: 4_500_000,
-					rotationDeg: [-30,120,0]
+					rotationDeg: [-30, 120, 0]
 				},
 				{
 					id: 'munificent-s7-1',
@@ -272,23 +272,25 @@
 					altitudeMeters: 1_650_000,
 					scaleMeters: 300_000,
 					rotationDeg: [190, 290, 180]
+				},
+				{
+					id: 'arquitens-1',
+					modelUrl: '/models/arquitens.glb',
+					longitude: -50,
+					latitude: -35.8,
+					scaleMeters: 70_000,
+					rotationDeg: [0, 200, 0],
+					altitudeMeters: 1_000_000,
+				},
+				{
+					id: 'arquitens-2',
+					modelUrl: '/models/arquitens.glb',
+					longitude: -60,
+					latitude: -35.8,
+					scaleMeters: 70_000,
+					rotationDeg: [0, 210, 0],
+					altitudeMeters: 600_000,
 				}
-				// {
-				// 	id: 'arquitens-1',
-				// 	modelUrl: '/models/arquitens.glb',
-				// 	longitude: -14.0,
-				// 	latitude: 28.6,
-				// 	scaleMeters: 70_000,
-				// 	rotationDeg: [180, 90, 180]
-				// },
-				// {
-				// 	id: 'arquitens-2',
-				// 	modelUrl: '/models/arquitens.glb',
-				// 	longitude: -14.0,
-				// 	latitude: 25.4,
-				// 	scaleMeters: 70_000,
-				// 	rotationDeg: [180, 90, 180]
-				// }
 			]
 		});
 	}}
