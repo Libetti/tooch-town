@@ -87,7 +87,7 @@
 			spaceBattleLayerController = mountSpaceBattleLayer(map, {
 				visible: spaceBattleLayerEnabled,
 				layerId: 'space-battle-layer',
-				defaultAltitudeMeters: 2_000_000,
+				defaultAltitudeMeters: 1_000_000,
 				ships: [
 					{
 						id: 'lucrehulk',
@@ -95,8 +95,8 @@
 						longitude: -90.3,
 						latitude: 30.3,
 						scaleMeters: 120_000,
-						altitudeMeters: 4_700_000,
-						rotationDeg: [120, 60, 240]
+						altitudeMeters: 2_150_000,
+						rotationDeg: [120, 90, 240]
 					},
 					{
 						id: 'munificent-s7',
@@ -104,8 +104,8 @@
 						longitude: -75.3,
 						latitude: 43.3,
 						scaleMeters: 150_000,
-						altitudeMeters: 4_500_000,
-						rotationDeg: [-180, 120, 0]
+						altitudeMeters: 2_250_000,
+						rotationDeg: [-180, 120, 180]
 					},
 					{
 						id: 'munificent-s7-1',
@@ -113,24 +113,15 @@
 						longitude: -80.3,
 						latitude: 14.3,
 						scaleMeters: 150_000,
-						altitudeMeters: 4_500_000,
-						rotationDeg: [150, 70, 140]
-					},
-					{
-						id: 'munificent-frigate',
-						modelUrl: '/models/munificent_frigate.glb',
-						longitude: -80.3,
-						latitude: 40.3,
-						scaleMeters: 2_000,
-						altitudeMeters: 4_200_000,
-						rotationDeg: [180, 90, 180]
+						altitudeMeters: 2_250_000,
+						rotationDeg: [150, 70, 200]
 					},
 					{
 						id: 'separatist-dreadnaught',
 						modelUrl: '/models/separatist_dreadnaught.glb',
 						longitude: -29.2,
 						latitude: 30.8,
-						altitudeMeters: 1_450_000,
+						altitudeMeters: 725_000,
 						scaleMeters: 100_000,
 						rotationDeg: [190, 90, 180]
 					},
@@ -139,7 +130,7 @@
 						modelUrl: '/models/venator.glb',
 						longitude: -29.2,
 						latitude: 39.8,
-						altitudeMeters: 2_150_000,
+						altitudeMeters: 1_400_000,
 						scaleMeters: 300_000,
 						rotationDeg: [180, 300, 180]
 					},
@@ -148,18 +139,18 @@
 						modelUrl: '/models/venator.glb',
 						longitude: -29.2,
 						latitude: 19.8,
-						altitudeMeters: 1_650_000,
+						altitudeMeters: 1_100_000,
 						scaleMeters: 300_000,
 						rotationDeg: [190, 290, 180]
 					},
 					{
 						id: 'arquitens-1',
 						modelUrl: '/models/arquitens.glb',
-						longitude: -50,
+						longitude: -40,
 						latitude: -35.8,
 						scaleMeters: 70_000,
 						rotationDeg: [0, 200, 0],
-						altitudeMeters: 1_000_000
+						altitudeMeters: 500_000
 					},
 					{
 						id: 'arquitens-2',
@@ -168,7 +159,7 @@
 						latitude: -35.8,
 						scaleMeters: 70_000,
 						rotationDeg: [0, 210, 0],
-						altitudeMeters: 600_000
+						altitudeMeters: 300_000
 					}
 				]
 			});
@@ -311,7 +302,7 @@
 			layerId: 'moon-orbit-layer',
 			modelUrl: '/models/Moon_Glb.glb',
 			orbitPeriodSeconds: 90,
-			orbitAltitudeMeters: 6_000_000,
+			orbitAltitudeMeters: 4_500_000,
 			orbitInclinationDeg: 26,
 			modelScaleMeters: 1_600_000
 		});
