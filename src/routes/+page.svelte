@@ -3,6 +3,7 @@
 	import { createLightningLayerController } from '$lib/lightning/lightning-layer-controller';
 	import { createCmiRasterLayerController } from '$lib/weather/cmi-raster-layer-controller';
 	import { mountMoonOrbitLayer } from '$lib/space/moon-orbit-layer';
+	import { mountSpaceBattleLayer } from '$lib/space/space-battle-layer';
 	import {
 		DEFAULT_BASE_LAYER_ID,
 		getBaseMapOptions,
@@ -27,6 +28,7 @@
 	let weatherTileTemplate = $state<string | undefined>(undefined);
 	let layerSidebarOpen = $state(false);
 	let removeMoonOrbitLayer: (() => void) | undefined;
+	let removeSpaceBattleLayer: (() => void) | undefined;
 
 	const lightningLayerController = createLightningLayerController({
 		apiPath: '/api/lightning/recent',
@@ -86,6 +88,8 @@
 			cmiRasterLayerController.stop();
 			removeMoonOrbitLayer?.();
 			removeMoonOrbitLayer = undefined;
+			removeSpaceBattleLayer?.();
+			removeSpaceBattleLayer = undefined;
 		};
 	});
 
@@ -189,17 +193,103 @@
 	spinDegreesPerSecond={0.6}
 	interactionsEnabled={cardsCollapsed}
 	weatherVisible={weatherLayerEnabled}
-	weatherTileTemplate={weatherTileTemplate}
+	{weatherTileTemplate}
 	onMapReady={(map) => {
 		lightningLayerController.attach(map);
 		removeMoonOrbitLayer?.();
+		removeSpaceBattleLayer?.();
 		removeMoonOrbitLayer = mountMoonOrbitLayer(map, {
 			layerId: 'moon-orbit-layer',
 			modelUrl: '/models/Moon_Glb.glb',
 			orbitPeriodSeconds: 90,
-			orbitAltitudeMeters: 3_000_000,
+			orbitAltitudeMeters: 6_000_000,
 			orbitInclinationDeg: 26,
-			modelScaleMeters: 800_000
+			modelScaleMeters: 1_600_000
+		});
+		removeSpaceBattleLayer = mountSpaceBattleLayer(map, {
+			layerId: 'space-battle-layer',
+			defaultAltitudeMeters: 2_000_000,
+			ships: [
+				{
+					id: 'lucrehulk',
+					modelUrl: '/models/lucrehulk.glb',
+					longitude: -90.3,
+					latitude: 30.3,
+					scaleMeters: 120_000,
+					altitudeMeters: 4_700_000,
+					rotationDeg: [120, 60, 240]
+				},
+								{
+					id: 'munificent-s7',
+					modelUrl: '/models/munificent_basic.glb',
+					longitude: -75.3,
+					latitude: 43.3,
+					scaleMeters: 150_000,
+					altitudeMeters: 4_500_000,
+					rotationDeg: [-30,120,0]
+				},
+				{
+					id: 'munificent-s7-1',
+					modelUrl: '/models/munificent_basic.glb',
+					longitude: -80.3,
+					latitude: 14.3,
+					scaleMeters: 150_000,
+					altitudeMeters: 4_500_000,
+					rotationDeg: [150, 70, 140]
+				},
+				{
+					id: 'munificent-frigate',
+					modelUrl: '/models/munificent_frigate.glb',
+					longitude: -80.3,
+					latitude: 40.3,
+					scaleMeters: 2_000,
+					altitudeMeters: 4_200_000,
+					rotationDeg: [180, 90, 180]
+				},
+				{
+					id: 'separatist-dreadnaught',
+					modelUrl: '/models/separatist_dreadnaught.glb',
+					longitude: -29.2,
+					latitude: 30.8,
+					altitudeMeters: 1_450_000,
+					scaleMeters: 100_000,
+					rotationDeg: [190, 90, 180]
+				},
+				{
+					id: 'venator-1',
+					modelUrl: '/models/venator.glb',
+					longitude: -29.2,
+					latitude: 39.8,
+					altitudeMeters: 2_150_000,
+					scaleMeters: 300_000,
+					rotationDeg: [180, 300, 180]
+				},
+				{
+					id: 'venator-2',
+					modelUrl: '/models/venator.glb',
+					longitude: -29.2,
+					latitude: 19.8,
+					altitudeMeters: 1_650_000,
+					scaleMeters: 300_000,
+					rotationDeg: [190, 290, 180]
+				}
+				// {
+				// 	id: 'arquitens-1',
+				// 	modelUrl: '/models/arquitens.glb',
+				// 	longitude: -14.0,
+				// 	latitude: 28.6,
+				// 	scaleMeters: 70_000,
+				// 	rotationDeg: [180, 90, 180]
+				// },
+				// {
+				// 	id: 'arquitens-2',
+				// 	modelUrl: '/models/arquitens.glb',
+				// 	longitude: -14.0,
+				// 	latitude: 25.4,
+				// 	scaleMeters: 70_000,
+				// 	rotationDeg: [180, 90, 180]
+				// }
+			]
 		});
 	}}
 />
@@ -280,9 +370,9 @@
 
 <LayerSidebar
 	open={layerSidebarOpen}
-	selectedBaseLayer={selectedBaseLayer}
+	{selectedBaseLayer}
 	weatherEnabled={weatherLayerEnabled}
-	selectedWeatherSatellite={selectedWeatherSatellite}
+	{selectedWeatherSatellite}
 	registry={layerRegistry}
 	onClose={() => {
 		layerSidebarOpen = false;
@@ -320,11 +410,7 @@
 			}
 			if (detail.controlId === 'satellite') {
 				if (typeof detail.value !== 'string') return;
-				if (
-					detail.value !== 'all' &&
-					detail.value !== 'goes-east' &&
-					detail.value !== 'goes-west'
-				)
+				if (detail.value !== 'all' && detail.value !== 'goes-east' && detail.value !== 'goes-west')
 					return;
 				selectedLightningSatellite = detail.value;
 			}
