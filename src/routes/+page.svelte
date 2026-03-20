@@ -94,7 +94,7 @@
 						modelUrl: '/models/lucrehulk.glb',
 						longitude: -90.3,
 						latitude: 30.3,
-						scaleMeters: 120_000,
+						scaleMeters: 100_000,
 						altitudeMeters: 2_150_000,
 						rotationDeg: [120, 90, 240]
 					},
@@ -103,7 +103,7 @@
 						modelUrl: '/models/munificent_basic.glb',
 						longitude: -75.3,
 						latitude: 43.3,
-						scaleMeters: 150_000,
+						scaleMeters: 105_000,
 						altitudeMeters: 2_250_000,
 						rotationDeg: [-180, 120, 180]
 					},
@@ -112,7 +112,7 @@
 						modelUrl: '/models/munificent_basic.glb',
 						longitude: -80.3,
 						latitude: 14.3,
-						scaleMeters: 150_000,
+						scaleMeters: 105_000,
 						altitudeMeters: 2_250_000,
 						rotationDeg: [150, 70, 200]
 					},
@@ -122,25 +122,25 @@
 						longitude: -29.2,
 						latitude: 30.8,
 						altitudeMeters: 725_000,
-						scaleMeters: 100_000,
+						scaleMeters: 70_000,
 						rotationDeg: [190, 90, 180]
 					},
 					{
 						id: 'venator-1',
 						modelUrl: '/models/venator.glb',
 						longitude: -29.2,
-						latitude: 39.8,
-						altitudeMeters: 1_400_000,
-						scaleMeters: 300_000,
+						latitude: 36.8,
+						altitudeMeters: 1_250_000,
+						scaleMeters: 210_000,
 						rotationDeg: [180, 300, 180]
 					},
 					{
 						id: 'venator-2',
 						modelUrl: '/models/venator.glb',
 						longitude: -29.2,
-						latitude: 19.8,
-						altitudeMeters: 1_100_000,
-						scaleMeters: 300_000,
+						latitude: 21.9,
+						altitudeMeters: 900_000,
+						scaleMeters: 210_000,
 						rotationDeg: [190, 290, 180]
 					},
 					{
@@ -148,7 +148,7 @@
 						modelUrl: '/models/arquitens.glb',
 						longitude: -40,
 						latitude: -35.8,
-						scaleMeters: 70_000,
+						scaleMeters: 49_000,
 						rotationDeg: [0, 200, 0],
 						altitudeMeters: 500_000
 					},
@@ -157,7 +157,7 @@
 						modelUrl: '/models/arquitens.glb',
 						longitude: -60,
 						latitude: -35.8,
-						scaleMeters: 70_000,
+						scaleMeters: 49_000,
 						rotationDeg: [0, 210, 0],
 						altitudeMeters: 300_000
 					}
