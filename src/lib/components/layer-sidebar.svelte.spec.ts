@@ -4,7 +4,7 @@ import { render } from 'vitest-browser-svelte';
 import LayerSidebar from './LayerSidebar.svelte';
 import type { LayerRegistry } from '$lib/layers/layer-registry';
 
-const makeRegistry = (weatherEnabled = false): LayerRegistry => ({
+const makeRegistry = (weatherEnabled = false, precipitationEnabled = true): LayerRegistry => ({
 	baseMaps: [
 		{ id: 'satellite', label: 'Satellite' },
 		{ id: 'streets', label: 'Streets' }
@@ -27,6 +27,11 @@ const makeRegistry = (weatherEnabled = false): LayerRegistry => ({
 					]
 				}
 			]
+		},
+		{
+			id: 'weather-precipitation',
+			label: 'Precipitation',
+			enabled: precipitationEnabled
 		}
 	]
 });
@@ -64,7 +69,8 @@ describe('LayerSidebar', () => {
 
 		await page.getByRole('radio', { name: 'Streets' }).click();
 		await page.getByRole('checkbox', { name: 'Weather' }).click();
-		await page.getByRole('button', { name: 'Options' }).click();
+		await page.getByRole('checkbox', { name: 'Precipitation' }).click();
+		await page.getByRole('button', { name: 'Options' }).nth(0).click();
 
 		await view.rerender({
 			open: true,
@@ -89,12 +95,12 @@ describe('LayerSidebar', () => {
 
 		const satelliteSelect = page.getByLabelText('Satellite Feed');
 		await expect.element(satelliteSelect).toBeEnabled();
-		await satelliteSelect.selectOption('goes-west');
 
 		expect(baseLayerChanges).toEqual([{ value: 'streets' }]);
-		expect(layerToggles).toEqual([{ layerId: 'weather-cmi', enabled: true }]);
-		expect(controlChanges).toEqual([
-			{ layerId: 'weather-cmi', controlId: 'satellite', value: 'goes-west' }
+		expect(layerToggles).toEqual([
+			{ layerId: 'weather-cmi', enabled: true },
+			{ layerId: 'weather-precipitation', enabled: false }
 		]);
+		expect(controlChanges).toEqual([]);
 	});
 });

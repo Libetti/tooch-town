@@ -25,6 +25,7 @@
 	let selectedBaseLayer = $state<BaseLayerId>(DEFAULT_BASE_LAYER_ID);
 	let selectedWeatherSatellite = $state<'goes-east' | 'goes-west'>('goes-east');
 	let weatherLayerEnabled = $state(false);
+	let precipitationLayerEnabled = $state(true);
 	let lightningLayerEnabled = $state(true);
 	let spaceBattleLayerEnabled = $state(true);
 	let lightningHeatmapVisible = $state(true);
@@ -268,6 +269,12 @@
 				]
 			},
 			{
+				id: 'weather-precipitation',
+				label: 'Precipitation',
+				enabled: precipitationLayerEnabled,
+				description: 'MapTiler precipitation forecast with built-in animation.'
+			},
+			{
 				id: 'space-battle',
 				label: 'Space Battle',
 				enabled: spaceBattleLayerEnabled,
@@ -294,6 +301,7 @@
 	interactionsEnabled={cardsCollapsed}
 	weatherVisible={weatherLayerEnabled}
 	{weatherTileTemplate}
+	precipitationVisible={precipitationLayerEnabled}
 	onMapReady={(map) => {
 		lightningLayerController.attach(map);
 		mapRef = map;
@@ -399,6 +407,10 @@
 	onLayerToggle={(detail) => {
 		if (detail.layerId === 'weather-cmi') {
 			weatherLayerEnabled = detail.enabled;
+			return;
+		}
+		if (detail.layerId === 'weather-precipitation') {
+			precipitationLayerEnabled = detail.enabled;
 			return;
 		}
 		if (detail.layerId === 'lightning') {

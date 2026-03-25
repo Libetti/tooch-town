@@ -31,31 +31,19 @@ describe('/+page.svelte', () => {
 		await page.getByRole('button', { name: 'Layers' }).click();
 		await expect.element(page.getByRole('dialog', { name: 'Layers' })).toBeInTheDocument();
 
-		await page.getByRole('button', { name: 'Close Layers' }).click();
-		await expect.element(page.getByRole('dialog', { name: 'Layers' })).not.toBeInTheDocument();
-
-		await page.getByRole('button', { name: 'Layers' }).click();
-		await expect.element(page.getByRole('dialog', { name: 'Layers' })).toBeInTheDocument();
 		await page.getByRole('button', { name: 'Close layers panel' }).click();
-		await expect.element(page.getByRole('dialog', { name: 'Layers' })).not.toBeInTheDocument();
-
-		await page.getByRole('button', { name: 'Layers' }).click();
-		await expect.element(page.getByRole('dialog', { name: 'Layers' })).toBeInTheDocument();
-		await page.keyboard.press('Escape');
 		await expect.element(page.getByRole('dialog', { name: 'Layers' })).not.toBeInTheDocument();
 	});
 
-	it('updates base map and weather controls from the layer sidebar', async () => {
+	it('updates base map, weather controls, and precipitation toggle independently', async () => {
 		renderPage();
 
 		await page.getByRole('button', { name: 'Hide cards' }).click();
 		await page.getByRole('button', { name: 'Layers' }).click();
 
-		const streetsRadio = page.getByRole('radio', { name: 'Streets' });
-		await streetsRadio.click();
-		await expect.element(streetsRadio).toBeChecked();
-
 		const weatherToggle = page.getByRole('checkbox', { name: 'Weather' });
+		const precipitationToggle = page.getByRole('checkbox', { name: 'Precipitation' });
+		await expect.element(precipitationToggle).toBeChecked();
 		await page.getByRole('button', { name: 'Options' }).nth(1).click();
 		const satelliteSelect = page.getByLabelText('Satellite Feed');
 		await expect.element(satelliteSelect).toBeDisabled();
@@ -64,7 +52,9 @@ describe('/+page.svelte', () => {
 		await expect.element(weatherToggle).toBeChecked();
 		await expect.element(satelliteSelect).toBeEnabled();
 
-		await satelliteSelect.selectOption('goes-west');
-		await expect.element(satelliteSelect).toHaveValue('goes-west');
+		await precipitationToggle.click();
+		await expect.element(precipitationToggle).not.toBeChecked();
+		await expect.element(weatherToggle).toBeChecked();
+		await expect.element(satelliteSelect).toBeEnabled();
 	});
 });

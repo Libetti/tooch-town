@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { PUBLIC_MAPTILER_KEY } from '$env/static/public';
 	import { DEFAULT_BASE_LAYER_ID, getBaseMapStyle } from '$lib/maps/base-map-catalog';
+	import { createPrecipitationLayerManager } from '$lib/weather/precipitation-layer-manager';
 	import { createWeatherRasterLayerManager } from '$lib/weather/weather-raster-layer';
 	import { onMount } from 'svelte';
 	import maplibregl, { type Map, type StyleSpecification } from 'maplibre-gl';
@@ -22,6 +23,7 @@
 	export let interactionsEnabled = false;
 	export let weatherVisible = true;
 	export let weatherTileTemplate: string | undefined = undefined;
+	export let precipitationVisible = true;
 	export let onMapReady: ((map: Map) => void) | undefined = undefined;
 
 	const weatherLayerManager = createWeatherRasterLayerManager({
@@ -31,6 +33,11 @@
 		opacity: 0.72,
 		fadeOutZoomStart: 8,
 		fadeOutZoomEnd: 10
+	});
+	const precipitationLayerManager = createPrecipitationLayerManager({
+		layerId: 'weather-precipitation',
+		beforeLayerId: 'moon-orbit-layer',
+		animationFactor: 3600
 	});
 
 	const wrapLongitude = (longitude: number): number => {
@@ -88,6 +95,9 @@
 					visible: weatherVisible,
 					tileTemplate: weatherTileTemplate
 				});
+				precipitationLayerManager.sync(map, {
+					visible: precipitationVisible
+				});
 			}
 			if (map) onMapReady?.(map);
 
@@ -120,6 +130,7 @@
 		return () => {
 			if (frameId !== undefined) cancelAnimationFrame(frameId);
 			if (map) weatherLayerManager.clear(map);
+			if (map) precipitationLayerManager.clear(map);
 			map?.remove();
 			map = undefined;
 		};
@@ -136,9 +147,13 @@
 			map?.setProjection({ type: 'globe' });
 			if (map) {
 				weatherLayerManager.resetAppliedState();
+				precipitationLayerManager.resetAppliedState();
 				weatherLayerManager.sync(map, {
 					visible: weatherVisible,
 					tileTemplate: weatherTileTemplate
+				});
+				precipitationLayerManager.sync(map, {
+					visible: precipitationVisible
 				});
 			}
 		});
@@ -148,6 +163,12 @@
 		const visible = weatherVisible;
 		const tileTemplate = weatherTileTemplate;
 		weatherLayerManager.sync(map, { visible, tileTemplate });
+	}
+
+	$: if (map) {
+		precipitationLayerManager.sync(map, {
+			visible: precipitationVisible
+		});
 	}
 </script>
 
