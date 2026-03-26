@@ -25,9 +25,9 @@
 	let selectedBaseLayer = $state<BaseLayerId>(DEFAULT_BASE_LAYER_ID);
 	let selectedWeatherSatellite = $state<'goes-east' | 'goes-west'>('goes-east');
 	let weatherLayerEnabled = $state(false);
-	let precipitationLayerEnabled = $state(true);
+	let precipitationLayerEnabled = $state(false);
 	let pressureLayerEnabled = $state(false);
-	let radarLayerEnabled = $state(false);
+	let radarLayerEnabled = $state(true);
 	let temperatureLayerEnabled = $state(false);
 	let windLayerEnabled = $state(false);
 	let lightningLayerEnabled = $state(true);
@@ -89,79 +89,79 @@
 
 	const syncSpaceBattleLayer = (map: MapLibreMap) => {
 		const ships = [
-					{
-						id: 'lucrehulk',
-						modelUrl: '/models/lucrehulk.glb',
-						longitude: -90.3,
-						latitude: 30.3,
-						scaleMeters: 100_000,
-						altitudeMeters: 2_150_000,
-						rotationDeg: [120, 90, 240]
-					},
-					{
-						id: 'munificent-s7',
-						modelUrl: '/models/munificent_basic.glb',
-						longitude: -75.3,
-						latitude: 43.3,
-						scaleMeters: 105_000,
-						altitudeMeters: 2_250_000,
-						rotationDeg: [-180, 120, 180]
-					},
-					{
-						id: 'munificent-s7-1',
-						modelUrl: '/models/munificent_basic.glb',
-						longitude: -80.3,
-						latitude: 14.3,
-						scaleMeters: 105_000,
-						altitudeMeters: 2_250_000,
-						rotationDeg: [150, 70, 200]
-					},
-					{
-						id: 'separatist-dreadnaught',
-						modelUrl: '/models/separatist_dreadnaught.glb',
-						longitude: -29.2,
-						latitude: 30.8,
-						altitudeMeters: 725_000,
-						scaleMeters: 70_000,
-						rotationDeg: [190, 90, 180]
-					},
-					{
-						id: 'venator-1',
-						modelUrl: '/models/venator.glb',
-						longitude: -29.2,
-						latitude: 36.8,
-						altitudeMeters: 1_250_000,
-						scaleMeters: 210_000,
-						rotationDeg: [180, 300, 180]
-					},
-					{
-						id: 'venator-2',
-						modelUrl: '/models/venator.glb',
-						longitude: -29.2,
-						latitude: 21.9,
-						altitudeMeters: 900_000,
-						scaleMeters: 210_000,
-						rotationDeg: [190, 290, 180]
-					},
-					{
-						id: 'arquitens-1',
-						modelUrl: '/models/arquitens.glb',
-						longitude: -40,
-						latitude: -35.8,
-						scaleMeters: 49_000,
-						rotationDeg: [0, 200, 0],
-						altitudeMeters: 500_000
-					},
-					{
-						id: 'arquitens-2',
-						modelUrl: '/models/arquitens.glb',
-						longitude: -60,
-						latitude: -35.8,
-						scaleMeters: 49_000,
-						rotationDeg: [0, 210, 0],
-						altitudeMeters: 300_000
-					}
-				];
+			{
+				id: 'lucrehulk',
+				modelUrl: '/models/lucrehulk.glb',
+				longitude: -90.3,
+				latitude: 30.3,
+				scaleMeters: 100_000,
+				altitudeMeters: 2_150_000,
+				rotationDeg: [120, 90, 240]
+			},
+			{
+				id: 'munificent-s7',
+				modelUrl: '/models/munificent_basic.glb',
+				longitude: -75.3,
+				latitude: 43.3,
+				scaleMeters: 105_000,
+				altitudeMeters: 2_250_000,
+				rotationDeg: [-180, 120, 180]
+			},
+			{
+				id: 'munificent-s7-1',
+				modelUrl: '/models/munificent_basic.glb',
+				longitude: -80.3,
+				latitude: 14.3,
+				scaleMeters: 105_000,
+				altitudeMeters: 2_250_000,
+				rotationDeg: [150, 70, 200]
+			},
+			{
+				id: 'separatist-dreadnaught',
+				modelUrl: '/models/separatist_dreadnaught.glb',
+				longitude: -29.2,
+				latitude: 30.8,
+				altitudeMeters: 725_000,
+				scaleMeters: 70_000,
+				rotationDeg: [190, 90, 180]
+			},
+			{
+				id: 'venator-1',
+				modelUrl: '/models/venator.glb',
+				longitude: -29.2,
+				latitude: 36.8,
+				altitudeMeters: 1_250_000,
+				scaleMeters: 210_000,
+				rotationDeg: [180, 300, 180]
+			},
+			{
+				id: 'venator-2',
+				modelUrl: '/models/venator.glb',
+				longitude: -29.2,
+				latitude: 21.9,
+				altitudeMeters: 900_000,
+				scaleMeters: 210_000,
+				rotationDeg: [190, 290, 180]
+			},
+			{
+				id: 'arquitens-1',
+				modelUrl: '/models/arquitens.glb',
+				longitude: -40,
+				latitude: -35.8,
+				scaleMeters: 49_000,
+				rotationDeg: [0, 200, 0],
+				altitudeMeters: 500_000
+			},
+			{
+				id: 'arquitens-2',
+				modelUrl: '/models/arquitens.glb',
+				longitude: -60,
+				latitude: -35.8,
+				scaleMeters: 49_000,
+				rotationDeg: [0, 210, 0],
+				altitudeMeters: 300_000
+			}
+		];
 		if (!spaceBattleLayerController) {
 			spaceBattleLayerController = mountSpaceBattleLayer(map, {
 				visible: spaceBattleLayerEnabled,
@@ -333,6 +333,7 @@
 	pitch={0}
 	spinDegreesPerSecond={0.6}
 	interactionsEnabled={cardsCollapsed}
+	weatherLegendEnabled={cardsCollapsed}
 	weatherVisible={weatherLayerEnabled}
 	{weatherTileTemplate}
 	precipitationVisible={precipitationLayerEnabled}

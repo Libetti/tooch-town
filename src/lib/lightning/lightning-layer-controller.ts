@@ -213,6 +213,7 @@ export const createLightningLayerController = ({
 	let fadeIntervalId: ReturnType<typeof setInterval> | undefined;
 	let mapRef: MapLibreMap | undefined;
 	let styleLoadHandler: (() => void) | undefined;
+	let idleHandler: (() => void) | undefined;
 	const strikeHoverController = createLightningStrikeHoverController({
 		layerId: LIGHTNING_STRIKE_LAYER_ID
 	});
@@ -224,6 +225,16 @@ export const createLightningLayerController = ({
 	const getSource = (): MapLibreGeoJsonSource | undefined => {
 		if (!mapRef) return undefined;
 		return mapRef.getSource(LIGHTNING_SOURCE_ID) as unknown as MapLibreGeoJsonSource | undefined;
+	};
+
+	const promoteLightningLayers = (): void => {
+		if (!mapRef) return;
+		if (mapRef.getLayer(LIGHTNING_LAYER_ID)) {
+			mapRef.moveLayer(LIGHTNING_LAYER_ID);
+		}
+		if (mapRef.getLayer(LIGHTNING_STRIKE_LAYER_ID)) {
+			mapRef.moveLayer(LIGHTNING_STRIKE_LAYER_ID);
+		}
 	};
 
 	const ensureMapArtifacts = (): void => {
@@ -271,6 +282,8 @@ export const createLightningLayerController = ({
 				satelliteFilter === 'all' ? null : ['==', ['get', 'satellite'], satelliteFilter]
 			);
 		}
+		// Keep lightning rendered above other data overlays.
+		promoteLightningLayers();
 	};
 
 	const removeMapArtifacts = (): void => {
@@ -414,6 +427,7 @@ export const createLightningLayerController = ({
 	const attach = (map: MapLibreMap): void => {
 		if (mapRef === map) return;
 		if (mapRef && styleLoadHandler) mapRef.off('style.load', styleLoadHandler);
+		if (mapRef && idleHandler) mapRef.off('idle', idleHandler);
 		strikeHoverController.detach();
 		mapRef = map;
 		styleLoadHandler = () => {
@@ -421,7 +435,12 @@ export const createLightningLayerController = ({
 			ensureMapArtifacts();
 			publishSourceData();
 		};
+		idleHandler = () => {
+			if (!running) return;
+			promoteLightningLayers();
+		};
 		mapRef.on('style.load', styleLoadHandler);
+		mapRef.on('idle', idleHandler);
 		strikeHoverController.attach(map);
 		if (running) {
 			ensureMapArtifacts();

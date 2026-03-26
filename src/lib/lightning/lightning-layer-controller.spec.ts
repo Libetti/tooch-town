@@ -82,6 +82,7 @@ const createMockMap = (): MockMap => {
 		}),
 		setLayoutProperty: vi.fn(),
 		setFilter: vi.fn(),
+		moveLayer: vi.fn(),
 		on,
 		off
 	};
