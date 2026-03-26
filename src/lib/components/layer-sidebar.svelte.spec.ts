@@ -42,14 +42,12 @@ describe('LayerSidebar', () => {
 		const layerToggles: Array<{ layerId: string; enabled: boolean }> = [];
 		const controlChanges: Array<{ layerId: string; controlId: string; value: string | number | boolean }> = [];
 
-		const view = render(LayerSidebar, {
-			open: true,
-			selectedBaseLayer: 'satellite',
-			weatherEnabled: false,
-			selectedWeatherSatellite: 'goes-east',
-			registry: makeRegistry(false),
-			onBaseLayerChange: (detail: { value: string }) => {
-				baseLayerChanges.push(detail);
+			const view = render(LayerSidebar, {
+				open: true,
+				selectedBaseLayer: 'satellite',
+				registry: makeRegistry(false),
+				onBaseLayerChange: (detail: { value: string }) => {
+					baseLayerChanges.push(detail);
 			},
 			onLayerToggle: (detail: { layerId: string; enabled: boolean }) => {
 				layerToggles.push(detail);
@@ -72,14 +70,12 @@ describe('LayerSidebar', () => {
 		await page.getByRole('checkbox', { name: 'Precipitation' }).click();
 		await page.getByRole('button', { name: 'Options' }).nth(0).click();
 
-		await view.rerender({
-			open: true,
-			selectedBaseLayer: 'streets',
-			weatherEnabled: true,
-			selectedWeatherSatellite: 'goes-east',
-			registry: makeRegistry(true),
-			onBaseLayerChange: (detail: { value: string }) => {
-				baseLayerChanges.push(detail);
+			await view.rerender({
+				open: true,
+				selectedBaseLayer: 'streets',
+				registry: makeRegistry(true),
+				onBaseLayerChange: (detail: { value: string }) => {
+					baseLayerChanges.push(detail);
 			},
 			onLayerToggle: (detail: { layerId: string; enabled: boolean }) => {
 				layerToggles.push(detail);
