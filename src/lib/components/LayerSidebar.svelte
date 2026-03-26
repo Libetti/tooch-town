@@ -3,13 +3,11 @@
 	import BaseMapSection from '$lib/components/layer-sidebar/BaseMapSection.svelte';
 	import DataLayersSection from '$lib/components/layer-sidebar/DataLayersSection.svelte';
 	import type { BaseLayerId } from '$lib/maps/base-layer-ids';
-	import type { LayerRegistry, WeatherSatelliteId } from '$lib/layers/layer-registry';
+	import type { LayerRegistry } from '$lib/layers/layer-registry';
 
 	type Props = {
 		open?: boolean;
 		selectedBaseLayer?: BaseLayerId;
-		weatherEnabled?: boolean;
-		selectedWeatherSatellite?: WeatherSatelliteId;
 		registry?: LayerRegistry;
 		onClose?: () => void;
 		onBaseLayerChange?: (detail: { value: BaseLayerId }) => void;
@@ -31,7 +29,7 @@
 		onLayerControlChange
 	}: Props = $props();
 
-	let panelElement: HTMLElement | null = null;
+	let panelElement = $state<HTMLElement | null>(null);
 
 	const focusableSelector =
 		'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -105,7 +103,7 @@
 			aria-label="Close layers panel"
 			onclick={closeSidebar}
 		></button>
-		<aside
+		<div
 			bind:this={panelElement}
 			class="sidebar-panel"
 			role="dialog"
@@ -130,7 +128,7 @@
 				{onLayerToggle}
 				{onLayerControlChange}
 			/>
-		</aside>
+		</div>
 	</div>
 {/if}
 
