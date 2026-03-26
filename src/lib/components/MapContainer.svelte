@@ -1,6 +1,13 @@
 <script lang="ts">
+	import {
+		PressureLayer,
+		RadarLayer,
+		TemperatureLayer,
+		WindLayer
+	} from '@maptiler/weather';
 	import { PUBLIC_MAPTILER_KEY } from '$env/static/public';
 	import { DEFAULT_BASE_LAYER_ID, getBaseMapStyle } from '$lib/maps/base-map-catalog';
+	import { createMapTilerWeatherLayerManager } from '$lib/weather/maptiler-weather-layer-manager';
 	import { applyMapTilerWeatherMapShim } from '$lib/weather/maptiler-weather-map-shim';
 	import { createPrecipitationLayerManager } from '$lib/weather/precipitation-layer-manager';
 	import { createWeatherRasterLayerManager } from '$lib/weather/weather-raster-layer';
@@ -26,6 +33,10 @@
 	export let weatherVisible = true;
 	export let weatherTileTemplate: string | undefined = undefined;
 	export let precipitationVisible = true;
+	export let pressureVisible = false;
+	export let radarVisible = false;
+	export let temperatureVisible = false;
+	export let windVisible = false;
 	export let onMapReady: ((map: Map) => void) | undefined = undefined;
 
 	const weatherLayerManager = createWeatherRasterLayerManager({
@@ -38,6 +49,30 @@
 	});
 	const precipitationLayerManager = createPrecipitationLayerManager({
 		layerId: 'weather-precipitation',
+		beforeLayerId: 'moon-orbit-layer',
+		animationFactor: 3600
+	});
+	const pressureLayerManager = createMapTilerWeatherLayerManager({
+		layerId: 'weather-pressure',
+		layerCtor: PressureLayer,
+		beforeLayerId: 'moon-orbit-layer',
+		animationFactor: 3600
+	});
+	const radarLayerManager = createMapTilerWeatherLayerManager({
+		layerId: 'weather-radar',
+		layerCtor: RadarLayer,
+		beforeLayerId: 'moon-orbit-layer',
+		animationFactor: 3600
+	});
+	const temperatureLayerManager = createMapTilerWeatherLayerManager({
+		layerId: 'weather-temperature',
+		layerCtor: TemperatureLayer,
+		beforeLayerId: 'moon-orbit-layer',
+		animationFactor: 3600
+	});
+	const windLayerManager = createMapTilerWeatherLayerManager({
+		layerId: 'weather-wind',
+		layerCtor: WindLayer,
 		beforeLayerId: 'moon-orbit-layer',
 		animationFactor: 3600
 	});
@@ -68,9 +103,11 @@
 		targetMap.once('idle', () => {
 			if (map !== targetMap) return;
 			precipitationSyncReady = true;
-			precipitationLayerManager.sync(targetMap, {
-				visible: precipitationVisible
-			});
+			precipitationLayerManager.sync(targetMap, { visible: precipitationVisible });
+			pressureLayerManager.sync(targetMap, { visible: pressureVisible });
+			radarLayerManager.sync(targetMap, { visible: radarVisible });
+			temperatureLayerManager.sync(targetMap, { visible: temperatureVisible });
+			windLayerManager.sync(targetMap, { visible: windVisible });
 		});
 	};
 
@@ -143,6 +180,10 @@
 			if (frameId !== undefined) cancelAnimationFrame(frameId);
 			if (map) weatherLayerManager.clear(map);
 			if (map) precipitationLayerManager.clear(map);
+			if (map) pressureLayerManager.clear(map);
+			if (map) radarLayerManager.clear(map);
+			if (map) temperatureLayerManager.clear(map);
+			if (map) windLayerManager.clear(map);
 			map?.remove();
 			map = undefined;
 			precipitationSyncReady = false;
@@ -161,6 +202,10 @@
 			if (map) {
 				weatherLayerManager.resetAppliedState();
 				precipitationLayerManager.resetAppliedState();
+				pressureLayerManager.resetAppliedState();
+				radarLayerManager.resetAppliedState();
+				temperatureLayerManager.resetAppliedState();
+				windLayerManager.resetAppliedState();
 				weatherLayerManager.sync(map, {
 					visible: weatherVisible,
 					tileTemplate: weatherTileTemplate
@@ -177,9 +222,11 @@
 	}
 
 	$: if (map && precipitationSyncReady) {
-		precipitationLayerManager.sync(map, {
-			visible: precipitationVisible
-		});
+		precipitationLayerManager.sync(map, { visible: precipitationVisible });
+		pressureLayerManager.sync(map, { visible: pressureVisible });
+		radarLayerManager.sync(map, { visible: radarVisible });
+		temperatureLayerManager.sync(map, { visible: temperatureVisible });
+		windLayerManager.sync(map, { visible: windVisible });
 	}
 </script>
 

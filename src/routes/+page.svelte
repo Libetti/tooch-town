@@ -26,6 +26,10 @@
 	let selectedWeatherSatellite = $state<'goes-east' | 'goes-west'>('goes-east');
 	let weatherLayerEnabled = $state(false);
 	let precipitationLayerEnabled = $state(true);
+	let pressureLayerEnabled = $state(false);
+	let radarLayerEnabled = $state(false);
+	let temperatureLayerEnabled = $state(false);
+	let windLayerEnabled = $state(false);
 	let lightningLayerEnabled = $state(true);
 	let spaceBattleLayerEnabled = $state(true);
 	let lightningHeatmapVisible = $state(true);
@@ -276,6 +280,34 @@
 					'Forecast window: current model run through the next ~4 days (hourly). Playback is ~1 forecast hour per second.'
 			},
 			{
+				id: 'weather-pressure',
+				label: 'Pressure',
+				enabled: pressureLayerEnabled,
+				description:
+					'Forecast window: current model run through the next ~4 days (hourly). Playback is ~1 forecast hour per second.'
+			},
+			{
+				id: 'weather-radar',
+				label: 'Radar',
+				enabled: radarLayerEnabled,
+				description:
+					'Forecast window: current model run through the next ~4 days (hourly). Playback is ~1 forecast hour per second.'
+			},
+			{
+				id: 'weather-temperature',
+				label: 'Temperature',
+				enabled: temperatureLayerEnabled,
+				description:
+					'Forecast window: current model run through the next ~4 days (hourly). Playback is ~1 forecast hour per second.'
+			},
+			{
+				id: 'weather-wind',
+				label: 'Wind',
+				enabled: windLayerEnabled,
+				description:
+					'Forecast window: current model run through the next ~4 days (hourly). Playback is ~1 forecast hour per second.'
+			},
+			{
 				id: 'space-battle',
 				label: 'Space Battle',
 				enabled: spaceBattleLayerEnabled,
@@ -303,6 +335,10 @@
 	weatherVisible={weatherLayerEnabled}
 	{weatherTileTemplate}
 	precipitationVisible={precipitationLayerEnabled}
+	pressureVisible={pressureLayerEnabled}
+	radarVisible={radarLayerEnabled}
+	temperatureVisible={temperatureLayerEnabled}
+	windVisible={windLayerEnabled}
 	onMapReady={(map) => {
 		lightningLayerController.attach(map);
 		mapRef = map;
@@ -412,6 +448,22 @@
 		}
 		if (detail.layerId === 'weather-precipitation') {
 			precipitationLayerEnabled = detail.enabled;
+			return;
+		}
+		if (detail.layerId === 'weather-pressure') {
+			pressureLayerEnabled = detail.enabled;
+			return;
+		}
+		if (detail.layerId === 'weather-radar') {
+			radarLayerEnabled = detail.enabled;
+			return;
+		}
+		if (detail.layerId === 'weather-temperature') {
+			temperatureLayerEnabled = detail.enabled;
+			return;
+		}
+		if (detail.layerId === 'weather-wind') {
+			windLayerEnabled = detail.enabled;
 			return;
 		}
 		if (detail.layerId === 'lightning') {
