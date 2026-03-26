@@ -1,16 +1,12 @@
 <script lang="ts">
-	import {
-		PressureLayer,
-		RadarLayer,
-		TemperatureLayer,
-		WindLayer
-	} from '@maptiler/weather';
+	import { PressureLayer, RadarLayer, TemperatureLayer, WindLayer } from '@maptiler/weather';
 	import { PUBLIC_MAPTILER_KEY } from '$env/static/public';
 	import { DEFAULT_BASE_LAYER_ID, getBaseMapStyle } from '$lib/maps/base-map-catalog';
 	import { createMapTilerWeatherLayerManager } from '$lib/weather/maptiler-weather-layer-manager';
 	import { applyMapTilerWeatherMapShim } from '$lib/weather/maptiler-weather-map-shim';
 	import { createPrecipitationLayerManager } from '$lib/weather/precipitation-layer-manager';
 	import { createWeatherRasterLayerManager } from '$lib/weather/weather-raster-layer';
+	import WeatherLayerKey from '$lib/components/WeatherLayerKey.svelte';
 	import { onMount } from 'svelte';
 	import maplibregl, { type Map, type StyleSpecification } from 'maplibre-gl';
 	import 'maplibre-gl/dist/maplibre-gl.css';
@@ -18,8 +14,13 @@
 	let mapElement: HTMLDivElement;
 	let map: Map | undefined;
 	let frameId: number | undefined;
+	let weatherLegendIntervalId: ReturnType<typeof setInterval> | undefined;
 	let precipitationSyncReady = false;
 	let activeStyle: string | StyleSpecification | undefined;
+	let maptilerAnimationTime: Date | undefined;
+	let isWeatherLegendVisible = false;
+	let weatherLegendTime = 'Loading weather timeline...';
+	let activeWeatherLayerIds: string[] = [];
 
 	export let styleUrl: string | StyleSpecification = getBaseMapStyle(
 		DEFAULT_BASE_LAYER_ID,
@@ -30,11 +31,12 @@
 	export let pitch = 8;
 	export let spinDegreesPerSecond = 0.45;
 	export let interactionsEnabled = false;
+	export let weatherLegendEnabled = true;
 	export let weatherVisible = true;
 	export let weatherTileTemplate: string | undefined = undefined;
-	export let precipitationVisible = true;
+	export let precipitationVisible = false;
 	export let pressureVisible = false;
-	export let radarVisible = false;
+	export let radarVisible = true;
 	export let temperatureVisible = false;
 	export let windVisible = false;
 	export let onMapReady: ((map: Map) => void) | undefined = undefined;
@@ -56,26 +58,63 @@
 		layerId: 'weather-pressure',
 		layerCtor: PressureLayer,
 		beforeLayerId: 'moon-orbit-layer',
-		animationFactor: 3600
+		animationFactor: 1800
 	});
 	const radarLayerManager = createMapTilerWeatherLayerManager({
 		layerId: 'weather-radar',
 		layerCtor: RadarLayer,
 		beforeLayerId: 'moon-orbit-layer',
-		animationFactor: 3600
+		animationFactor: 1800
 	});
 	const temperatureLayerManager = createMapTilerWeatherLayerManager({
 		layerId: 'weather-temperature',
 		layerCtor: TemperatureLayer,
 		beforeLayerId: 'moon-orbit-layer',
-		animationFactor: 3600
+		animationFactor: 1800
 	});
 	const windLayerManager = createMapTilerWeatherLayerManager({
 		layerId: 'weather-wind',
 		layerCtor: WindLayer,
 		beforeLayerId: 'moon-orbit-layer',
-		animationFactor: 3600
+		animationFactor: 1800
 	});
+	const weatherLegendTimeFormatter = new Intl.DateTimeFormat(undefined, {
+		month: 'short',
+		day: 'numeric',
+		hour: 'numeric',
+		minute: '2-digit',
+		timeZone: 'UTC',
+		timeZoneName: 'short'
+	});
+	const getActiveMapTilerAnimationTime = (): Date | undefined => {
+		if (precipitationVisible) return precipitationLayerManager.getAnimationTimeDate();
+		if (pressureVisible) return pressureLayerManager.getAnimationTimeDate();
+		if (radarVisible) return radarLayerManager.getAnimationTimeDate();
+		if (temperatureVisible) return temperatureLayerManager.getAnimationTimeDate();
+		if (windVisible) return windLayerManager.getAnimationTimeDate();
+		return undefined;
+	};
+
+	const areDatesEqual = (left: Date | undefined, right: Date | undefined): boolean => {
+		if (!left && !right) return true;
+		if (!left || !right) return false;
+		return left.getTime() === right.getTime();
+	};
+
+	const formatWeatherLegendTime = (value: Date | undefined): string =>
+		value ? weatherLegendTimeFormatter.format(value) : 'Loading weather timeline...';
+
+	$: isWeatherLegendVisible =
+		weatherLegendEnabled &&
+		(precipitationVisible || pressureVisible || radarVisible || temperatureVisible || windVisible);
+	$: weatherLegendTime = formatWeatherLegendTime(maptilerAnimationTime);
+	$: activeWeatherLayerIds = [
+		precipitationVisible ? 'weather-precipitation' : null,
+		pressureVisible ? 'weather-pressure' : null,
+		radarVisible ? 'weather-radar' : null,
+		temperatureVisible ? 'weather-temperature' : null,
+		windVisible ? 'weather-wind' : null
+	].filter((layerId): layerId is string => layerId !== null);
 
 	const wrapLongitude = (longitude: number): number => {
 		return ((((longitude + 180) % 360) + 360) % 360) - 180;
@@ -175,8 +214,16 @@
 
 			frameId = requestAnimationFrame(tick);
 		});
+
+		weatherLegendIntervalId = setInterval(() => {
+			const nextAnimationTime = getActiveMapTilerAnimationTime();
+			if (areDatesEqual(maptilerAnimationTime, nextAnimationTime)) return;
+			maptilerAnimationTime = nextAnimationTime;
+		}, 350);
+
 		return () => {
 			if (frameId !== undefined) cancelAnimationFrame(frameId);
+			if (weatherLegendIntervalId !== undefined) clearInterval(weatherLegendIntervalId);
 			if (map) weatherLayerManager.clear(map);
 			if (map) precipitationLayerManager.clear(map);
 			if (map) pressureLayerManager.clear(map);
@@ -186,6 +233,7 @@
 			map?.remove();
 			map = undefined;
 			precipitationSyncReady = false;
+			maptilerAnimationTime = undefined;
 		};
 	});
 
@@ -236,6 +284,11 @@
 	<div class="glimmer glimmer-a"></div>
 	<div class="glimmer glimmer-b"></div>
 	<div bind:this={mapElement} class:interactive={interactionsEnabled} class="globe-map"></div>
+	<WeatherLayerKey
+		visible={isWeatherLegendVisible}
+		time={weatherLegendTime}
+		layerIds={activeWeatherLayerIds}
+	/>
 </div>
 
 <style>
