@@ -5,7 +5,7 @@ ENV PUBLIC_MAPTILER_KEY=$PUBLIC_MAPTILER_KEY
 COPY package*.json ./
 RUN npm ci
 COPY . .
-RUN test -n "$PUBLIC_MAPTILER_KEY" || (echo "Missing required build arg: PUBLIC_MAPTILER_KEY" && exit 1)
+RUN test -n "$PUBLIC_MAPTILER_KEY" || (echo "Missing PUBLIC_MAPTILER_KEY" && exit 1)
 RUN npm run prepare
 RUN npm run build
 RUN npm prune --production
