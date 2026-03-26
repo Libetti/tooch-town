@@ -56,7 +56,7 @@ export const createCmiRasterLayerController = ({
 	frameLimit = 12,
 	pollHintSeconds = 10,
 	animationIntervalMs = 700
-}: CmiRasterLayerControllerOptions): CmiRasterLayerController => {
+}: CmiRasterLayerControllerOptions = {}): CmiRasterLayerController => {
 	const tileTemplateStore = writable<string | undefined>(undefined);
 
 	const normalizedApiPath = apiPath.trim() || '/api/imagery/cmi/ch13/frames';

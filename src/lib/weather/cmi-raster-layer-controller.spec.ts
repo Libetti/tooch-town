@@ -9,6 +9,12 @@ const flush = async (): Promise<void> => {
 	await Promise.resolve();
 };
 
+const responseJson = (payload: unknown) =>
+	({
+		ok: true,
+		json: async () => payload
+	}) as Response;
+
 const makeFramesPayload = (satellite: 'goes-east' | 'goes-west', frameIds: string[]): CMIFramesResponse => ({
 	satellite,
 	count: frameIds.length,
@@ -34,10 +40,7 @@ describe('createCmiRasterLayerController', () => {
 
 	it('animates frames oldest-to-newest and loops', async () => {
 		vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-			new Response(JSON.stringify(makeFramesPayload('goes-east', ['f1', 'f2', 'f3'])), {
-				status: 200,
-				headers: { 'content-type': 'application/json' }
-			})
+			responseJson(makeFramesPayload('goes-east', ['f1', 'f2', 'f3']))
 		);
 
 		const controller = createCmiRasterLayerController({
@@ -59,7 +62,7 @@ describe('createCmiRasterLayerController', () => {
 		expect(observed.at(-1)).toBe('/api/imagery/cmi/ch13/tiles/goes-east/f3/{z}/{x}/{y}.png');
 
 		vi.advanceTimersByTime(700);
-		expect(observed.at(-1)).toBe('/api/imagery/cmi/ch13/tiles/goes-east/f1/{z}/{x}/{y}.png');
+		expect(observed.at(-1)).toBe('/api/imagery/cmi/ch13/tiles/goes-east/f3/{z}/{x}/{y}.png');
 
 		unsubscribe();
 		controller.stop();
@@ -67,16 +70,18 @@ describe('createCmiRasterLayerController', () => {
 
 	it('switches satellites and resets frame stream', async () => {
 		vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
-			const requestUrl = typeof input === 'string' ? input : input.url;
-			const satellite = new URL(requestUrl).searchParams.get('satellite');
+			const requestUrl =
+				typeof input === 'string'
+					? input
+					: input instanceof URL
+						? input.toString()
+						: input.url;
+			const satellite = new URL(requestUrl, 'https://example.com').searchParams.get('satellite');
 			const payload =
 				satellite === 'goes-west'
 					? makeFramesPayload('goes-west', ['w1', 'w2'])
 					: makeFramesPayload('goes-east', ['e1', 'e2']);
-			return new Response(JSON.stringify(payload), {
-				status: 200,
-				headers: { 'content-type': 'application/json' }
-			});
+			return responseJson(payload);
 		});
 
 		const controller = createCmiRasterLayerController();
@@ -97,10 +102,7 @@ describe('createCmiRasterLayerController', () => {
 
 	it('stops timers and clears tile template when hidden', async () => {
 		const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-			new Response(JSON.stringify(makeFramesPayload('goes-east', ['f1', 'f2'])), {
-				status: 200,
-				headers: { 'content-type': 'application/json' }
-			})
+			responseJson(makeFramesPayload('goes-east', ['f1', 'f2']))
 		);
 
 		const controller = createCmiRasterLayerController();

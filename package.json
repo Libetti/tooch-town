@@ -54,6 +54,7 @@
 		"@deck.gl/layers": "^9.2.11",
 		"@deck.gl/mapbox": "^9.2.10",
 		"@deck.gl/mesh-layers": "^9.2.11",
+		"@maptiler/weather": "^3.1.1",
 		"maplibre-gl": "^5.19.0",
 		"three": "^0.183.2"
 	}
