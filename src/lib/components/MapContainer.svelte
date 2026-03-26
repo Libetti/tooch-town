@@ -175,7 +175,6 @@
 
 			frameId = requestAnimationFrame(tick);
 		});
-
 		return () => {
 			if (frameId !== undefined) cancelAnimationFrame(frameId);
 			if (map) weatherLayerManager.clear(map);
@@ -196,7 +195,7 @@
 
 	$: if (map && styleUrl !== activeStyle) {
 		activeStyle = styleUrl;
-		map.setStyle(styleUrl);
+		map.setStyle(styleUrl, { diff: false });
 		map.once('style.load', () => {
 			map?.setProjection({ type: 'globe' });
 			if (map) {
