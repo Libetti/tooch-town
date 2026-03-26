@@ -88,12 +88,7 @@
 	});
 
 	const syncSpaceBattleLayer = (map: MapLibreMap) => {
-		if (!spaceBattleLayerController) {
-			spaceBattleLayerController = mountSpaceBattleLayer(map, {
-				visible: spaceBattleLayerEnabled,
-				layerId: 'space-battle-layer',
-				defaultAltitudeMeters: 1_000_000,
-				ships: [
+		const ships = [
 					{
 						id: 'lucrehulk',
 						modelUrl: '/models/lucrehulk.glb',
@@ -166,7 +161,13 @@
 						rotationDeg: [0, 210, 0],
 						altitudeMeters: 300_000
 					}
-				]
+				];
+		if (!spaceBattleLayerController) {
+			spaceBattleLayerController = mountSpaceBattleLayer(map, {
+				visible: spaceBattleLayerEnabled,
+				layerId: 'space-battle-layer',
+				defaultAltitudeMeters: 1_000_000,
+				ships
 			});
 			return;
 		}
