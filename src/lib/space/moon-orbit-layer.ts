@@ -1,6 +1,6 @@
 import type { CustomLayerInterface, CustomRenderMethodInput, Map } from 'maplibre-gl';
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { loadCachedModelSceneClone } from './gltf-model-cache';
 
 export type MoonOrbitLayerOptions = {
 	layerId?: string;
@@ -28,13 +28,13 @@ export const createMoonOrbitLayer = ({
 	let renderer: THREE.WebGLRenderer | undefined;
 	const camera = new THREE.Camera();
 	const scene = new THREE.Scene();
-	const loader = new GLTFLoader();
 	let moonModel: THREE.Object3D | undefined;
 	let fallbackMoon: THREE.Mesh | undefined;
 	let fallbackMaterial: THREE.MeshStandardMaterial | undefined;
 	let startMs = 0;
 	let baseOrbitLng = 0;
 	let disposed = false;
+	let layerGeneration = 0;
 	let didWarnOnSlowLoad = false;
 	let slowLoadWarningTimeout: ReturnType<typeof setTimeout> | undefined;
 
@@ -49,6 +49,10 @@ export const createMoonOrbitLayer = ({
 		renderingMode: '3d',
 
 		onAdd(map, gl) {
+			disposed = false;
+			layerGeneration += 1;
+			const activeGeneration = layerGeneration;
+
 			mapRef = map;
 			startMs = performance.now();
 			baseOrbitLng = map.getCenter().lng;
@@ -74,11 +78,14 @@ export const createMoonOrbitLayer = ({
 				console.warn(`[moon-orbit-layer] Model is still loading: ${modelUrl}`);
 			}, 4000);
 
-			loader.load(
-				modelUrl,
-				(gltf) => {
-					if (disposed) return;
-					moonModel = gltf.scene;
+			void loadCachedModelSceneClone(modelUrl)
+				.then((sceneClone) => {
+					if (disposed || activeGeneration !== layerGeneration) return;
+
+					if (moonModel) {
+						scene.remove(moonModel);
+					}
+					moonModel = sceneClone;
 					scene.add(moonModel);
 					if (fallbackMoon) {
 						scene.remove(fallbackMoon);
@@ -87,13 +94,11 @@ export const createMoonOrbitLayer = ({
 						fallbackMoon = undefined;
 						fallbackMaterial = undefined;
 					}
-				},
-				undefined,
-				(error) => {
-					if (disposed) return;
+				})
+				.catch((error) => {
+					if (disposed || activeGeneration !== layerGeneration) return;
 					console.error(`[moon-orbit-layer] Failed to load model: ${modelUrl}`, error);
-				}
-			);
+				});
 		},
 
 		render(gl, options: CustomRenderMethodInput) {
@@ -133,6 +138,7 @@ export const createMoonOrbitLayer = ({
 
 		onRemove() {
 			disposed = true;
+			layerGeneration += 1;
 			if (slowLoadWarningTimeout !== undefined) {
 				clearTimeout(slowLoadWarningTimeout);
 				slowLoadWarningTimeout = undefined;

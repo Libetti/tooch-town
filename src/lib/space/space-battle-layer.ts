@@ -1,6 +1,6 @@
 import type { CustomLayerInterface, CustomRenderMethodInput, Map } from 'maplibre-gl';
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { loadCachedModelSceneClone } from './gltf-model-cache';
 
 export type SpaceBattleShipPlacement = {
 	id?: string;
@@ -66,11 +66,11 @@ export const createSpaceBattleLayer = ({
 	let renderer: THREE.WebGLRenderer | undefined;
 	const mountedShips: MountedShip[] = [];
 	let disposed = false;
+	let layerGeneration = 0;
 	let isVisible = visible;
 
 	const camera = new THREE.Camera();
 	const scene = new THREE.Scene();
-	const loader = new GLTFLoader();
 
 	scene.add(new THREE.AmbientLight(0xffffff, 0.9));
 	const keyLight = new THREE.DirectionalLight(0xffffff, 1.3);
@@ -83,6 +83,10 @@ export const createSpaceBattleLayer = ({
 		renderingMode: '3d',
 
 		onAdd(map, gl) {
+			disposed = false;
+			layerGeneration += 1;
+			const activeGeneration = layerGeneration;
+
 			mapRef = map;
 
 			renderer = new THREE.WebGLRenderer({
@@ -111,15 +115,16 @@ export const createSpaceBattleLayer = ({
 				const mountedShip: MountedShip = { placement, anchor, fallbackMesh, fallbackMaterial };
 				mountedShips.push(mountedShip);
 
-				loader.load(
-					placement.modelUrl,
-					(gltf) => {
-						if (disposed) return;
-						const shipModel = gltf.scene;
+				void loadCachedModelSceneClone(placement.modelUrl)
+					.then((sceneClone) => {
+						if (disposed || activeGeneration !== layerGeneration) return;
+
+						const shipModel = sceneClone;
 						shipModel.traverse((node) => {
 							node.frustumCulled = false;
 						});
 						applyRotation(shipModel, placement.rotationDeg ?? defaultRotationDeg);
+
 						anchor.clear();
 						anchor.add(shipModel);
 
@@ -129,13 +134,11 @@ export const createSpaceBattleLayer = ({
 						}
 						mountedShip.fallbackMaterial?.dispose();
 						mountedShip.fallbackMaterial = undefined;
-					},
-					undefined,
-					(error) => {
-						if (disposed) return;
+					})
+					.catch((error) => {
+						if (disposed || activeGeneration !== layerGeneration) return;
 						console.error(`[space-battle-layer] Failed to load model: ${placement.modelUrl}`, error);
-					}
-				);
+					});
 			}
 		},
 
@@ -165,6 +168,7 @@ export const createSpaceBattleLayer = ({
 						)
 					) as number[]
 				);
+
 				const scaleMatrix = new THREE.Matrix4().makeScale(scaleMeters, scaleMeters, scaleMeters);
 				anchor.matrix.copy(modelMatrix.multiply(scaleMatrix));
 				anchor.matrixWorldNeedsUpdate = true;
@@ -182,6 +186,7 @@ export const createSpaceBattleLayer = ({
 
 		onRemove() {
 			disposed = true;
+			layerGeneration += 1;
 			for (const mountedShip of mountedShips) {
 				const { anchor, fallbackMesh, fallbackMaterial } = mountedShip;
 				if (fallbackMesh) {
