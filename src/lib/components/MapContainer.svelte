@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { PUBLIC_MAPTILER_KEY } from '$env/static/public';
 	import { DEFAULT_BASE_LAYER_ID, getBaseMapStyle } from '$lib/maps/base-map-catalog';
+	import { applyMapTilerWeatherMapShim } from '$lib/weather/maptiler-weather-map-shim';
 	import { createPrecipitationLayerManager } from '$lib/weather/precipitation-layer-manager';
 	import { createWeatherRasterLayerManager } from '$lib/weather/weather-raster-layer';
 	import { onMount } from 'svelte';
@@ -10,6 +11,7 @@
 	let mapElement: HTMLDivElement;
 	let map: Map | undefined;
 	let frameId: number | undefined;
+	let precipitationSyncReady = false;
 	let activeStyle: string | StyleSpecification | undefined;
 
 	export let styleUrl: string | StyleSpecification = getBaseMapStyle(
@@ -61,6 +63,17 @@
 		targetMap.touchZoomRotate.disable();
 	};
 
+	const schedulePrecipitationSync = (targetMap: Map) => {
+		precipitationSyncReady = false;
+		targetMap.once('idle', () => {
+			if (map !== targetMap) return;
+			precipitationSyncReady = true;
+			precipitationLayerManager.sync(targetMap, {
+				visible: precipitationVisible
+			});
+		});
+	};
+
 	onMount(() => {
 		const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -91,13 +104,12 @@
 
 			map?.setProjection({ type: 'globe' });
 			if (map) {
+				applyMapTilerWeatherMapShim(map, PUBLIC_MAPTILER_KEY);
 				weatherLayerManager.sync(map, {
 					visible: weatherVisible,
 					tileTemplate: weatherTileTemplate
 				});
-				precipitationLayerManager.sync(map, {
-					visible: precipitationVisible
-				});
+				schedulePrecipitationSync(map);
 			}
 			if (map) onMapReady?.(map);
 
@@ -133,6 +145,7 @@
 			if (map) precipitationLayerManager.clear(map);
 			map?.remove();
 			map = undefined;
+			precipitationSyncReady = false;
 		};
 	});
 
@@ -152,9 +165,7 @@
 					visible: weatherVisible,
 					tileTemplate: weatherTileTemplate
 				});
-				precipitationLayerManager.sync(map, {
-					visible: precipitationVisible
-				});
+				schedulePrecipitationSync(map);
 			}
 		});
 	}
@@ -165,7 +176,7 @@
 		weatherLayerManager.sync(map, { visible, tileTemplate });
 	}
 
-	$: if (map) {
+	$: if (map && precipitationSyncReady) {
 		precipitationLayerManager.sync(map, {
 			visible: precipitationVisible
 		});

@@ -272,7 +272,8 @@
 				id: 'weather-precipitation',
 				label: 'Precipitation',
 				enabled: precipitationLayerEnabled,
-				description: 'MapTiler precipitation forecast with built-in animation.'
+				description:
+					'Forecast window: current model run through the next ~4 days (hourly). Playback is ~1 forecast hour per second.'
 			},
 			{
 				id: 'space-battle',

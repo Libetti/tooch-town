@@ -76,6 +76,20 @@ describe('createPrecipitationLayerManager', () => {
 		expect(instances[0]?.animateByFactor).toHaveBeenCalledWith(3600);
 	});
 
+	it('still animates after repeated no-op sync calls', async () => {
+		const { map } = createMockMap();
+		const manager = createPrecipitationLayerManager({
+			animationFactor: 3600
+		});
+
+		manager.sync(map, { visible: true });
+		manager.sync(map, { visible: true });
+		await flushAsync();
+
+		expect(instances).toHaveLength(1);
+		expect(instances[0]?.animateByFactor).toHaveBeenCalledWith(3600);
+	});
+
 	it('pauses and removes layer when hidden', async () => {
 		const { map, mapMock } = createMockMap();
 		const manager = createPrecipitationLayerManager();
