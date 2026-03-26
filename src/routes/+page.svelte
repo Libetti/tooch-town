@@ -5,7 +5,8 @@
 	import { mountMoonOrbitLayer } from '$lib/space/moon-orbit-layer';
 	import {
 		mountSpaceBattleLayer,
-		type SpaceBattleLayerController
+		type SpaceBattleLayerController,
+		type SpaceBattleShipPlacement
 	} from '$lib/space/space-battle-layer';
 	import {
 		DEFAULT_BASE_LAYER_ID,
@@ -87,8 +88,8 @@
 		if (!cardsCollapsed) layerSidebarOpen = false;
 	});
 
-	const syncSpaceBattleLayer = (map: MapLibreMap) => {
-		const ships = [
+		const syncSpaceBattleLayer = (map: MapLibreMap) => {
+			const ships: SpaceBattleShipPlacement[] = [
 			{
 				id: 'lucrehulk',
 				modelUrl: '/models/lucrehulk.glb',
@@ -431,12 +432,10 @@
 	</div>
 {/if}
 
-<LayerSidebar
-	open={layerSidebarOpen}
-	{selectedBaseLayer}
-	weatherEnabled={weatherLayerEnabled}
-	{selectedWeatherSatellite}
-	registry={layerRegistry}
+	<LayerSidebar
+		open={layerSidebarOpen}
+		{selectedBaseLayer}
+		registry={layerRegistry}
 	onClose={() => {
 		layerSidebarOpen = false;
 	}}

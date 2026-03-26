@@ -40,11 +40,11 @@ const FALLBACK_SATELLITE_STYLE: StyleSpecification = {
 const STREETS_FALLBACK = FALLBACK_STREETS_STYLE;
 const SATELLITE_FALLBACK = FALLBACK_SATELLITE_STYLE;
 
-const assertCatalogCoverage = <
-	T extends readonly BaseMapCatalogEntry[],
-	Missing extends Exclude<BaseLayerId, T[number]['id']> = Exclude<BaseLayerId, T[number]['id']>
->(
-	catalog: Missing extends never ? T : never
+const assertCatalogCoverage = <T extends readonly BaseMapCatalogEntry[]>(
+	catalog: T &
+		(Exclude<BaseLayerId, T[number]['id']> extends never
+			? unknown
+			: ['Missing base-map entries for ids', Exclude<BaseLayerId, T[number]['id']>])
 ): T => catalog;
 
 const MAPTILER_BASE_MAPS = assertCatalogCoverage([
@@ -211,7 +211,7 @@ const MAPTILER_BASE_MAPS = assertCatalogCoverage([
 		fallbackStyle: STREETS_FALLBACK
 	},
 	{ id: 'ocean', label: 'Ocean', maptilerStyleId: 'ocean', fallbackStyle: STREETS_FALLBACK }
-] as const satisfies readonly BaseMapCatalogEntry[]);
+] as const);
 
 const KEYLESS_BASE_MAPS = [
 	{ id: 'satellite', label: 'Satellite', fallbackStyle: SATELLITE_FALLBACK },
