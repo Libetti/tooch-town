@@ -16,6 +16,7 @@ export type SpaceBattleLayerOptions = {
 	layerId?: string;
 	ships: SpaceBattleShipPlacement[];
 	visible?: boolean;
+	beforeLayerId?: string;
 	defaultAltitudeMeters?: number;
 	defaultScaleMeters?: number;
 	defaultRotationDeg?: [number, number, number];
@@ -228,7 +229,11 @@ export const mountSpaceBattleLayer = (
 		if (!style || !style.layers) return;
 
 		try {
-			map.addLayer(layer);
+			const beforeLayerId =
+				options.beforeLayerId && map.getLayer(options.beforeLayerId)
+					? options.beforeLayerId
+					: undefined;
+			map.addLayer(layer, beforeLayerId);
 		} catch {
 			// Retry during subsequent style lifecycle events.
 		}

@@ -88,68 +88,68 @@
 		if (!cardsCollapsed) layerSidebarOpen = false;
 	});
 
-		const syncSpaceBattleLayer = (map: MapLibreMap) => {
-			const ships: SpaceBattleShipPlacement[] = [
+	const syncSpaceBattleLayer = (map: MapLibreMap) => {
+		const ships: SpaceBattleShipPlacement[] = [
 			{
 				id: 'lucrehulk',
 				modelUrl: '/models/lucrehulk.glb',
-				longitude: -90.3,
-				latitude: 30.3,
-				scaleMeters: 100_000,
+				longitude: -95.3,
+				latitude: 61.3,
+				scaleMeters: 50_000,
 				altitudeMeters: 2_150_000,
-				rotationDeg: [120, 90, 240]
+				rotationDeg: [0, 140, 0]
 			},
 			{
 				id: 'munificent-s7',
 				modelUrl: '/models/munificent_basic.glb',
-				longitude: -75.3,
-				latitude: 43.3,
-				scaleMeters: 105_000,
+				longitude: -105.3,
+				latitude: 66.3,
+				scaleMeters: 52_500,
 				altitudeMeters: 2_250_000,
-				rotationDeg: [-180, 120, 180]
+				rotationDeg: [-180, 60, 180]
 			},
 			{
 				id: 'munificent-s7-1',
 				modelUrl: '/models/munificent_basic.glb',
-				longitude: -80.3,
-				latitude: 14.3,
-				scaleMeters: 105_000,
+				longitude: -82.3,
+				latitude: 63.3,
+				scaleMeters: 52_500,
 				altitudeMeters: 2_250_000,
-				rotationDeg: [150, 70, 200]
+				rotationDeg: [150, 140, 200]
 			},
 			{
 				id: 'separatist-dreadnaught',
 				modelUrl: '/models/separatist_dreadnaught.glb',
 				longitude: -29.2,
-				latitude: 30.8,
-				altitudeMeters: 725_000,
-				scaleMeters: 70_000,
+				latitude: 76.8,
+				altitudeMeters: 800_000,
+				scaleMeters: 35_000,
 				rotationDeg: [190, 90, 180]
 			},
 			{
 				id: 'venator-1',
 				modelUrl: '/models/venator.glb',
 				longitude: -29.2,
-				latitude: 36.8,
-				altitudeMeters: 1_250_000,
-				scaleMeters: 210_000,
+				latitude: 80.8,
+				altitudeMeters: 1_150_000,
+				scaleMeters: 105_000,
 				rotationDeg: [180, 300, 180]
 			},
 			{
 				id: 'venator-2',
 				modelUrl: '/models/venator.glb',
 				longitude: -29.2,
-				latitude: 21.9,
+				latitude: 72.5,
 				altitudeMeters: 900_000,
-				scaleMeters: 210_000,
+				scaleMeters: 105_000,
 				rotationDeg: [190, 290, 180]
 			},
 			{
 				id: 'arquitens-1',
 				modelUrl: '/models/arquitens.glb',
 				longitude: -40,
-				latitude: -35.8,
-				scaleMeters: 49_000,
+				latitude: 10.2,
+				scaleMeters: 24_500,
 				rotationDeg: [0, 200, 0],
 				altitudeMeters: 500_000
 			},
@@ -157,19 +157,20 @@
 				id: 'arquitens-2',
 				modelUrl: '/models/arquitens.glb',
 				longitude: -60,
-				latitude: -35.8,
-				scaleMeters: 49_000,
+				latitude: 10.2,
+				scaleMeters: 24_500,
 				rotationDeg: [0, 210, 0],
 				altitudeMeters: 300_000
 			}
 		];
 		if (!spaceBattleLayerController) {
-			spaceBattleLayerController = mountSpaceBattleLayer(map, {
-				visible: spaceBattleLayerEnabled,
-				layerId: 'space-battle-layer',
-				defaultAltitudeMeters: 1_000_000,
-				ships
-			});
+				spaceBattleLayerController = mountSpaceBattleLayer(map, {
+					visible: spaceBattleLayerEnabled,
+					layerId: 'space-battle-layer',
+					beforeLayerId: 'moon-orbit-layer',
+					defaultAltitudeMeters: 1_000_000,
+					ships
+				});
 			return;
 		}
 
@@ -432,10 +433,10 @@
 	</div>
 {/if}
 
-	<LayerSidebar
-		open={layerSidebarOpen}
-		{selectedBaseLayer}
-		registry={layerRegistry}
+<LayerSidebar
+	open={layerSidebarOpen}
+	{selectedBaseLayer}
+	registry={layerRegistry}
 	onClose={() => {
 		layerSidebarOpen = false;
 	}}
