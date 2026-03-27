@@ -15,21 +15,32 @@ type MapWithOptionalCanvas = MapLibreMap & {
 type QueryRenderedFeaturesTarget = Parameters<MapLibreMap['queryRenderedFeatures']>[0];
 type PointLike = { x?: unknown; y?: unknown };
 
+const strikeTimeFormatter = new Intl.DateTimeFormat(undefined, {
+	year: 'numeric',
+	month: 'short',
+	day: '2-digit',
+	hour: '2-digit',
+	minute: '2-digit',
+	second: '2-digit',
+	hour12: true,
+	timeZone: 'UTC',
+	timeZoneName: 'short'
+});
+
 const formatStrikeTime = (timeRaw: unknown): string => {
 	if (typeof timeRaw !== 'string' || timeRaw.trim().length === 0) return 'Unknown';
 	const timeMs = Date.parse(timeRaw);
 	if (!Number.isFinite(timeMs)) return timeRaw;
-	return `${new Date(timeMs).toISOString().replace('.000', '')} UTC`;
+	return strikeTimeFormatter.format(new Date(timeMs));
 };
 
-const formatEnergy = (energyRaw: unknown): string => {
+const formatIntensity = (energyRaw: unknown): string => {
 	if (typeof energyRaw !== 'number' || !Number.isFinite(energyRaw)) return 'Unknown';
-	return energyRaw.toExponential(2);
-};
-
-const formatConfidence = (confidenceRaw: unknown): string => {
-	if (typeof confidenceRaw !== 'number' || !Number.isFinite(confidenceRaw)) return 'Unknown';
-	return `${Math.round(confidenceRaw * 100)}%`;
+	if (energyRaw < 1e-14) return 'Very Weak';
+	if (energyRaw < 1e-13) return 'Weak';
+	if (energyRaw < 1e-12) return 'Moderate';
+	if (energyRaw < 1e-11) return 'Strong';
+	return 'Severe';
 };
 
 const escapeHtml = (value: string): string =>
@@ -55,8 +66,7 @@ const popupMarkup = (feature: HoverableLightningFeature): string => {
 		`ID: ${escapeHtml(id)}`,
 		`Satellite: ${escapeHtml(satellite)}`,
 		`Time: ${escapeHtml(formatStrikeTime(properties.time))}`,
-		`Energy: ${escapeHtml(formatEnergy(properties.energy))}`,
-		`Confidence: ${escapeHtml(formatConfidence(properties.confidence))}`
+		`Intensity: ${escapeHtml(formatIntensity(properties.energy))}`
 	].join('<br/>');
 };
 
