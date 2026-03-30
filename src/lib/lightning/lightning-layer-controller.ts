@@ -3,6 +3,8 @@ import { createLightningStrikeHoverController } from './lightning-strike-hover';
 
 type Satellite = 'goes-east' | 'goes-west';
 
+const LIGHTNING_SATELLITES: Satellite[] = ['goes-east', 'goes-west'];
+
 export type LightningStrikePayload = {
 	id: string;
 	satellite: Satellite;
@@ -15,10 +17,23 @@ export type LightningStrikePayload = {
 	source?: string;
 };
 
-type LightningRecentResponse = {
-	generatedAt: string;
-	windowSeconds: number;
-	strikes: LightningStrikePayload[];
+type LightningLatestFrameResponse = {
+	frame_id: string;
+	satellite: Satellite;
+	start_time: string;
+	end_time: string;
+	flash_count: number;
+	updated_at: string;
+};
+
+type LightningLatestPointsResponse = {
+	frame_id: string;
+	satellite: Satellite;
+	start_time: string;
+	end_time: string;
+	updated_at: string;
+	count: number;
+	features: LightningStrikePayload[];
 };
 
 type BufferedLightningStrike = {
@@ -64,7 +79,8 @@ type MapLibreGeoJsonSource = {
 };
 
 type LightningLayerControllerOptions = {
-	apiPath?: string;
+	frameApiPath?: string;
+	pointsApiPath?: string;
 	pollIntervalMs?: number;
 	decayWindowMs?: number;
 	limit?: number;
@@ -200,16 +216,19 @@ export const computeDecayFactor = (ageMs: number, decayWindowMs: number): number
 };
 
 export const createLightningLayerController = ({
-	apiPath = '/api/lightning/recent',
+	frameApiPath = '/api/lightning/latest-frame',
+	pointsApiPath = '/api/lightning/latest-points',
 	pollIntervalMs = 15_000,
 	decayWindowMs = DEFAULT_DECAY_WINDOW_MS,
 	limit = DEFAULT_LIMIT,
 	maxBufferedStrikes = DEFAULT_MAX_BUFFERED_STRIKES
 }: LightningLayerControllerOptions): LightningLayerController => {
-	const normalizedApiPath = apiPath.trim() || '/api/lightning/recent';
+	const normalizedFrameApiPath = frameApiPath.trim() || '/api/lightning/latest-frame';
+	const normalizedPointsApiPath = pointsApiPath.trim() || '/api/lightning/latest-points';
 	const normalizedDecayWindowMs = Math.max(5_000, decayWindowMs);
 
 	let strikesById = new globalThis.Map<string, BufferedLightningStrike>();
+	let latestFrameIdsBySatellite = new globalThis.Map<Satellite, string>();
 	let pollIntervalId: ReturnType<typeof setInterval> | undefined;
 	let fadeIntervalId: ReturnType<typeof setInterval> | undefined;
 	let mapRef: MapLibreMap | undefined;
@@ -314,9 +333,13 @@ export const createLightningLayerController = ({
 		nowMs: number
 	): BufferedLightningStrike | undefined => {
 		if (!Number.isFinite(strike.latitude) || !Number.isFinite(strike.longitude)) return undefined;
+		const trimmedStrikeId = strike.id.trim();
 		const id =
-			strike.id.trim() ||
-			`${strike.satellite}:${strike.longitude}:${strike.latitude}:${strike.time}`;
+			trimmedStrikeId
+				? trimmedStrikeId.startsWith(`${strike.satellite}:`)
+					? trimmedStrikeId
+					: `${strike.satellite}:${trimmedStrikeId}`
+				: `${strike.satellite}:${strike.longitude}:${strike.latitude}:${strike.time}`;
 		const parsedTimeMs = Date.parse(strike.time);
 		const eventTimeMs = Number.isFinite(parsedTimeMs) ? Math.min(parsedTimeMs, nowMs) : nowMs;
 		return {
@@ -405,28 +428,75 @@ export const createLightningLayerController = ({
 		});
 	};
 
-	const fetchRecentStrikes = async (): Promise<LightningStrikePayload[]> => {
-		const query = new URLSearchParams({
-			windowSeconds: String(Math.round(normalizedDecayWindowMs / 1000))
-		});
+	const fetchLatestFrame = async (
+		satellite: Satellite
+	): Promise<LightningLatestFrameResponse | undefined> => {
+		const query = new URLSearchParams({ satellite });
+		const response = await fetch(`${normalizedFrameApiPath}?${query.toString()}`);
+		if (!response.ok) {
+			throw new Error(`Failed to fetch lightning frame data for ${satellite}`);
+		}
+
+		return (await response.json()) as LightningLatestFrameResponse;
+	};
+
+	const fetchLatestPoints = async (satellite: Satellite): Promise<LightningStrikePayload[]> => {
+		const query = new URLSearchParams({ satellite });
 		if (typeof limit === 'number' && Number.isFinite(limit) && limit > 0) {
 			query.set('limit', String(Math.floor(limit)));
 		}
-		const response = await fetch(`${normalizedApiPath}?${query.toString()}`);
+		const response = await fetch(`${normalizedPointsApiPath}?${query.toString()}`);
 		if (!response.ok) {
-			throw new Error('Failed to fetch lightning heatmap data');
+			throw new Error(`Failed to fetch lightning point data for ${satellite}`);
 		}
 
-		const payload = (await response.json()) as LightningRecentResponse;
-		if (!Array.isArray(payload.strikes)) return [];
-		return payload.strikes;
+		const payload = (await response.json()) as LightningLatestPointsResponse;
+		if (!Array.isArray(payload.features)) return [];
+		return payload.features.map((feature) => ({
+			...feature,
+			satellite
+		}));
 	};
 
 	const pollLightning = async (): Promise<void> => {
+		const activeSatellites =
+			satelliteFilter === 'all' ? LIGHTNING_SATELLITES : [satelliteFilter];
+
 		try {
-			const incomingStrikes = await fetchRecentStrikes();
-			if (incomingStrikes.length > 0) {
-				upsertStrikes(incomingStrikes);
+			const frameResponses = await Promise.all(
+				activeSatellites.map(async (satellite) => {
+					try {
+						return await fetchLatestFrame(satellite);
+					} catch {
+						return undefined;
+					}
+				})
+			);
+
+			const satellitesNeedingPoints = frameResponses.flatMap((frame) => {
+				if (!frame) return [];
+				const previousFrameId = latestFrameIdsBySatellite.get(frame.satellite);
+				if (previousFrameId === frame.frame_id) return [];
+				latestFrameIdsBySatellite.set(frame.satellite, frame.frame_id);
+				return [frame.satellite];
+			});
+
+			if (satellitesNeedingPoints.length > 0) {
+				const incomingStrikes = (
+					await Promise.all(
+						satellitesNeedingPoints.map(async (satellite) => {
+							try {
+								return await fetchLatestPoints(satellite);
+							} catch {
+								return [];
+							}
+						})
+					)
+				).flat();
+
+				if (incomingStrikes.length > 0) {
+					upsertStrikes(incomingStrikes);
+				}
 			}
 		} catch {
 			// Keep rendering existing decaying strikes if polling temporarily fails.
@@ -485,6 +555,7 @@ export const createLightningLayerController = ({
 	const setSatelliteFilter = (satellite: Satellite | 'all'): void => {
 		satelliteFilter = satellite;
 		applyLayerPresentation();
+		if (running) void pollLightning();
 	};
 
 	const stop = (): void => {
@@ -496,6 +567,7 @@ export const createLightningLayerController = ({
 		if (fadeIntervalId !== undefined) clearInterval(fadeIntervalId);
 		fadeIntervalId = undefined;
 		strikesById = new globalThis.Map<string, BufferedLightningStrike>();
+		latestFrameIdsBySatellite = new globalThis.Map<Satellite, string>();
 		const source = getSource();
 		source?.setData(emptyFeatureCollection());
 		strikeHoverController.detach();
