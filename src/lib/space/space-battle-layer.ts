@@ -116,7 +116,7 @@ export const createSpaceBattleLayer = ({
 				const mountedShip: MountedShip = { placement, anchor, fallbackMesh, fallbackMaterial };
 				mountedShips.push(mountedShip);
 
-				void loadCachedModelSceneClone(placement.modelUrl)
+				void loadCachedModelSceneClone(placement.modelUrl, renderer)
 					.then((sceneClone) => {
 						if (disposed || activeGeneration !== layerGeneration) return;
 

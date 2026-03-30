@@ -3,7 +3,7 @@ import { createMapTilerWeatherLayerManager } from './maptiler-weather-layer-mana
 
 export type PrecipitationLayerManagerOptions = {
 	layerId?: string;
-	beforeLayerId?: string;
+	beforeLayerId?: string | string[];
 	animationFactor?: number;
 };
 
