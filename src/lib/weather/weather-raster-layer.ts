@@ -14,10 +14,20 @@ type WeatherRasterLayerManager = {
 type WeatherRasterLayerManagerOptions = {
 	sourceId?: string;
 	layerId?: string;
-	beforeLayerId?: string;
+	beforeLayerId?: string | string[];
 	opacity?: number;
 	fadeOutZoomStart?: number;
 	fadeOutZoomEnd?: number;
+};
+
+const resolveBeforeLayerId = (
+	targetMap: Map,
+	beforeLayerId: string | string[] | undefined
+): string | undefined => {
+	if (!beforeLayerId) return undefined;
+
+	const candidateIds = Array.isArray(beforeLayerId) ? beforeLayerId : [beforeLayerId];
+	return candidateIds.find((candidateId) => targetMap.getLayer(candidateId)) ?? undefined;
 };
 
 export const createWeatherRasterLayerManager = ({
@@ -59,8 +69,9 @@ export const createWeatherRasterLayerManager = ({
 					'raster-fade-duration': 0
 				}
 			};
-			if (beforeLayerId && targetMap.getLayer(beforeLayerId)) {
-				targetMap.addLayer(layerDefinition, beforeLayerId);
+			const beforeId = resolveBeforeLayerId(targetMap, beforeLayerId);
+			if (beforeId) {
+				targetMap.addLayer(layerDefinition, beforeId);
 				return;
 			}
 			targetMap.addLayer(layerDefinition);

@@ -249,4 +249,41 @@ describe('lightning maplibre controller', () => {
 		expect(mockMap.state.sources.has('lightning-source')).toBe(true);
 		controller.stop();
 	});
+
+	it('keeps lightning below the moon layer when that anchor exists', async () => {
+		const strike: LightningStrikePayload = {
+			id: 'goes-east:evt-5',
+			satellite: 'goes-east',
+			latitude: 40,
+			longitude: -74,
+			time: '2026-03-16T10:00:00.000Z',
+			energy: 1.2e-13
+		};
+		vi.stubGlobal('fetch', vi.fn().mockResolvedValue(responseJson(buildPayload([strike]))));
+		const mockMap = createMockMap();
+		mockMap.state.layers.set('moon-orbit-layer', {
+			id: 'moon-orbit-layer',
+			type: 'custom'
+		} as LayerSpecification);
+		const controller = createLightningLayerController({
+			pollIntervalMs: 10_000,
+			decayWindowMs: 10_000
+		});
+
+		controller.attach(mockMap.map);
+		controller.start();
+		await flushAsync();
+
+		expect(mockMap.map.addLayer).toHaveBeenCalledWith(
+			expect.objectContaining({ id: 'lightning-heatmap' }),
+			'moon-orbit-layer'
+		);
+		expect(mockMap.map.addLayer).toHaveBeenCalledWith(
+			expect.objectContaining({ id: 'lightning-strikes' }),
+			'moon-orbit-layer'
+		);
+		expect(mockMap.map.moveLayer).toHaveBeenCalledWith('lightning-heatmap', 'moon-orbit-layer');
+		expect(mockMap.map.moveLayer).toHaveBeenCalledWith('lightning-strikes', 'moon-orbit-layer');
+		controller.stop();
+	});
 });

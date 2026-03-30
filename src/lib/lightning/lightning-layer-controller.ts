@@ -83,6 +83,7 @@ type LightningLayerController = {
 const LIGHTNING_SOURCE_ID = 'lightning-source';
 const LIGHTNING_LAYER_ID = 'lightning-heatmap';
 const LIGHTNING_STRIKE_LAYER_ID = 'lightning-strikes';
+const LIGHTNING_TOP_ANCHOR_LAYER_ID = 'moon-orbit-layer';
 const ENERGY_LOG10_MIN = -15.5;
 const ENERGY_LOG10_MAX = -11;
 const ENERGY_FLOOR_WEIGHT = 0.05;
@@ -227,18 +228,27 @@ export const createLightningLayerController = ({
 		return mapRef.getSource(LIGHTNING_SOURCE_ID) as unknown as MapLibreGeoJsonSource | undefined;
 	};
 
+	const getLightningBeforeLayerId = (): string | undefined => {
+		if (!mapRef) return undefined;
+		return mapRef.getLayer(LIGHTNING_TOP_ANCHOR_LAYER_ID)
+			? LIGHTNING_TOP_ANCHOR_LAYER_ID
+			: undefined;
+	};
+
 	const promoteLightningLayers = (): void => {
 		if (!mapRef) return;
+		const beforeLayerId = getLightningBeforeLayerId();
 		if (mapRef.getLayer(LIGHTNING_LAYER_ID)) {
-			mapRef.moveLayer(LIGHTNING_LAYER_ID);
+			mapRef.moveLayer(LIGHTNING_LAYER_ID, beforeLayerId);
 		}
 		if (mapRef.getLayer(LIGHTNING_STRIKE_LAYER_ID)) {
-			mapRef.moveLayer(LIGHTNING_STRIKE_LAYER_ID);
+			mapRef.moveLayer(LIGHTNING_STRIKE_LAYER_ID, beforeLayerId);
 		}
 	};
 
 	const ensureMapArtifacts = (): void => {
 		if (!mapRef) return;
+		const beforeLayerId = getLightningBeforeLayerId();
 		if (!mapRef.getSource(LIGHTNING_SOURCE_ID)) {
 			mapRef.addSource(LIGHTNING_SOURCE_ID, {
 				type: 'geojson',
@@ -246,10 +256,10 @@ export const createLightningLayerController = ({
 			});
 		}
 		if (!mapRef.getLayer(LIGHTNING_LAYER_ID)) {
-			mapRef.addLayer(buildHeatmapLayer());
+			mapRef.addLayer(buildHeatmapLayer(), beforeLayerId);
 		}
 		if (!mapRef.getLayer(LIGHTNING_STRIKE_LAYER_ID)) {
-			mapRef.addLayer(buildStrikeLayer());
+			mapRef.addLayer(buildStrikeLayer(), beforeLayerId);
 		}
 		applyLayerPresentation();
 	};

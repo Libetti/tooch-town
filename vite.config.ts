@@ -7,9 +7,6 @@ export default defineConfig({
 	server: {
 		allowedHosts: ['local.tooch.dev']
 	},
-	resolve: {
-		dedupe: ['three']
-	},
 	plugins: [tailwindcss(), sveltekit()],
 	test: {
 		expect: { requireAssertions: true },

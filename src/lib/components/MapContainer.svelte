@@ -44,38 +44,38 @@
 	const weatherLayerManager = createWeatherRasterLayerManager({
 		sourceId: 'weather-cmi',
 		layerId: 'weather-cmi-layer',
-		beforeLayerId: 'moon-orbit-layer',
+		beforeLayerId: ['space-battle-layer', 'moon-orbit-layer'],
 		opacity: 0.72,
 		fadeOutZoomStart: 8,
 		fadeOutZoomEnd: 10
 	});
 	const precipitationLayerManager = createPrecipitationLayerManager({
 		layerId: 'weather-precipitation',
-		beforeLayerId: 'moon-orbit-layer',
+		beforeLayerId: ['space-battle-layer', 'moon-orbit-layer'],
 		animationFactor: 3600
 	});
 	const pressureLayerManager = createMapTilerWeatherLayerManager({
 		layerId: 'weather-pressure',
 		layerCtor: PressureLayer,
-		beforeLayerId: 'moon-orbit-layer',
+		beforeLayerId: ['space-battle-layer', 'moon-orbit-layer'],
 		animationFactor: 1800
 	});
 	const radarLayerManager = createMapTilerWeatherLayerManager({
 		layerId: 'weather-radar',
 		layerCtor: RadarLayer,
-		beforeLayerId: 'moon-orbit-layer',
+		beforeLayerId: ['space-battle-layer', 'moon-orbit-layer'],
 		animationFactor: 1800
 	});
 	const temperatureLayerManager = createMapTilerWeatherLayerManager({
 		layerId: 'weather-temperature',
 		layerCtor: TemperatureLayer,
-		beforeLayerId: 'moon-orbit-layer',
+		beforeLayerId: ['space-battle-layer', 'moon-orbit-layer'],
 		animationFactor: 1800
 	});
 	const windLayerManager = createMapTilerWeatherLayerManager({
 		layerId: 'weather-wind',
 		layerCtor: WindLayer,
-		beforeLayerId: 'moon-orbit-layer',
+		beforeLayerId: ['space-battle-layer', 'moon-orbit-layer'],
 		animationFactor: 1800
 	});
 	const weatherLegendTimeFormatter = new Intl.DateTimeFormat(undefined, {

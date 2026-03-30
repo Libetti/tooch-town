@@ -30,8 +30,18 @@ type MapTilerWeatherLayerManager = {
 type MapTilerWeatherLayerManagerOptions = {
 	layerId: string;
 	layerCtor: MapTilerWeatherLayerCtor;
-	beforeLayerId?: string;
+	beforeLayerId?: string | string[];
 	animationFactor?: number;
+};
+
+const resolveBeforeLayerId = (
+	targetMap: Map,
+	beforeLayerId: string | string[] | undefined
+): string | undefined => {
+	if (!beforeLayerId) return undefined;
+
+	const candidateIds = Array.isArray(beforeLayerId) ? beforeLayerId : [beforeLayerId];
+	return candidateIds.find((candidateId) => targetMap.getLayer(candidateId)) ?? undefined;
 };
 
 const applyMapLibreAsyncOnAddGuard = (layer: MapTilerWeatherLayer): void => {
@@ -104,7 +114,7 @@ export const createMapTilerWeatherLayerManager = ({
 			return;
 		}
 
-		const beforeId = beforeLayerId && targetMap.getLayer(beforeLayerId) ? beforeLayerId : undefined;
+		const beforeId = resolveBeforeLayerId(targetMap, beforeLayerId);
 		const createdLayer = new layerCtor({ id: layerId });
 		applyMapLibreAsyncOnAddGuard(createdLayer);
 		layer = createdLayer;

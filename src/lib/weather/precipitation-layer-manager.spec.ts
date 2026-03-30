@@ -76,6 +76,25 @@ describe('createPrecipitationLayerManager', () => {
 		expect(instances[0]?.animateByFactor).toHaveBeenCalledWith(3600);
 	});
 
+	it('prefers the first available model anchor when inserting the layer', async () => {
+		const { map, mapMock, layers } = createMockMap();
+		layers.set('space-battle-layer', { id: 'space-battle-layer' });
+		layers.set('moon-orbit-layer', { id: 'moon-orbit-layer' });
+		const manager = createPrecipitationLayerManager({
+			layerId: 'weather-precipitation',
+			beforeLayerId: ['space-battle-layer', 'moon-orbit-layer'],
+			animationFactor: 3600
+		});
+
+		manager.sync(map, { visible: true });
+		await flushAsync();
+
+		expect(mapMock.addLayer).toHaveBeenCalledWith(
+			expect.objectContaining({ id: 'weather-precipitation' }),
+			'space-battle-layer'
+		);
+	});
+
 	it('still animates after repeated no-op sync calls', async () => {
 		const { map } = createMockMap();
 		const manager = createPrecipitationLayerManager({
