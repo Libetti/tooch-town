@@ -43,7 +43,8 @@
 	let mapRef: MapLibreMap | undefined;
 
 	const lightningLayerController = createLightningLayerController({
-		apiPath: '/api/lightning/recent',
+		frameApiPath: '/api/lightning/latest-frame',
+		pointsApiPath: '/api/lightning/latest-points',
 		pollIntervalMs: 15_000
 	});
 	const cmiRasterLayerController = createCmiRasterLayerController({
