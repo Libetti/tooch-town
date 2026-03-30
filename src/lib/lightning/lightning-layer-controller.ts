@@ -122,7 +122,7 @@ const buildHeatmapLayer = (): LayerSpecification => ({
 	source: LIGHTNING_SOURCE_ID,
 	paint: {
 		'heatmap-weight': ['coalesce', ['get', 'weight'], 0],
-		// Tuned to approximate the prior Deck heatmap look and color progression.
+		// Tuned for the current heatmap look and color progression.
 		'heatmap-intensity': 1.2,
 		'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 0, 10, 2, 14, 4, 20, 6, 26],
 		'heatmap-opacity': ['interpolate', ['linear'], ['zoom'], 0, 0.58, 4, 0.82],

@@ -52,31 +52,31 @@
 	const precipitationLayerManager = createPrecipitationLayerManager({
 		layerId: 'weather-precipitation',
 		beforeLayerId: ['space-battle-layer', 'moon-orbit-layer'],
-		animationFactor: 3600
+		animationFactor: 720
 	});
 	const pressureLayerManager = createMapTilerWeatherLayerManager({
 		layerId: 'weather-pressure',
 		layerCtor: PressureLayer,
 		beforeLayerId: ['space-battle-layer', 'moon-orbit-layer'],
-		animationFactor: 1800
+		animationFactor: 720
 	});
 	const radarLayerManager = createMapTilerWeatherLayerManager({
 		layerId: 'weather-radar',
 		layerCtor: RadarLayer,
 		beforeLayerId: ['space-battle-layer', 'moon-orbit-layer'],
-		animationFactor: 1800
+		animationFactor: 720
 	});
 	const temperatureLayerManager = createMapTilerWeatherLayerManager({
 		layerId: 'weather-temperature',
 		layerCtor: TemperatureLayer,
 		beforeLayerId: ['space-battle-layer', 'moon-orbit-layer'],
-		animationFactor: 1800
+		animationFactor: 720
 	});
 	const windLayerManager = createMapTilerWeatherLayerManager({
 		layerId: 'weather-wind',
 		layerCtor: WindLayer,
 		beforeLayerId: ['space-battle-layer', 'moon-orbit-layer'],
-		animationFactor: 1800
+		animationFactor: 720
 	});
 	const weatherLegendTimeFormatter = new Intl.DateTimeFormat(undefined, {
 		month: 'short',
