@@ -78,7 +78,7 @@ export const createMoonOrbitLayer = ({
 				console.warn(`[moon-orbit-layer] Model is still loading: ${modelUrl}`);
 			}, 4000);
 
-			void loadCachedModelSceneClone(modelUrl)
+			void loadCachedModelSceneClone(modelUrl, renderer)
 				.then((sceneClone) => {
 					if (disposed || activeGeneration !== layerGeneration) return;
 
