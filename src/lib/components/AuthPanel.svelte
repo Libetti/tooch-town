@@ -127,7 +127,7 @@
 						<h2>Your little safe space.</h2>
 						<p class="auth-blurb-title">Why create an account?</p>
 						<p class="auth-blurb-copy">
-							Well you get to post stuff AND if I know you I can do adhoc things to screww.
+							Well you get to post GREAT stuff and if I know you I can steal your bank account!
 						</p>
 					</div>
 

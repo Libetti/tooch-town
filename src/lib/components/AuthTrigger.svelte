@@ -11,12 +11,8 @@
 	let { expanded = false, onToggle }: Props = $props();
 
 	const getTriggerLabel = () => {
-		if ($authSession) {
-			return 'You';
-		}
-
 		if (hasSupabaseAuthConfig) {
-			return 'In';
+			return 'You';
 		}
 
 		return '!';
@@ -101,4 +97,5 @@
 			0 0 0 1px rgba(255, 198, 127, 0.18),
 			0 14px 28px rgba(1, 6, 16, 0.24);
 	}
+
 </style>

@@ -377,14 +377,16 @@
 	}}
 />
 
-<div class="auth-dock">
-	<AuthTrigger
-		expanded={authExpanded}
-		onToggle={() => {
-			authExpanded = !authExpanded;
-		}}
-	/>
-</div>
+{#if !cardsCollapsed}
+	<div class="auth-dock">
+		<AuthTrigger
+			expanded={authExpanded}
+			onToggle={() => {
+				authExpanded = !authExpanded;
+			}}
+		/>
+	</div>
+{/if}
 
 <AuthPanel
 	expanded={authExpanded}
