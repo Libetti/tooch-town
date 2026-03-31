@@ -15,7 +15,8 @@
 	} from '$lib/maps/base-map-catalog';
 	import type { BaseLayerId } from '$lib/maps/base-layer-ids';
 	import type { Map as MapLibreMap } from 'maplibre-gl';
-	import AuthControls from '$lib/components/AuthControls.svelte';
+	import AuthPanel from '$lib/components/AuthPanel.svelte';
+	import AuthTrigger from '$lib/components/AuthTrigger.svelte';
 	import MapContainer from '$lib/components/MapContainer.svelte';
 	import LayerSidebar from '$lib/components/LayerSidebar.svelte';
 	import MusingsCard from '$lib/components/MusingsCard.svelte';
@@ -380,10 +381,8 @@
 	<main class="landing">
 		<section class:hero--auth-expanded={authExpanded} class="hero" aria-labelledby="about-title">
 			<div class="hero-actions">
-				<AuthControls
+				<AuthTrigger
 					expanded={authExpanded}
-					showTrigger={true}
-					showPanel={false}
 					onToggle={() => {
 						authExpanded = !authExpanded;
 					}}
@@ -408,13 +407,8 @@
 				<a href="https://www.linkedin.com/in/libetti" target="_blank" rel="noreferrer">LinkedIn</a>
 				<a href="mailto:anthony.libetti@yahoo.com" target="_blank" rel="noreferrer">Email</a>
 			</div>
-			<AuthControls
+			<AuthPanel
 				expanded={authExpanded}
-				showTrigger={false}
-				showPanel={true}
-				onToggle={() => {
-					authExpanded = !authExpanded;
-				}}
 			/>
 		</section>
 
