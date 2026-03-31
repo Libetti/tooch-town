@@ -413,6 +413,7 @@
 			<p class="intro">
 				So you made it, welcome to my hood. Home to me, a map-fancy software engineer whose
 				life mission is to continue to afford a series of stupid hobbies which end up abandoned. A Cayman GTS would be nice too...
+				Software Enginner at FlightAware
 			</p>
 			<div class="links" aria-label="profile links">
 				<a href="https://github.com/libetti" target="_blank" rel="noreferrer">GitHub</a>
