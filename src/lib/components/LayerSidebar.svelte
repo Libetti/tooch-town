@@ -21,7 +21,7 @@
 
 	let {
 		open = false,
-		selectedBaseLayer = 'satellite',
+		selectedBaseLayer = 'voyager-v2-darkmatter',
 		registry = { baseMaps: [], layers: [] },
 		onClose,
 		onBaseLayerChange,

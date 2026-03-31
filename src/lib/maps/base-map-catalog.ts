@@ -227,7 +227,7 @@ const KEYLESS_BASE_MAPS_BY_ID = new Map<BaseLayerId, BaseMapCatalogEntry>(
 	KEYLESS_BASE_MAPS.map((baseMap) => [baseMap.id, baseMap])
 );
 
-export const DEFAULT_BASE_LAYER_ID: BaseLayerId = 'satellite';
+export const DEFAULT_BASE_LAYER_ID: BaseLayerId = 'voyager-v2-darkmatter';
 
 const createMapTilerStyleUrl = (styleId: string, maptilerKey: string): string => {
 	return `https://api.maptiler.com/maps/${styleId}/style.json?key=${maptilerKey}`;
