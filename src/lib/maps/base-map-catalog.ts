@@ -233,25 +233,77 @@ const createMapTilerStyleUrl = (styleId: string, maptilerKey: string): string =>
 	return `https://api.maptiler.com/maps/${styleId}/style.json?key=${maptilerKey}`;
 };
 
+const BASE_MAP_DESCRIPTIONS: Record<BaseLayerId, string> = {
+	satellite: 'Up-to-date global satellite imagery with high-resolution aerial coverage in many regions.',
+	hybrid: 'Satellite imagery with roads, boundaries, and place labels layered on top for easier orientation.',
+	streets: 'A complete, legible street map built for everyday navigation and general map context.',
+	'streets-v2': 'A refined full-detail street basemap for city browsing, navigation, and general reference.',
+	'streets-v2-dark':
+		'A night-friendly street map that keeps roads and labels clear against a dark background.',
+	'streets-v2-light':
+		'A light street basemap with a softer palette that stays readable without overpowering overlays.',
+	'streets-v2-night':
+		'A moody nighttime street style with deep colors and bright labels for after-dark map viewing.',
+	'streets-v2-pastel':
+		'A pastel street map that softens the palette while preserving road and place detail.',
+	'outdoor-v2':
+		'A terrain-rich outdoor map that highlights trails, landforms, parks, and mountain context.',
+	'outdoor-v2-dark':
+		'A darker outdoor style that preserves trail and terrain detail for low-light viewing.',
+	'winter-v2':
+		'A cool, winter-themed terrain map that emphasizes snowy landforms, resorts, and seasonal context.',
+	'winter-v2-dark':
+		'A dark winter variant with icy tones and terrain contrast suited to evening map displays.',
+	'basic-v2': 'A lightweight, informative basemap with reduced clutter and a neutral cartographic tone.',
+	'basic-v2-dark':
+		'A streamlined dark basemap that keeps core reference detail without a busy visual field.',
+	'basic-v2-light':
+		'A clean light basemap with restrained detail for interfaces that need a quiet geographic backdrop.',
+	'bright-v2': 'A vivid, colorful reference map with strong contrast and easy-to-scan cartographic detail.',
+	'bright-v2-dark':
+		'A bold dark map with colorful accents that helps labels and overlays stand out clearly.',
+	'bright-v2-light':
+		'A bright light-toned style with crisp contrast and a lively, modern cartographic look.',
+	'bright-v2-pastel':
+		'A softer bright style that trades saturated colors for a gentler pastel appearance.',
+	'topo-v2':
+		'A classic topographic map with terrain shading, elevation cues, and landform-focused detail.',
+	'topo-v2-shiny':
+		'A glossy topographic style with stronger relief and more pronounced terrain contrast.',
+	'topo-v2-pastel':
+		'A pastel topographic map that keeps elevation context while using a softer color treatment.',
+	'topo-v2-topographique':
+		'A French-inspired topographic style with detailed relief and a print-atlas feel.',
+	'voyager-v2':
+		'A balanced reference map with clear hierarchy, practical labels, and an all-purpose travel feel.',
+	'voyager-v2-darkmatter':
+		'A dark Voyager variant tuned for overlay-heavy maps, with labels that stay readable at a glance.',
+	'voyager-v2-positron':
+		'A light Voyager variant that provides clean geographic context without competing with data layers.',
+	'voyager-v2-vintage':
+		'A warm retro basemap with vintage tones that give modern geography an old-atlas character.',
+	'toner-v2': 'A bold black-and-white map style built around crisp lines and stark cartographic contrast.',
+	'toner-v2-background':
+		'A stripped-down monochrome background that keeps the Toner look with minimal distraction.',
+	'toner-v2-lite':
+		'A lighter grayscale Toner variant that preserves detail without the heaviest black fills.',
+	'toner-v2-lines':
+		'A linework-only Toner style that emphasizes roads, boundaries, and graphic structure.',
+	openstreetmap: 'A classic OpenStreetMap rendering shaped by community-maintained global map data.',
+	dataviz: 'A data-first basemap designed to help thematic overlays stand out without extra styling work.',
+	'dataviz-dark':
+		'A dark data-visualization style that keeps geography present while giving overlays more contrast.',
+	'dataviz-light':
+		'A light data-visualization style that reduces color noise so thematic layers remain the focus.',
+	backdrop:
+		'A muted contextual basemap that frames overlays with subtle land, water, and label treatment.',
+	'backdrop-dark':
+		'A dark, subdued backdrop style made to support overlays without demanding visual attention.',
+	ocean: 'A marine-focused map that emphasizes coastlines, bathymetric context, and ocean geography.'
+};
+
 const getBaseMapDescription = (baseLayerId: BaseLayerId): string => {
-	if (baseLayerId === 'satellite') return 'Aerial imagery with minimal labels.';
-	if (baseLayerId === 'hybrid') return 'Satellite imagery with roads and labels.';
-	if (baseLayerId === 'openstreetmap') return 'Classic OpenStreetMap cartography.';
-	if (baseLayerId === 'ocean') return 'Marine-focused map with ocean detail.';
-	if (baseLayerId === 'dataviz') return 'High-contrast style for data overlays.';
-	if (baseLayerId === 'dataviz-dark') return 'Dark data visualization basemap.';
-	if (baseLayerId === 'dataviz-light') return 'Light data visualization basemap.';
-	if (baseLayerId === 'backdrop') return 'Muted backdrop to keep overlays prominent.';
-	if (baseLayerId === 'backdrop-dark') return 'Dark muted backdrop for overlays.';
-	if (baseLayerId.includes('streets')) return 'General-purpose street map for everyday context.';
-	if (baseLayerId.includes('outdoor')) return 'Terrain-oriented map for hiking and outdoor routes.';
-	if (baseLayerId.includes('winter')) return 'Winter-themed terrain style.';
-	if (baseLayerId.includes('basic')) return 'Simple neutral basemap with reduced detail.';
-	if (baseLayerId.includes('bright')) return 'Colorful high-clarity cartographic style.';
-	if (baseLayerId.includes('topo')) return 'Topographic style with elevation-focused detail.';
-	if (baseLayerId.includes('voyager')) return 'Balanced reference style with readable labels.';
-	if (baseLayerId.includes('toner')) return 'Black-and-white high-contrast style.';
-	return 'MapTiler basemap style.';
+	return BASE_MAP_DESCRIPTIONS[baseLayerId] ?? 'MapTiler basemap style.';
 };
 
 const getRequiredBaseMap = (
