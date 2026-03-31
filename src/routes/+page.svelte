@@ -377,16 +377,26 @@
 	}}
 />
 
+<div class="auth-dock">
+	<AuthTrigger
+		expanded={authExpanded}
+		onToggle={() => {
+			authExpanded = !authExpanded;
+		}}
+	/>
+</div>
+
+<AuthPanel
+	expanded={authExpanded}
+	onClose={() => {
+		authExpanded = false;
+	}}
+/>
+
 {#if !cardsCollapsed}
-	<main class="landing">
-		<section class:hero--auth-expanded={authExpanded} class="hero" aria-labelledby="about-title">
+	<main class:landing--auth-open={authExpanded} class="landing">
+		<section class="hero" aria-labelledby="about-title">
 			<div class="hero-actions">
-				<AuthTrigger
-					expanded={authExpanded}
-					onToggle={() => {
-						authExpanded = !authExpanded;
-					}}
-				/>
 				<button
 					type="button"
 					class="collapse-cards"
@@ -407,9 +417,6 @@
 				<a href="https://www.linkedin.com/in/libetti" target="_blank" rel="noreferrer">LinkedIn</a>
 				<a href="mailto:anthony.libetti@yahoo.com" target="_blank" rel="noreferrer">Email</a>
 			</div>
-			<AuthPanel
-				expanded={authExpanded}
-			/>
 		</section>
 
 		<div class:content-grid--musings-expanded={musingsExpanded} class="content-grid">
@@ -570,6 +577,23 @@
 		padding: 4rem 1.25rem 5.5rem;
 		display: grid;
 		gap: 1rem;
+		transition:
+			transform 320ms cubic-bezier(0.16, 1, 0.3, 1),
+			padding 320ms cubic-bezier(0.16, 1, 0.3, 1);
+	}
+
+	.landing--auth-open {
+		transform: translateX(-8rem);
+	}
+
+	.auth-dock {
+		position: fixed;
+		top: 1rem;
+		right: 1rem;
+		z-index: 6;
+		display: grid;
+		justify-items: end;
+		gap: 0.75rem;
 	}
 
 	.hero {
@@ -584,11 +608,6 @@
 		transition:
 			padding 320ms cubic-bezier(0.16, 1, 0.3, 1),
 			box-shadow 320ms cubic-bezier(0.16, 1, 0.3, 1);
-	}
-
-	.hero--auth-expanded {
-		padding-bottom: 2rem;
-		box-shadow: 0 22px 42px rgba(1, 6, 16, 0.36);
 	}
 
 	.eyebrow {
@@ -843,8 +862,18 @@
 	}
 
 	@media (max-width: 40rem) {
+		.auth-dock {
+			top: 0.85rem;
+			right: 0.85rem;
+			left: 0.85rem;
+		}
+
 		.landing {
 			padding-top: 2.25rem;
+		}
+
+		.landing--auth-open {
+			transform: translateX(-2rem);
 		}
 
 		.hero {
@@ -858,6 +887,10 @@
 	}
 
 	@media (max-width: 56rem) {
+		.landing--auth-open {
+			transform: translateX(-4rem);
+		}
+
 		.content-grid {
 			grid-template-columns: 1fr;
 		}

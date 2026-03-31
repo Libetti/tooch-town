@@ -17,7 +17,7 @@
 	>
 		<div class="section-heading">
 			<h2 id="musings-title">Musings</h2>
-			<p>What do the people say.</p>
+			<p>What do the people say?</p>
 		</div>
 		<span class="musings-toggle-label">{expanded ? 'Collapse' : 'Expand'}</span>
 	</button>
