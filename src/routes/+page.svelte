@@ -201,7 +201,7 @@
 
 	const projects = [
 		{
-			name: 'My Flightfeeder',
+			name: '🛫 My Flightfeeder',
 			description: 'Live data view of my hosted FlightAware FlightFeeder',
 			href: '/feeder',
 			label: 'View feeder map'
