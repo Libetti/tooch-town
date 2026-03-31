@@ -17,6 +17,7 @@
 	import type { Map as MapLibreMap } from 'maplibre-gl';
 	import MapContainer from '$lib/components/MapContainer.svelte';
 	import LayerSidebar from '$lib/components/LayerSidebar.svelte';
+	import MusingsCard from '$lib/components/MusingsCard.svelte';
 	import { onMount } from 'svelte';
 	import type { LayerRegistry } from '$lib/layers/layer-registry';
 	import type { PageData } from './$types';
@@ -38,6 +39,7 @@
 	let selectedLightningSatellite = $state<'all' | 'goes-east' | 'goes-west'>('all');
 	let weatherTileTemplate = $state<string | undefined>(undefined);
 	let layerSidebarOpen = $state(false);
+	let musingsExpanded = $state(false);
 	let removeMoonOrbitLayer: (() => void) | undefined;
 	let spaceBattleLayerController: SpaceBattleLayerController | undefined;
 	let mapRef: MapLibreMap | undefined;
@@ -87,6 +89,10 @@
 
 	$effect(() => {
 		if (!cardsCollapsed) layerSidebarOpen = false;
+	});
+
+	$effect(() => {
+		if (cardsCollapsed) musingsExpanded = false;
 	});
 
 	const syncSpaceBattleLayer = (map: MapLibreMap) => {
@@ -367,14 +373,17 @@
 {#if !cardsCollapsed}
 	<main class="landing">
 		<section class="hero" aria-labelledby="about-title">
-			<button
-				type="button"
-				class="collapse-cards"
-				aria-label="Hide cards"
-				onclick={() => {
-					cardsCollapsed = true;
-				}}>x</button
-			>
+			<div class="hero-actions">
+				<button type="button" class="sign-in-button" aria-label="Sign in">Sign In</button>
+				<button
+					type="button"
+					class="collapse-cards"
+					aria-label="Hide cards"
+					onclick={() => {
+						cardsCollapsed = true;
+					}}>x</button
+				>
+			</div>
 			<p class="eyebrow">Tooch Town</p>
 			<h1 id="about-title">Anthony Libetti</h1>
 			<p class="intro">
@@ -388,8 +397,14 @@
 			</div>
 		</section>
 
-		<div class="content-grid">
-			<section class="panel projects" aria-labelledby="projects-title">
+		<div class:content-grid--musings-expanded={musingsExpanded} class="content-grid">
+			<section
+				class:projects--hidden={musingsExpanded}
+				class="panel projects"
+				aria-labelledby="projects-title"
+				aria-hidden={musingsExpanded}
+				inert={musingsExpanded}
+			>
 				<div class="section-heading">
 					<h2 id="projects-title">Some Projects</h2>
 				</div>
@@ -414,15 +429,14 @@
 				</ul>
 			</section>
 
-			<section class="panel musings" aria-labelledby="musings-title">
-				<div class="section-heading">
-					<h2 id="musings-title">Musings</h2>
-					<p>What do the people say.</p>
-				</div>
-				<div class="musings-empty" role="status">No titles published yet.</div>
-			</section>
+			<MusingsCard
+				expanded={musingsExpanded}
+				onToggle={() => {
+					musingsExpanded = !musingsExpanded;
+				}}
+			/>
 		</div>
-	</main>
+		</main>
 {:else}
 	<div class="card-restore-bar">
 		<button
@@ -604,21 +618,39 @@
 		background: rgba(13, 27, 47, 0.62);
 	}
 
-	.collapse-cards {
+	.hero-actions {
 		position: absolute;
 		top: 0.8rem;
 		right: 0.8rem;
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	.sign-in-button,
+	.collapse-cards {
 		border: 1px solid var(--line);
 		background: rgba(10, 24, 43, 0.7);
 		color: #f5f8ff;
 		border-radius: 999px;
+		cursor: pointer;
+	}
+
+	.sign-in-button {
+		padding: 0.45rem 0.85rem;
+		font-size: 0.82rem;
+		font-weight: 600;
+		line-height: 1;
+	}
+
+	.collapse-cards {
 		width: 2rem;
 		height: 2rem;
-		cursor: pointer;
 		font-size: 1.1rem;
 		line-height: 1;
 	}
 
+	.sign-in-button:hover,
 	.collapse-cards:hover {
 		background: rgba(14, 31, 54, 0.92);
 	}
@@ -671,6 +703,14 @@
 		display: grid;
 		grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
 		gap: 1rem;
+		transition:
+			grid-template-columns 320ms cubic-bezier(0.16, 1, 0.3, 1),
+			gap 320ms cubic-bezier(0.16, 1, 0.3, 1);
+	}
+
+	.content-grid--musings-expanded {
+		grid-template-columns: minmax(0, 0fr) minmax(0, 1fr);
+		gap: 0;
 	}
 
 	.panel {
@@ -767,18 +807,20 @@
 		color: #ffe8ca;
 	}
 
-	.musings {
-		min-height: 100%;
+	.projects {
+		min-width: 0;
+		overflow: clip;
+		transition:
+			opacity 240ms ease,
+			transform 320ms cubic-bezier(0.16, 1, 0.3, 1),
+			filter 240ms ease;
 	}
 
-	.musings-empty {
-		margin-top: 1rem;
-		border: 1px dashed rgba(166, 198, 255, 0.26);
-		border-radius: 0.8rem;
-		padding: 0.95rem;
-		color: var(--muted);
-		background: rgba(9, 20, 36, 0.3);
-		font-size: 0.92rem;
+	.projects--hidden {
+		opacity: 0;
+		transform: translateX(1.5rem) scale(0.98);
+		filter: blur(10px);
+		pointer-events: none;
 	}
 
 	@keyframes reveal {
@@ -810,6 +852,10 @@
 	@media (max-width: 56rem) {
 		.content-grid {
 			grid-template-columns: 1fr;
+		}
+
+		.content-grid--musings-expanded {
+			gap: 1rem;
 		}
 	}
 </style>
