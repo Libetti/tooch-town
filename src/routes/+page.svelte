@@ -317,9 +317,9 @@
 			},
 			{
 				id: 'space-battle',
-				label: 'Space Battle',
+				label: 'Watch those wrist wrockets!',
 				enabled: spaceBattleLayerEnabled,
-				description: 'Multi-ship 3D fleet scenegraph formation.'
+				description: 'Do it.'
 			}
 		]
 	});
@@ -391,8 +391,7 @@
 		<div class="content-grid">
 			<section class="panel projects" aria-labelledby="projects-title">
 				<div class="section-heading">
-					<h2 id="projects-title">Current Projects</h2>
-					<p>A quick snapshot of what this site will host.</p>
+					<h2 id="projects-title">Some Projects</h2>
 				</div>
 				<ul class="project-list">
 					{#each projects as project (project.name)}
@@ -418,7 +417,7 @@
 			<section class="panel musings" aria-labelledby="musings-title">
 				<div class="section-heading">
 					<h2 id="musings-title">Musings</h2>
-					<p>Article titles will live here.</p>
+					<p>What do the people say.</p>
 				</div>
 				<div class="musings-empty" role="status">No titles published yet.</div>
 			</section>
