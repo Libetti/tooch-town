@@ -202,15 +202,19 @@
 	const projects = [
 		{
 			name: 'My Flightfeeder',
-			description: 'Live view of my hosted fightfeeder',
+			description: 'Live data view of my hosted FlightAware FlightFeeder',
 			href: '/feeder',
-			label: 'View Feeder Map'
+			label: 'View feeder map'
 		},
 		{
-			name: 'Farm Health',
-			description: 'Check the health of my humble farm',
-			href: '/feeder',
-			label: 'View Feeder Map'
+			name: '⚡ Lightning Rod',
+			description: 'A FastAPI server for exposing and transforming GOES-R Series data for web maps.',
+			includes: [
+				'Realtime GLM data providing latest strikes and frames for animation',
+				'Cloud and Moisture Imagery (CMI) served as raster tiles'
+			],
+			href: 'https://github.com/Libetti/lightning-rod',
+			label: 'Check out repo'
 		},
 		{
 			name: 'Upcoming AI project....',
@@ -374,8 +378,8 @@
 			<p class="eyebrow">Tooch Town</p>
 			<h1 id="about-title">Anthony Libetti</h1>
 			<p class="intro">
-				So you made it, welcome to my hood bitches. Home to me, a map-fancy software engineer whose
-				life mission is to continue to afford a series of stupid hobbies which end up abandoned.
+				So you made it, welcome to my hood. Home to me, a map-fancy software engineer whose
+				life mission is to continue to afford a series of stupid hobbies which end up abandoned. A Cayman GTS would be nice too...
 			</p>
 			<div class="links" aria-label="profile links">
 				<a href="https://github.com/libetti" target="_blank" rel="noreferrer">GitHub</a>
@@ -396,9 +400,16 @@
 							<div>
 								<h3>{project.name}</h3>
 								<p>{project.description}</p>
+								{#if project.includes}
+									<ul class="project-includes">
+										{#each project.includes as include}
+											<li>{include}</li>
+										{/each}
+									</ul>
+								{/if}
 							</div>
 							<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-							<a href={project.href}>{project.label}</a>
+							<a target="_blank" href={project.href}>{project.label}</a>
 						</li>
 					{/each}
 				</ul>
@@ -716,6 +727,31 @@
 		line-height: 1.52;
 		font-size: 0.93rem;
 		color: var(--body);
+	}
+
+	.project-includes {
+		margin: 0.35rem 0 0;
+		padding: 0;
+		list-style: none;
+		color: var(--body);
+		font-size: 0.9rem;
+		line-height: 1.5;
+	}
+
+	.project-includes li {
+		position: relative;
+		padding-left: 0.9rem;
+	}
+
+	.project-includes li::before {
+		content: '•';
+		position: absolute;
+		left: 0;
+		color: var(--accent);
+	}
+
+	.project-includes li + li {
+		margin-top: 0.2rem;
 	}
 
 	.project-item a {
