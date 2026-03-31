@@ -50,6 +50,7 @@
 	},
 	"dependencies": {
 		"@maptiler/weather": "^3.1.1",
+		"@supabase/supabase-js": "^2.101.0",
 		"maplibre-gl": "^5.19.0",
 		"three": "^0.183.2"
 	}

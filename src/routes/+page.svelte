@@ -15,6 +15,7 @@
 	} from '$lib/maps/base-map-catalog';
 	import type { BaseLayerId } from '$lib/maps/base-layer-ids';
 	import type { Map as MapLibreMap } from 'maplibre-gl';
+	import AuthControls from '$lib/components/AuthControls.svelte';
 	import MapContainer from '$lib/components/MapContainer.svelte';
 	import LayerSidebar from '$lib/components/LayerSidebar.svelte';
 	import MusingsCard from '$lib/components/MusingsCard.svelte';
@@ -39,6 +40,7 @@
 	let selectedLightningSatellite = $state<'all' | 'goes-east' | 'goes-west'>('all');
 	let weatherTileTemplate = $state<string | undefined>(undefined);
 	let layerSidebarOpen = $state(false);
+	let authExpanded = $state(false);
 	let musingsExpanded = $state(false);
 	let removeMoonOrbitLayer: (() => void) | undefined;
 	let spaceBattleLayerController: SpaceBattleLayerController | undefined;
@@ -93,6 +95,10 @@
 
 	$effect(() => {
 		if (cardsCollapsed) musingsExpanded = false;
+	});
+
+	$effect(() => {
+		if (cardsCollapsed) authExpanded = false;
 	});
 
 	const syncSpaceBattleLayer = (map: MapLibreMap) => {
@@ -372,9 +378,16 @@
 
 {#if !cardsCollapsed}
 	<main class="landing">
-		<section class="hero" aria-labelledby="about-title">
+		<section class:hero--auth-expanded={authExpanded} class="hero" aria-labelledby="about-title">
 			<div class="hero-actions">
-				<button type="button" class="sign-in-button" aria-label="Sign in">Sign In</button>
+				<AuthControls
+					expanded={authExpanded}
+					showTrigger={true}
+					showPanel={false}
+					onToggle={() => {
+						authExpanded = !authExpanded;
+					}}
+				/>
 				<button
 					type="button"
 					class="collapse-cards"
@@ -395,6 +408,14 @@
 				<a href="https://www.linkedin.com/in/libetti" target="_blank" rel="noreferrer">LinkedIn</a>
 				<a href="mailto:anthony.libetti@yahoo.com" target="_blank" rel="noreferrer">Email</a>
 			</div>
+			<AuthControls
+				expanded={authExpanded}
+				showTrigger={false}
+				showPanel={true}
+				onToggle={() => {
+					authExpanded = !authExpanded;
+				}}
+			/>
 		</section>
 
 		<div class:content-grid--musings-expanded={musingsExpanded} class="content-grid">
@@ -566,6 +587,14 @@
 		backdrop-filter: blur(8px);
 		box-shadow: 0 18px 36px rgba(1, 6, 16, 0.32);
 		animation: reveal 550ms ease-out both;
+		transition:
+			padding 320ms cubic-bezier(0.16, 1, 0.3, 1),
+			box-shadow 320ms cubic-bezier(0.16, 1, 0.3, 1);
+	}
+
+	.hero--auth-expanded {
+		padding-bottom: 2rem;
+		box-shadow: 0 22px 42px rgba(1, 6, 16, 0.36);
 	}
 
 	.eyebrow {
@@ -627,20 +656,12 @@
 		gap: 0.5rem;
 	}
 
-	.sign-in-button,
 	.collapse-cards {
 		border: 1px solid var(--line);
 		background: rgba(10, 24, 43, 0.7);
 		color: #f5f8ff;
 		border-radius: 999px;
 		cursor: pointer;
-	}
-
-	.sign-in-button {
-		padding: 0.45rem 0.85rem;
-		font-size: 0.82rem;
-		font-weight: 600;
-		line-height: 1;
 	}
 
 	.collapse-cards {
@@ -650,7 +671,6 @@
 		line-height: 1;
 	}
 
-	.sign-in-button:hover,
 	.collapse-cards:hover {
 		background: rgba(14, 31, 54, 0.92);
 	}
@@ -727,12 +747,6 @@
 		font-size: clamp(1.18rem, 2.5vw, 1.48rem);
 		font-family: Georgia, 'Times New Roman', serif;
 		color: var(--headline);
-	}
-
-	.section-heading p {
-		margin: 0.35rem 0 0;
-		color: var(--muted);
-		font-size: 0.94rem;
 	}
 
 	.project-list {
