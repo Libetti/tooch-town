@@ -15,8 +15,11 @@
 	} from '$lib/maps/base-map-catalog';
 	import type { BaseLayerId } from '$lib/maps/base-layer-ids';
 	import type { Map as MapLibreMap } from 'maplibre-gl';
+	import AuthPanel from '$lib/components/AuthPanel.svelte';
+	import AuthTrigger from '$lib/components/AuthTrigger.svelte';
 	import MapContainer from '$lib/components/MapContainer.svelte';
 	import LayerSidebar from '$lib/components/LayerSidebar.svelte';
+	import MusingsCard from '$lib/components/MusingsCard.svelte';
 	import { onMount } from 'svelte';
 	import type { LayerRegistry } from '$lib/layers/layer-registry';
 	import type { PageData } from './$types';
@@ -38,6 +41,8 @@
 	let selectedLightningSatellite = $state<'all' | 'goes-east' | 'goes-west'>('all');
 	let weatherTileTemplate = $state<string | undefined>(undefined);
 	let layerSidebarOpen = $state(false);
+	let authExpanded = $state(false);
+	let musingsExpanded = $state(false);
 	let removeMoonOrbitLayer: (() => void) | undefined;
 	let spaceBattleLayerController: SpaceBattleLayerController | undefined;
 	let mapRef: MapLibreMap | undefined;
@@ -87,6 +92,14 @@
 
 	$effect(() => {
 		if (!cardsCollapsed) layerSidebarOpen = false;
+	});
+
+	$effect(() => {
+		if (cardsCollapsed) musingsExpanded = false;
+	});
+
+	$effect(() => {
+		if (cardsCollapsed) authExpanded = false;
 	});
 
 	const syncSpaceBattleLayer = (map: MapLibreMap) => {
@@ -201,7 +214,7 @@
 
 	const projects = [
 		{
-			name: 'My Flightfeeder',
+			name: '🛫 My Flightfeeder',
 			description: 'Live data view of my hosted FlightAware FlightFeeder',
 			href: '/feeder',
 			label: 'View feeder map'
@@ -365,16 +378,36 @@
 />
 
 {#if !cardsCollapsed}
-	<main class="landing">
+	<div class="auth-dock">
+		<AuthTrigger
+			expanded={authExpanded}
+			onToggle={() => {
+				authExpanded = !authExpanded;
+			}}
+		/>
+	</div>
+{/if}
+
+<AuthPanel
+	expanded={authExpanded}
+	onClose={() => {
+		authExpanded = false;
+	}}
+/>
+
+{#if !cardsCollapsed}
+	<main class:landing--auth-open={authExpanded} class="landing">
 		<section class="hero" aria-labelledby="about-title">
-			<button
-				type="button"
-				class="collapse-cards"
-				aria-label="Hide cards"
-				onclick={() => {
-					cardsCollapsed = true;
-				}}>x</button
-			>
+			<div class="hero-actions">
+				<button
+					type="button"
+					class="collapse-cards"
+					aria-label="Hide cards"
+					onclick={() => {
+						cardsCollapsed = true;
+					}}>x</button
+				>
+			</div>
 			<p class="eyebrow">Tooch Town</p>
 			<h1 id="about-title">Anthony Libetti</h1>
 			<p class="intro">
@@ -388,8 +421,14 @@
 			</div>
 		</section>
 
-		<div class="content-grid">
-			<section class="panel projects" aria-labelledby="projects-title">
+		<div class:content-grid--musings-expanded={musingsExpanded} class="content-grid">
+			<section
+				class:projects--hidden={musingsExpanded}
+				class="panel projects"
+				aria-labelledby="projects-title"
+				aria-hidden={musingsExpanded}
+				inert={musingsExpanded}
+			>
 				<div class="section-heading">
 					<h2 id="projects-title">Some Projects</h2>
 				</div>
@@ -414,15 +453,14 @@
 				</ul>
 			</section>
 
-			<section class="panel musings" aria-labelledby="musings-title">
-				<div class="section-heading">
-					<h2 id="musings-title">Musings</h2>
-					<p>What do the people say.</p>
-				</div>
-				<div class="musings-empty" role="status">No titles published yet.</div>
-			</section>
+			<MusingsCard
+				expanded={musingsExpanded}
+				onToggle={() => {
+					musingsExpanded = !musingsExpanded;
+				}}
+			/>
 		</div>
-	</main>
+		</main>
 {:else}
 	<div class="card-restore-bar">
 		<button
@@ -541,6 +579,23 @@
 		padding: 4rem 1.25rem 5.5rem;
 		display: grid;
 		gap: 1rem;
+		transition:
+			transform 320ms cubic-bezier(0.16, 1, 0.3, 1),
+			padding 320ms cubic-bezier(0.16, 1, 0.3, 1);
+	}
+
+	.landing--auth-open {
+		transform: translateX(-8rem);
+	}
+
+	.auth-dock {
+		position: fixed;
+		top: 1rem;
+		right: 1rem;
+		z-index: 6;
+		display: grid;
+		justify-items: end;
+		gap: 0.75rem;
 	}
 
 	.hero {
@@ -552,6 +607,9 @@
 		backdrop-filter: blur(8px);
 		box-shadow: 0 18px 36px rgba(1, 6, 16, 0.32);
 		animation: reveal 550ms ease-out both;
+		transition:
+			padding 320ms cubic-bezier(0.16, 1, 0.3, 1),
+			box-shadow 320ms cubic-bezier(0.16, 1, 0.3, 1);
 	}
 
 	.eyebrow {
@@ -604,17 +662,26 @@
 		background: rgba(13, 27, 47, 0.62);
 	}
 
-	.collapse-cards {
+	.hero-actions {
 		position: absolute;
 		top: 0.8rem;
 		right: 0.8rem;
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	.collapse-cards {
 		border: 1px solid var(--line);
 		background: rgba(10, 24, 43, 0.7);
 		color: #f5f8ff;
 		border-radius: 999px;
+		cursor: pointer;
+	}
+
+	.collapse-cards {
 		width: 2rem;
 		height: 2rem;
-		cursor: pointer;
 		font-size: 1.1rem;
 		line-height: 1;
 	}
@@ -671,6 +738,14 @@
 		display: grid;
 		grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
 		gap: 1rem;
+		transition:
+			grid-template-columns 320ms cubic-bezier(0.16, 1, 0.3, 1),
+			gap 320ms cubic-bezier(0.16, 1, 0.3, 1);
+	}
+
+	.content-grid--musings-expanded {
+		grid-template-columns: minmax(0, 0fr) minmax(0, 1fr);
+		gap: 0;
 	}
 
 	.panel {
@@ -687,12 +762,6 @@
 		font-size: clamp(1.18rem, 2.5vw, 1.48rem);
 		font-family: Georgia, 'Times New Roman', serif;
 		color: var(--headline);
-	}
-
-	.section-heading p {
-		margin: 0.35rem 0 0;
-		color: var(--muted);
-		font-size: 0.94rem;
 	}
 
 	.project-list {
@@ -767,18 +836,20 @@
 		color: #ffe8ca;
 	}
 
-	.musings {
-		min-height: 100%;
+	.projects {
+		min-width: 0;
+		overflow: clip;
+		transition:
+			opacity 240ms ease,
+			transform 320ms cubic-bezier(0.16, 1, 0.3, 1),
+			filter 240ms ease;
 	}
 
-	.musings-empty {
-		margin-top: 1rem;
-		border: 1px dashed rgba(166, 198, 255, 0.26);
-		border-radius: 0.8rem;
-		padding: 0.95rem;
-		color: var(--muted);
-		background: rgba(9, 20, 36, 0.3);
-		font-size: 0.92rem;
+	.projects--hidden {
+		opacity: 0;
+		transform: translateX(1.5rem) scale(0.98);
+		filter: blur(10px);
+		pointer-events: none;
 	}
 
 	@keyframes reveal {
@@ -793,8 +864,18 @@
 	}
 
 	@media (max-width: 40rem) {
+		.auth-dock {
+			top: 0.85rem;
+			right: 0.85rem;
+			left: 0.85rem;
+		}
+
 		.landing {
 			padding-top: 2.25rem;
+		}
+
+		.landing--auth-open {
+			transform: translateX(-2rem);
 		}
 
 		.hero {
@@ -808,8 +889,16 @@
 	}
 
 	@media (max-width: 56rem) {
+		.landing--auth-open {
+			transform: translateX(-4rem);
+		}
+
 		.content-grid {
 			grid-template-columns: 1fr;
+		}
+
+		.content-grid--musings-expanded {
+			gap: 1rem;
 		}
 	}
 </style>
