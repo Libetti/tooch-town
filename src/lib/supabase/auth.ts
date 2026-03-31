@@ -36,6 +36,8 @@ export const clearAuthFeedback = () => {
 	authNotice.set(null);
 };
 
+const normalizePhone = (value: string) => value.trim().replace(/[\s()-]/g, '');
+
 const setSupabaseError = (error: unknown) => {
 	if (typeof error === 'string') {
 		authError.set(error);
@@ -112,6 +114,83 @@ export const signUpWithEmail = async (input: {
 	}
 };
 
+export const requestPhoneSignUpOtp = async (input: { phone: string }) => {
+	clearAuthFeedback();
+
+	const phone = normalizePhone(input.phone);
+	if (!phone) {
+		authError.set('Enter a phone number to create an account.');
+		return false;
+	}
+
+	authPendingFlow.set('signup');
+
+	try {
+		const supabase = getSupabaseBrowserClient();
+		const { error } = await supabase.auth.signInWithOtp({
+			phone,
+			options: {
+				shouldCreateUser: true
+			}
+		});
+
+		if (error) {
+			setSupabaseError(error);
+			return false;
+		}
+
+		authNotice.set('Verification code sent. Enter the SMS code to finish creating your account.');
+		return true;
+	} catch (error) {
+		setSupabaseError(error);
+		return false;
+	} finally {
+		authPendingFlow.set(null);
+	}
+};
+
+export const verifyPhoneSignUpOtp = async (input: { phone: string; token: string }) => {
+	clearAuthFeedback();
+
+	const phone = normalizePhone(input.phone);
+	const token = input.token.trim();
+
+	if (!phone) {
+		authError.set('Enter the phone number you used to sign up.');
+		return false;
+	}
+
+	if (!token) {
+		authError.set('Enter the verification code from your text message.');
+		return false;
+	}
+
+	authPendingFlow.set('signup');
+
+	try {
+		const supabase = getSupabaseBrowserClient();
+		const { data, error } = await supabase.auth.verifyOtp({
+			phone,
+			token,
+			type: 'sms'
+		});
+
+		if (error) {
+			setSupabaseError(error);
+			return false;
+		}
+
+		authSession.set(data.session);
+		authNotice.set('Phone number confirmed. Your account is ready.');
+		return true;
+	} catch (error) {
+		setSupabaseError(error);
+		return false;
+	} finally {
+		authPendingFlow.set(null);
+	}
+};
+
 export const signInWithEmail = async (input: { email: string; password: string }) => {
 	clearAuthFeedback();
 
@@ -128,6 +207,82 @@ export const signInWithEmail = async (input: { email: string; password: string }
 		const { data, error } = await supabase.auth.signInWithPassword({
 			email,
 			password: input.password
+		});
+
+		if (error) {
+			setSupabaseError(error);
+			return false;
+		}
+
+		authSession.set(data.session);
+		return true;
+	} catch (error) {
+		setSupabaseError(error);
+		return false;
+	} finally {
+		authPendingFlow.set(null);
+	}
+};
+
+export const requestPhoneLoginOtp = async (input: { phone: string }) => {
+	clearAuthFeedback();
+
+	const phone = normalizePhone(input.phone);
+	if (!phone) {
+		authError.set('Enter your phone number to log in.');
+		return false;
+	}
+
+	authPendingFlow.set('login');
+
+	try {
+		const supabase = getSupabaseBrowserClient();
+		const { error } = await supabase.auth.signInWithOtp({
+			phone,
+			options: {
+				shouldCreateUser: false
+			}
+		});
+
+		if (error) {
+			setSupabaseError(error);
+			return false;
+		}
+
+		authNotice.set('Verification code sent. Enter the SMS code to log in.');
+		return true;
+	} catch (error) {
+		setSupabaseError(error);
+		return false;
+	} finally {
+		authPendingFlow.set(null);
+	}
+};
+
+export const verifyPhoneLoginOtp = async (input: { phone: string; token: string }) => {
+	clearAuthFeedback();
+
+	const phone = normalizePhone(input.phone);
+	const token = input.token.trim();
+
+	if (!phone) {
+		authError.set('Enter your phone number to log in.');
+		return false;
+	}
+
+	if (!token) {
+		authError.set('Enter the verification code from your text message.');
+		return false;
+	}
+
+	authPendingFlow.set('login');
+
+	try {
+		const supabase = getSupabaseBrowserClient();
+		const { data, error } = await supabase.auth.verifyOtp({
+			phone,
+			token,
+			type: 'sms'
 		});
 
 		if (error) {

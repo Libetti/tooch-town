@@ -9,9 +9,13 @@
 		clearAuthFeedback,
 		getAuthUserLabel,
 		initializeSupabaseAuth,
+		requestPhoneLoginOtp,
+		requestPhoneSignUpOtp,
 		signInWithEmail,
 		signOut,
-		signUpWithEmail
+		signUpWithEmail,
+		verifyPhoneLoginOtp,
+		verifyPhoneSignUpOtp
 	} from '$lib/supabase/auth';
 
 	type Props = {
@@ -26,11 +30,18 @@
 	let signupPasswordConfirm = $state('');
 	let signupPasswordVisible = $state(false);
 	let signupPasswordConfirmVisible = $state(false);
+	let signupPhone = $state('');
+	let signupOtp = $state('');
+	let signupOtpSent = $state(false);
 
 	let loginEmail = $state('');
 	let loginPassword = $state('');
 	let loginPasswordVisible = $state(false);
+	let loginPhone = $state('');
+	let loginOtp = $state('');
+	let loginOtpSent = $state(false);
 	let authMode = $state<'signup' | 'login'>('login');
+	let authMethod = $state<'phone' | 'email'>('phone');
 
 	onMount(() => {
 		initializeSupabaseAuth();
@@ -42,9 +53,15 @@
 		signupPasswordConfirm = '';
 		signupPasswordVisible = false;
 		signupPasswordConfirmVisible = false;
+		signupPhone = '';
+		signupOtp = '';
+		signupOtpSent = false;
 		loginEmail = '';
 		loginPassword = '';
 		loginPasswordVisible = false;
+		loginPhone = '';
+		loginOtp = '';
+		loginOtpSent = false;
 	};
 
 	const closePanel = () => {
@@ -60,6 +77,28 @@
 
 	const handleSignup = async (event: SubmitEvent) => {
 		event.preventDefault();
+
+		if (authMethod === 'phone') {
+			if (!signupOtpSent) {
+				signupOtpSent = await requestPhoneSignUpOtp({
+					phone: signupPhone
+				});
+				if (!signupOtpSent) signupOtp = '';
+				return;
+			}
+
+			const signedIn = await verifyPhoneSignUpOtp({
+				phone: signupPhone,
+				token: signupOtp
+			});
+
+			if (signedIn) {
+				clearAuthFields();
+			}
+
+			return;
+		}
+
 		const signedIn = await signUpWithEmail({
 			email: signupEmail,
 			password: signupPassword,
@@ -76,6 +115,28 @@
 
 	const handleLogin = async (event: SubmitEvent) => {
 		event.preventDefault();
+
+		if (authMethod === 'phone') {
+			if (!loginOtpSent) {
+				loginOtpSent = await requestPhoneLoginOtp({
+					phone: loginPhone
+				});
+				if (!loginOtpSent) loginOtp = '';
+				return;
+			}
+
+			const signedIn = await verifyPhoneLoginOtp({
+				phone: loginPhone,
+				token: loginOtp
+			});
+
+			if (signedIn) {
+				clearAuthFields();
+			}
+
+			return;
+		}
+
 		const signedIn = await signInWithEmail({
 			email: loginEmail,
 			password: loginPassword
@@ -93,6 +154,19 @@
 	const setAuthMode = (mode: 'signup' | 'login') => {
 		authMode = mode;
 		clearAuthFeedback();
+		signupOtp = '';
+		signupOtpSent = false;
+		loginOtp = '';
+		loginOtpSent = false;
+	};
+
+	const setAuthMethod = (method: 'phone' | 'email') => {
+		authMethod = method;
+		clearAuthFeedback();
+		signupOtp = '';
+		signupOtpSent = false;
+		loginOtp = '';
+		loginOtpSent = false;
 	};
 
 	const toggleSignupPasswordVisibility = () => {
@@ -180,98 +254,183 @@
 						{#if authMode === 'signup'}
 							<form class="auth-card auth-card--signup" onsubmit={handleSignup}>
 								<div class="auth-card-copy">
-									<h3>Create Account</h3>
+									<h3>{authMethod === 'phone' ? 'Create Account With Phone' : 'Create Account With Email'}</h3>
 								</div>
 
-								<label class="auth-field">
-									<span>Email</span>
-									<input bind:value={signupEmail} type="email" name="signup-email" autocomplete="email" />
-								</label>
+								<div class="auth-method-toggle" role="tablist" aria-label="Auth method">
+									<button
+										type="button"
+										class:auth-mode-button--active={authMethod === 'phone'}
+										class="auth-mode-button auth-method-icon-button"
+										role="tab"
+										aria-selected={authMethod === 'phone'}
+										aria-label="Use phone"
+										title="Phone"
+										onclick={() => setAuthMethod('phone')}
+									>
+										<svg aria-hidden="true" viewBox="0 0 24 24" class="auth-method-icon">
+											<path
+												d="M7.2 3.6h2.1c.4 0 .8.3.9.7l.6 2.7c.1.3 0 .7-.2 1l-1.2 1.5a15 15 0 0 0 5.5 5.5l1.5-1.2c.3-.2.7-.3 1-.2l2.7.6c.4.1.7.5.7.9v2.1c0 .6-.4 1-.9 1.1-.7.1-1.4.2-2.1.2A16.8 16.8 0 0 1 5.9 6.6c0-.7.1-1.4.2-2.1.1-.5.5-.9 1.1-.9Z"
+												fill="none"
+												stroke="currentColor"
+												stroke-width="1.8"
+												stroke-linecap="round"
+												stroke-linejoin="round"
+											/>
+										</svg>
+									</button>
+									<button
+										type="button"
+										class:auth-mode-button--active={authMethod === 'email'}
+										class="auth-mode-button auth-method-icon-button"
+										role="tab"
+										aria-selected={authMethod === 'email'}
+										aria-label="Use email"
+										title="Email"
+										onclick={() => setAuthMethod('email')}
+									>
+										<svg aria-hidden="true" viewBox="0 0 24 24" class="auth-method-icon">
+											<path
+												d="M4 6.5h16A1.5 1.5 0 0 1 21.5 8v8A1.5 1.5 0 0 1 20 17.5H4A1.5 1.5 0 0 1 2.5 16V8A1.5 1.5 0 0 1 4 6.5Z"
+												fill="none"
+												stroke="currentColor"
+												stroke-width="1.8"
+												stroke-linejoin="round"
+											/>
+											<path
+												d="m4 8 8 5 8-5"
+												fill="none"
+												stroke="currentColor"
+												stroke-width="1.8"
+												stroke-linecap="round"
+												stroke-linejoin="round"
+											/>
+										</svg>
+									</button>
+								</div>
 
-								<label class="auth-field">
-									<span>Password</span>
-									<div class="auth-password-field">
+								{#if authMethod === 'phone'}
+									<label class="auth-field">
+										<span>Phone</span>
 										<input
-											bind:value={signupPassword}
-											type={signupPasswordVisible ? 'text' : 'password'}
-											name="signup-password"
-											minlength="8"
-											autocomplete="new-password"
+											bind:value={signupPhone}
+											type="tel"
+											name="signup-phone"
+											autocomplete="tel"
+											placeholder="+15551234567"
 										/>
-										<button
-											type="button"
-											class="auth-password-toggle"
-											aria-pressed={signupPasswordVisible}
-											aria-label={signupPasswordVisible ? 'Hide password' : 'Show password'}
-											onclick={toggleSignupPasswordVisibility}
-										>
-											<svg aria-hidden="true" viewBox="0 0 24 24" class="auth-password-icon">
-												<path
-													d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"
-													fill="none"
-													stroke="currentColor"
-													stroke-width="1.8"
-													stroke-linecap="round"
-													stroke-linejoin="round"
-												/>
-												<circle cx="12" cy="12" r="3" fill="currentColor" />
-												{#if !signupPasswordVisible}
+									</label>
+
+									{#if signupOtpSent}
+										<label class="auth-field">
+											<span>Verification Code</span>
+											<input
+												bind:value={signupOtp}
+												inputmode="numeric"
+												name="signup-otp"
+												autocomplete="one-time-code"
+											/>
+										</label>
+									{/if}
+								{:else}
+									<label class="auth-field">
+										<span>Email</span>
+										<input bind:value={signupEmail} type="email" name="signup-email" autocomplete="email" />
+									</label>
+
+									<label class="auth-field">
+										<span>Password</span>
+										<div class="auth-password-field">
+											<input
+												bind:value={signupPassword}
+												type={signupPasswordVisible ? 'text' : 'password'}
+												name="signup-password"
+												minlength="8"
+												autocomplete="new-password"
+											/>
+											<button
+												type="button"
+												class="auth-password-toggle"
+												aria-pressed={signupPasswordVisible}
+												aria-label={signupPasswordVisible ? 'Hide password' : 'Show password'}
+												onclick={toggleSignupPasswordVisibility}
+											>
+												<svg aria-hidden="true" viewBox="0 0 24 24" class="auth-password-icon">
 													<path
-														d="M4 20 20 4"
+														d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"
 														fill="none"
 														stroke="currentColor"
 														stroke-width="1.8"
 														stroke-linecap="round"
+														stroke-linejoin="round"
 													/>
-												{/if}
-											</svg>
-										</button>
-									</div>
-								</label>
+													<circle cx="12" cy="12" r="3" fill="currentColor" />
+													{#if !signupPasswordVisible}
+														<path
+															d="M4 20 20 4"
+															fill="none"
+															stroke="currentColor"
+															stroke-width="1.8"
+															stroke-linecap="round"
+														/>
+													{/if}
+												</svg>
+											</button>
+										</div>
+									</label>
 
-								<label class="auth-field">
-									<span>Confirm Password</span>
-									<div class="auth-password-field">
-										<input
-											bind:value={signupPasswordConfirm}
-											type={signupPasswordConfirmVisible ? 'text' : 'password'}
-											name="signup-password-confirm"
-											minlength="8"
-											autocomplete="new-password"
-										/>
-										<button
-											type="button"
-											class="auth-password-toggle"
-											aria-pressed={signupPasswordConfirmVisible}
-											aria-label={signupPasswordConfirmVisible ? 'Hide confirm password' : 'Show confirm password'}
-											onclick={toggleSignupPasswordConfirmVisibility}
-										>
-											<svg aria-hidden="true" viewBox="0 0 24 24" class="auth-password-icon">
-												<path
-													d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"
-													fill="none"
-													stroke="currentColor"
-													stroke-width="1.8"
-													stroke-linecap="round"
-													stroke-linejoin="round"
-												/>
-												<circle cx="12" cy="12" r="3" fill="currentColor" />
-												{#if !signupPasswordConfirmVisible}
+									<label class="auth-field">
+										<span>Confirm Password</span>
+										<div class="auth-password-field">
+											<input
+												bind:value={signupPasswordConfirm}
+												type={signupPasswordConfirmVisible ? 'text' : 'password'}
+												name="signup-password-confirm"
+												minlength="8"
+												autocomplete="new-password"
+											/>
+											<button
+												type="button"
+												class="auth-password-toggle"
+												aria-pressed={signupPasswordConfirmVisible}
+												aria-label={signupPasswordConfirmVisible ? 'Hide confirm password' : 'Show confirm password'}
+												onclick={toggleSignupPasswordConfirmVisibility}
+											>
+												<svg aria-hidden="true" viewBox="0 0 24 24" class="auth-password-icon">
 													<path
-														d="M4 20 20 4"
+														d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"
 														fill="none"
 														stroke="currentColor"
 														stroke-width="1.8"
 														stroke-linecap="round"
+														stroke-linejoin="round"
 													/>
-												{/if}
-											</svg>
-										</button>
-									</div>
-								</label>
+													<circle cx="12" cy="12" r="3" fill="currentColor" />
+													{#if !signupPasswordConfirmVisible}
+														<path
+															d="M4 20 20 4"
+															fill="none"
+															stroke="currentColor"
+															stroke-width="1.8"
+															stroke-linecap="round"
+														/>
+													{/if}
+												</svg>
+											</button>
+										</div>
+									</label>
+								{/if}
 
 								<button type="submit" class="auth-submit" disabled={$authPendingFlow === 'signup'}>
-									{$authPendingFlow === 'signup' ? 'Creating Account...' : 'Create Account'}
+									{#if $authPendingFlow === 'signup'}
+										{signupOtpSent ? 'Verifying...' : 'Sending Code...'}
+									{:else}
+										{authMethod === 'phone'
+											? signupOtpSent
+												? 'Verify And Create Account'
+												: 'Send Verification Code'
+											: 'Create Account'}
+									{/if}
 								</button>
 
 								{#if $authError}
@@ -285,60 +444,145 @@
 						{:else}
 							<form class="auth-card auth-card--login" onsubmit={handleLogin}>
 								<div class="auth-card-copy">
-									<h3>Log In</h3>
+									<h3>{authMethod === 'phone' ? 'Log In With Phone' : 'Log In With Email'}</h3>
 								</div>
 
-								<label class="auth-field">
-									<span>Email</span>
-									<input bind:value={loginEmail} type="email" name="login-email" autocomplete="email" />
-								</label>
+								<div class="auth-method-toggle" role="tablist" aria-label="Auth method">
+									<button
+										type="button"
+										class:auth-mode-button--active={authMethod === 'phone'}
+										class="auth-mode-button auth-method-icon-button"
+										role="tab"
+										aria-selected={authMethod === 'phone'}
+										aria-label="Use phone"
+										title="Phone"
+										onclick={() => setAuthMethod('phone')}
+									>
+										<svg aria-hidden="true" viewBox="0 0 24 24" class="auth-method-icon">
+											<path
+												d="M7.2 3.6h2.1c.4 0 .8.3.9.7l.6 2.7c.1.3 0 .7-.2 1l-1.2 1.5a15 15 0 0 0 5.5 5.5l1.5-1.2c.3-.2.7-.3 1-.2l2.7.6c.4.1.7.5.7.9v2.1c0 .6-.4 1-.9 1.1-.7.1-1.4.2-2.1.2A16.8 16.8 0 0 1 5.9 6.6c0-.7.1-1.4.2-2.1.1-.5.5-.9 1.1-.9Z"
+												fill="none"
+												stroke="currentColor"
+												stroke-width="1.8"
+												stroke-linecap="round"
+												stroke-linejoin="round"
+											/>
+										</svg>
+									</button>
+									<button
+										type="button"
+										class:auth-mode-button--active={authMethod === 'email'}
+										class="auth-mode-button auth-method-icon-button"
+										role="tab"
+										aria-selected={authMethod === 'email'}
+										aria-label="Use email"
+										title="Email"
+										onclick={() => setAuthMethod('email')}
+									>
+										<svg aria-hidden="true" viewBox="0 0 24 24" class="auth-method-icon">
+											<path
+												d="M4 6.5h16A1.5 1.5 0 0 1 21.5 8v8A1.5 1.5 0 0 1 20 17.5H4A1.5 1.5 0 0 1 2.5 16V8A1.5 1.5 0 0 1 4 6.5Z"
+												fill="none"
+												stroke="currentColor"
+												stroke-width="1.8"
+												stroke-linejoin="round"
+											/>
+											<path
+												d="m4 8 8 5 8-5"
+												fill="none"
+												stroke="currentColor"
+												stroke-width="1.8"
+												stroke-linecap="round"
+												stroke-linejoin="round"
+											/>
+										</svg>
+									</button>
+								</div>
 
-								<label class="auth-field">
-									<span>Password</span>
-									<div class="auth-password-field">
+								{#if authMethod === 'phone'}
+									<label class="auth-field">
+										<span>Phone</span>
 										<input
-											bind:value={loginPassword}
-											type={loginPasswordVisible ? 'text' : 'password'}
-											name="login-password"
-											autocomplete="current-password"
+											bind:value={loginPhone}
+											type="tel"
+											name="login-phone"
+											autocomplete="tel"
+											placeholder="+15551234567"
 										/>
-										<button
-											type="button"
-											class="auth-password-toggle"
-											aria-pressed={loginPasswordVisible}
-											aria-label={loginPasswordVisible ? 'Hide password' : 'Show password'}
-											onclick={toggleLoginPasswordVisibility}
-										>
-											<svg aria-hidden="true" viewBox="0 0 24 24" class="auth-password-icon">
-												<path
-													d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"
-													fill="none"
-													stroke="currentColor"
-													stroke-width="1.8"
-													stroke-linecap="round"
-													stroke-linejoin="round"
-												/>
-												<circle cx="12" cy="12" r="3" fill="currentColor" />
-												{#if !loginPasswordVisible}
+									</label>
+
+									{#if loginOtpSent}
+										<label class="auth-field">
+											<span>Verification Code</span>
+											<input
+												bind:value={loginOtp}
+												inputmode="numeric"
+												name="login-otp"
+												autocomplete="one-time-code"
+											/>
+										</label>
+									{/if}
+								{:else}
+									<label class="auth-field">
+										<span>Email</span>
+										<input bind:value={loginEmail} type="email" name="login-email" autocomplete="email" />
+									</label>
+
+									<label class="auth-field">
+										<span>Password</span>
+										<div class="auth-password-field">
+											<input
+												bind:value={loginPassword}
+												type={loginPasswordVisible ? 'text' : 'password'}
+												name="login-password"
+												autocomplete="current-password"
+											/>
+											<button
+												type="button"
+												class="auth-password-toggle"
+												aria-pressed={loginPasswordVisible}
+												aria-label={loginPasswordVisible ? 'Hide password' : 'Show password'}
+												onclick={toggleLoginPasswordVisibility}
+											>
+												<svg aria-hidden="true" viewBox="0 0 24 24" class="auth-password-icon">
 													<path
-														d="M4 20 20 4"
+														d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"
 														fill="none"
 														stroke="currentColor"
 														stroke-width="1.8"
 														stroke-linecap="round"
+														stroke-linejoin="round"
 													/>
-												{/if}
-											</svg>
-										</button>
-									</div>
-								</label>
+													<circle cx="12" cy="12" r="3" fill="currentColor" />
+													{#if !loginPasswordVisible}
+														<path
+															d="M4 20 20 4"
+															fill="none"
+															stroke="currentColor"
+															stroke-width="1.8"
+															stroke-linecap="round"
+														/>
+													{/if}
+												</svg>
+											</button>
+										</div>
+									</label>
+								{/if}
 
 								<button
 									type="submit"
 									class="auth-submit auth-submit--secondary"
 									disabled={$authPendingFlow === 'login'}
 								>
-									{$authPendingFlow === 'login' ? 'Logging In...' : 'Log In'}
+									{#if $authPendingFlow === 'login'}
+										{loginOtpSent ? 'Verifying...' : 'Sending Code...'}
+									{:else}
+										{authMethod === 'phone'
+											? loginOtpSent
+												? 'Verify And Log In'
+												: 'Text Me A Code'
+											: 'Log In'}
+									{/if}
 								</button>
 
 								{#if $authError}
@@ -487,6 +731,30 @@
 		border-radius: 999px;
 		background: rgba(8, 18, 33, 0.72);
 		border: 1px solid rgba(166, 198, 255, 0.16);
+	}
+
+	.auth-method-toggle {
+		display: inline-grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 0.25rem;
+		margin-top: 0.65rem;
+		padding: 0.25rem;
+		border-radius: 999px;
+		background: rgba(8, 18, 33, 0.58);
+		border: 1px solid rgba(166, 198, 255, 0.12);
+	}
+
+	.auth-method-icon-button {
+		min-width: 2.2rem;
+		padding: 0.45rem;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.auth-method-icon {
+		width: 0.9rem;
+		height: 0.9rem;
 	}
 
 	.auth-mode-button {
