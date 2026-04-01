@@ -1,14 +1,17 @@
 <script lang="ts">
-	import type { Musing } from '$lib/musings/types';
+	import type { CreateMusingInput, Musing } from '$lib/musings/types';
 
 	type SortOption = 'newest' | 'oldest' | 'title';
 
 	type Props = {
 		expanded?: boolean;
 		musings?: Musing[];
+		loading?: boolean;
 		canAddThought?: boolean;
+		createPending?: boolean;
+		errorMessage?: string | null;
 		viewerLabel?: string | null;
-		onCreateThought?: (musing: Musing) => void | Promise<void>;
+		onCreateThought?: (musing: CreateMusingInput) => boolean | Promise<boolean>;
 		onSignInRequest?: () => void;
 		onToggle?: () => void;
 	};
@@ -16,7 +19,10 @@
 	let {
 		expanded = false,
 		musings = [],
+		loading = false,
 		canAddThought = false,
+		createPending = false,
+		errorMessage = null,
 		viewerLabel = null,
 		onCreateThought,
 		onSignInRequest,
@@ -28,30 +34,28 @@
 	let draftBody = $state('');
 	let filterQuery = $state('');
 	let sortBy = $state<SortOption>('newest');
-	let localMusings = $state<Musing[]>([]);
 
-	$effect(() => {
-		localMusings = musings;
-	});
-
-	const totalMusings = $derived(localMusings.length);
+	const totalMusings = $derived(musings.length);
 	const previewMusings = $derived.by(() =>
-		[...localMusings]
-			.sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())
+		[...musings]
+			.sort(
+				(left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()
+			)
 			.slice(0, 2)
 	);
 	const filteredMusings = $derived.by(() => {
 		const normalizedQuery = filterQuery.trim().toLowerCase();
 		const visibleItems = normalizedQuery
-			? localMusings.filter((musing) => {
-					const haystack = `${musing.title} ${musing.body} ${musing.authorLabel}`.toLowerCase();
+			? musings.filter((musing) => {
+					const haystack =
+						`${musing.title ?? ''} ${musing.body} ${musing.authorLabel}`.toLowerCase();
 					return haystack.includes(normalizedQuery);
 				})
-			: [...localMusings];
+			: [...musings];
 
 		visibleItems.sort((left, right) => {
 			if (sortBy === 'title') {
-				return left.title.localeCompare(right.title);
+				return (left.title ?? '').localeCompare(right.title ?? '');
 			}
 
 			const leftTime = new Date(left.createdAt).getTime();
@@ -62,7 +66,7 @@
 		return visibleItems;
 	});
 
-	const canSubmit = $derived(draftTitle.trim().length > 0 && draftBody.trim().length > 0);
+	const canSubmit = $derived(draftBody.trim().length > 0 && !createPending);
 
 	const formatDate = (value: string) =>
 		new Intl.DateTimeFormat('en-US', {
@@ -87,20 +91,16 @@
 
 	const handleSubmit = async (event: SubmitEvent) => {
 		event.preventDefault();
-		if (!canAddThought || !draftTitle.trim() || !draftBody.trim()) return;
+		if (!canAddThought || !draftBody.trim() || createPending) return;
 
-		const newMusing: Musing = {
-			id: crypto.randomUUID(),
-			title: draftTitle.trim(),
-			body: draftBody.trim(),
-			authorLabel: viewerLabel?.trim() || 'You',
-			createdAt: new Date().toISOString()
-		};
+		const created = await onCreateThought?.({
+			title: draftTitle.trim() || null,
+			body: draftBody.trim()
+		});
 
-		localMusings = [newMusing, ...localMusings];
+		if (!created) return;
 		resetComposer();
 		composerOpen = false;
-		await onCreateThought?.(newMusing);
 	};
 </script>
 
@@ -122,8 +122,16 @@
 		{#if expanded}
 			<div class="musings-controls">
 				<div class="musings-controls-copy">
-					<p class="musings-kicker">{totalMusings} thoughts drifting around Tooch Town</p>
-					<p class="musings-helper">Browse everything, or sign in to add your own.</p>
+					<p class="musings-kicker">
+						{loading
+							? 'Loading the latest musings...'
+							: `${totalMusings} thoughts drifting around Tooch Town`}
+					</p>
+					<p class="musings-helper">
+						{loading
+							? 'Give the town square a second.'
+							: 'Browse everything, or sign in to add your own.'}
+					</p>
 				</div>
 				<div class="musings-toolbar">
 					<label class="musings-input-shell">
@@ -146,6 +154,12 @@
 				</div>
 			</div>
 
+			{#if errorMessage}
+				<div class="musings-status" role="status">
+					<p>{errorMessage}</p>
+				</div>
+			{/if}
+
 			<div class="musings-cta-row">
 				{#if canAddThought}
 					<button type="button" class="musings-add-button" onclick={openComposer}>
@@ -165,13 +179,14 @@
 			{#if composerOpen && canAddThought}
 				<form class="musings-composer" onsubmit={handleSubmit}>
 					<label class="musings-field">
-						<span>Title</span>
+						<span>Title (optional)</span>
 						<input
 							bind:value={draftTitle}
 							type="text"
 							name="musing-title"
 							maxlength="80"
 							placeholder="A little headline for your thought"
+							disabled={createPending}
 						/>
 					</label>
 					<label class="musings-field">
@@ -182,23 +197,34 @@
 							rows="4"
 							maxlength="500"
 							placeholder="Keep it short and strange."
+							disabled={createPending}
 						></textarea>
 					</label>
 					<div class="musings-composer-actions">
 						<p class="musings-composer-note">Posting as {viewerLabel ?? 'you'}.</p>
 						<div class="musings-button-row">
-							<button type="button" class="musings-secondary-button" onclick={() => (composerOpen = false)}>
+							<button
+								type="button"
+								class="musings-secondary-button"
+								onclick={() => (composerOpen = false)}
+								disabled={createPending}
+							>
 								Cancel
 							</button>
 							<button type="submit" class="musings-primary-button" disabled={!canSubmit}>
-								Publish thought
+								{createPending ? 'Publishing...' : 'Publish thought'}
 							</button>
 						</div>
 					</div>
 				</form>
 			{/if}
 
-			{#if filteredMusings.length > 0}
+			{#if loading && filteredMusings.length === 0}
+				<div class="musings-empty" role="status">
+					<p class="musings-empty-title">Loading musings...</p>
+					<p class="musings-empty-copy">The latest thoughts are on their way.</p>
+				</div>
+			{:else if filteredMusings.length > 0}
 				<div class="musings-list" aria-live="polite">
 					{#each filteredMusings as musing (musing.id)}
 						<article class="musing-entry">
@@ -206,7 +232,9 @@
 								<p class="musing-entry-author">{musing.authorLabel}</p>
 								<p class="musing-entry-date">{formatDate(musing.createdAt)}</p>
 							</div>
-							<h3>{musing.title}</h3>
+							{#if musing.title}
+								<h3>{musing.title}</h3>
+							{/if}
 							<p>{musing.body}</p>
 						</article>
 					{/each}
@@ -225,7 +253,9 @@
 							<p class="musing-entry-author">{musing.authorLabel}</p>
 							<p class="musing-entry-date">{formatDate(musing.createdAt)}</p>
 						</div>
-						<h3>{musing.title}</h3>
+						{#if musing.title}
+							<h3>{musing.title}</h3>
+						{/if}
 						<p>{musing.body}</p>
 					</article>
 				{/each}
@@ -362,6 +392,21 @@
 		margin-top: 1rem;
 	}
 
+	.musings-status {
+		margin-top: 1rem;
+		border: 1px solid rgba(255, 198, 127, 0.24);
+		border-radius: 0.85rem;
+		padding: 0.85rem 0.95rem;
+		background: rgba(56, 23, 7, 0.28);
+		color: #ffe0bb;
+	}
+
+	.musings-status p {
+		margin: 0;
+		font-size: 0.9rem;
+		line-height: 1.45;
+	}
+
 	.musings-add-button,
 	.musings-primary-button,
 	.musings-secondary-button,
@@ -475,6 +520,14 @@
 		transform: none;
 	}
 
+	.musings-secondary-button:disabled,
+	.musings-field input:disabled,
+	.musings-field textarea:disabled {
+		cursor: not-allowed;
+		opacity: 0.5;
+		transform: none;
+	}
+
 	.musings-list,
 	.musings-preview-list {
 		margin-top: 1rem;
@@ -490,8 +543,7 @@
 		border-radius: 1rem;
 		border: 1px solid rgba(166, 198, 255, 0.16);
 		background:
-			linear-gradient(180deg, rgba(12, 28, 48, 0.72), rgba(9, 18, 32, 0.88)),
-			rgba(7, 16, 29, 0.5);
+			linear-gradient(180deg, rgba(12, 28, 48, 0.72), rgba(9, 18, 32, 0.88)), rgba(7, 16, 29, 0.5);
 	}
 
 	.musing-entry-meta {

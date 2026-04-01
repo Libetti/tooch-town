@@ -1,14 +1,35 @@
-export type Json =
-	| string
-	| number
-	| boolean
-	| null
-	| { [key: string]: Json | undefined }
-	| Json[];
+export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
 export type Database = {
 	public: {
 		Tables: {
+			musings: {
+				Row: {
+					id: string;
+					author_id: string;
+					author_label: string;
+					title: string | null;
+					body: string;
+					created_at: string;
+				};
+				Insert: {
+					id?: string;
+					author_id: string;
+					author_label: string;
+					title?: string | null;
+					body: string;
+					created_at?: string;
+				};
+				Update: {
+					id?: string;
+					author_id?: string;
+					author_label?: string;
+					title?: string | null;
+					body?: string;
+					created_at?: string;
+				};
+				Relationships: [];
+			};
 			profiles: {
 				Row: {
 					id: string;
