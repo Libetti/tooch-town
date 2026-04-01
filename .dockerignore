@@ -15,4 +15,5 @@ node_modules
 build
 package
 **/.env
-supabase
+supabase/.temp
+supabase/migrations

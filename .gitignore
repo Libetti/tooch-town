@@ -24,4 +24,5 @@ vite.config.ts.timestamp-*
 # Playwright
 test-results
 
-supabase
+supabase/.temp
+supabase/migrations
