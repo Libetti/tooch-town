@@ -25,4 +25,3 @@ vite.config.ts.timestamp-*
 test-results
 
 supabase/.temp
-supabase/migrations

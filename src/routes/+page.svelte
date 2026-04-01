@@ -20,8 +20,11 @@
 	import MapContainer from '$lib/components/MapContainer.svelte';
 	import LayerSidebar from '$lib/components/LayerSidebar.svelte';
 	import MusingsCard from '$lib/components/MusingsCard.svelte';
+	import { createMusing, listMusings } from '$lib/musings/api';
 	import { sampleMusings } from '$lib/musings/sample-musings';
-	import { authSession } from '$lib/supabase/auth';
+	import type { CreateMusingInput, Musing } from '$lib/musings/types';
+	import { hasSupabaseAuthConfig } from '$lib/supabase/client';
+	import { authProfile, authSession, getAuthUserLabel } from '$lib/supabase/auth';
 	import { onMount } from 'svelte';
 	import type { LayerRegistry } from '$lib/layers/layer-registry';
 	import type { PageData } from './$types';
@@ -45,6 +48,10 @@
 	let layerSidebarOpen = $state(false);
 	let authExpanded = $state(false);
 	let musingsExpanded = $state(false);
+	let musings = $state<Musing[]>(hasSupabaseAuthConfig ? [] : sampleMusings);
+	let musingsLoading = $state(hasSupabaseAuthConfig);
+	let musingsError = $state<string | null>(null);
+	let musingsCreatePending = $state(false);
 	let removeMoonOrbitLayer: (() => void) | undefined;
 	let spaceBattleLayerController: SpaceBattleLayerController | undefined;
 	let mapRef: MapLibreMap | undefined;
@@ -103,6 +110,56 @@
 	$effect(() => {
 		if (cardsCollapsed) authExpanded = false;
 	});
+
+	const loadMusings = async () => {
+		if (!hasSupabaseAuthConfig) {
+			musings = sampleMusings;
+			musingsLoading = false;
+			musingsError = null;
+			return;
+		}
+
+		musingsLoading = true;
+		musingsError = null;
+
+		const result = await listMusings();
+		if (result.error || !result.data) {
+			musingsError = result.error ?? 'Unable to load musings right now.';
+			musingsLoading = false;
+			return;
+		}
+
+		musings = result.data;
+		musingsLoading = false;
+	};
+
+	const handleCreateMusing = async (input: CreateMusingInput) => {
+		const currentSession = $authSession;
+		if (!currentSession?.user) {
+			musingsError = 'Sign in before publishing a thought.';
+			authExpanded = true;
+			return false;
+		}
+
+		musingsCreatePending = true;
+		musingsError = null;
+
+		const result = await createMusing({
+			...input,
+			authorId: currentSession.user.id,
+			authorLabel: $authProfile?.username?.trim() || getAuthUserLabel()
+		});
+
+		musingsCreatePending = false;
+
+		if (result.error || !result.data) {
+			musingsError = result.error ?? 'Unable to publish your thought right now.';
+			return false;
+		}
+
+		musings = [result.data, ...musings.filter((musing) => musing.id !== result.data.id)];
+		return true;
+	};
 
 	const syncSpaceBattleLayer = (map: MapLibreMap) => {
 		const ships: SpaceBattleShipPlacement[] = [
@@ -180,13 +237,13 @@
 			}
 		];
 		if (!spaceBattleLayerController) {
-				spaceBattleLayerController = mountSpaceBattleLayer(map, {
-					visible: spaceBattleLayerEnabled,
-					layerId: 'space-battle-layer',
-					beforeLayerId: 'moon-orbit-layer',
-					defaultAltitudeMeters: 1_000_000,
-					ships
-				});
+			spaceBattleLayerController = mountSpaceBattleLayer(map, {
+				visible: spaceBattleLayerEnabled,
+				layerId: 'space-battle-layer',
+				beforeLayerId: 'moon-orbit-layer',
+				defaultAltitudeMeters: 1_000_000,
+				ships
+			});
 			return;
 		}
 
@@ -198,6 +255,7 @@
 			weatherTileTemplate = tileTemplate;
 		});
 		cmiRasterLayerController.start();
+		void loadMusings();
 
 		return () => {
 			unsubscribeWeather();
@@ -223,7 +281,8 @@
 		},
 		{
 			name: '⚡ Lightning Rod',
-			description: 'A FastAPI server for exposing and transforming GOES-R Series data for web maps.',
+			description:
+				'A FastAPI server for exposing and transforming GOES-R Series data for web maps.',
 			includes: [
 				'Realtime GLM data providing latest strikes and frames for animation',
 				'Cloud and Moisture Imagery (CMI) served as raster tiles'
@@ -413,9 +472,10 @@
 			<p class="eyebrow">Tooch Town</p>
 			<h1 id="about-title">Anthony Libetti</h1>
 			<p class="intro">
-				Software Enginner at FlightAware <br/>
-				So you made it, welcome to my hood. Home to me, a map-fancy software engineer whose
-				life mission is to continue to afford a series of stupid hobbies which end up abandoned. A Cayman GTS would be nice too...
+				Software Enginner at FlightAware <br />
+				So you made it, welcome to my hood. Home to me, a map-fancy software engineer whose life mission
+				is to continue to afford a series of stupid hobbies which end up abandoned. A Cayman GTS would
+				be nice too...
 			</p>
 			<div class="links" aria-label="profile links">
 				<a href="https://github.com/libetti" target="_blank" rel="noreferrer">GitHub</a>
@@ -457,9 +517,13 @@
 			</section>
 
 			<MusingsCard
-				musings={sampleMusings}
-				canAddThought={Boolean($authSession)}
-				viewerLabel={$authSession?.user?.email ?? null}
+				{musings}
+				loading={musingsLoading}
+				canAddThought={Boolean($authSession && hasSupabaseAuthConfig)}
+				createPending={musingsCreatePending}
+				errorMessage={musingsError}
+				viewerLabel={$authProfile?.username ?? $authSession?.user?.email ?? null}
+				onCreateThought={handleCreateMusing}
 				onSignInRequest={() => {
 					authExpanded = true;
 				}}
@@ -469,7 +533,7 @@
 				}}
 			/>
 		</div>
-		</main>
+	</main>
 {:else}
 	<div class="card-restore-bar">
 		<button

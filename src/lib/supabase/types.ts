@@ -11,3 +11,6 @@ export type TableUpdate<Name extends keyof Tables> = Tables[Name]['Update'];
 export type ProfileRow = TableRow<'profiles'>;
 export type ProfileInsert = TableInsert<'profiles'>;
 export type ProfileUpdate = TableUpdate<'profiles'>;
+export type MusingRow = TableRow<'musings'>;
+export type MusingInsert = TableInsert<'musings'>;
+export type MusingUpdate = TableUpdate<'musings'>;
