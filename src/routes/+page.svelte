@@ -573,6 +573,8 @@
 	}
 
 	.landing {
+		--edge-gap: 1.25rem;
+		--auth-panel-width: 30rem;
 		--panel: rgba(7, 16, 29, 0.62);
 		--line: rgba(166, 198, 255, 0.22);
 		--headline: #f5f8ff;
@@ -583,18 +585,22 @@
 		position: relative;
 		z-index: 1;
 		isolation: isolate;
-		max-width: 72rem;
+		max-width: none;
+		width: min(calc(100% - (var(--edge-gap) * 2)), 72rem);
 		margin: 0 auto;
-		padding: 4rem 1.25rem 5.5rem;
+		padding: 6.25rem 1.25rem 5.5rem;
 		display: grid;
 		gap: 1rem;
 		transition:
-			transform 320ms cubic-bezier(0.16, 1, 0.3, 1),
+			width 320ms cubic-bezier(0.16, 1, 0.3, 1),
+			margin 320ms cubic-bezier(0.16, 1, 0.3, 1),
 			padding 320ms cubic-bezier(0.16, 1, 0.3, 1);
 	}
 
 	.landing--auth-open {
-		transform: translateX(-8rem);
+		width: min(calc(100vw - var(--auth-panel-width) - (var(--edge-gap) * 2)), 72rem);
+		margin-left: var(--edge-gap);
+		margin-right: calc(var(--auth-panel-width) + var(--edge-gap));
 	}
 
 	.auth-dock {
@@ -872,19 +878,21 @@
 		}
 	}
 
+	@media (max-width: 74.5rem) {
+		.auth-dock {
+			right: 2.5rem;
+			left: auto;
+		}
+	}
+
 	@media (max-width: 40rem) {
 		.auth-dock {
 			top: 0.85rem;
-			right: 0.85rem;
-			left: 0.85rem;
-		}
-
-		.landing {
-			padding-top: 2.25rem;
 		}
 
 		.landing--auth-open {
-			transform: translateX(-2rem);
+			width: min(calc(100% - (var(--edge-gap) * 2)), 72rem);
+			margin: 0 auto;
 		}
 
 		.hero {
@@ -898,8 +906,13 @@
 	}
 
 	@media (max-width: 56rem) {
+		.landing {
+			--auth-panel-width: 28rem;
+		}
+
 		.landing--auth-open {
-			transform: translateX(-4rem);
+			width: min(calc(100% - (var(--edge-gap) * 2)), 72rem);
+			margin: 0 auto;
 		}
 
 		.content-grid {

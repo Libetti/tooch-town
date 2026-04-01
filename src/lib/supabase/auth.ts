@@ -12,6 +12,7 @@ export type SignupProfileInput = {
 	state: string;
 	city: string;
 };
+export type UserProfile = SignupProfileInput;
 
 type ValidatedSignupProfile = {
 	username: string;
@@ -33,6 +34,9 @@ export const authPendingFlow = writable<PendingAuthFlow>(null);
 export const authError = writable<string | null>(null);
 export const authNotice = writable<string | null>(null);
 export const authPendingProfileSetup = writable(false);
+export const authProfile = writable<UserProfile | null>(null);
+export const authProfileLoading = writable(false);
+export const authProfilePending = writable(false);
 
 let initialized = false;
 const PENDING_SIGNUP_PROFILE_STORAGE_KEY = 'tooch-town.pending-signup-profile';
@@ -43,6 +47,42 @@ const USERNAME_MAX_LENGTH = 24;
 const setPendingProfileFlag = (hasPendingProfile: boolean) => {
 	authPendingProfileSetup.set(hasPendingProfile);
 };
+
+const mapProfileRecord = (record: {
+	username: string;
+	first_name: string;
+	last_name: string;
+	country: string;
+	state: string;
+	city: string;
+}): UserProfile => ({
+	username: record.username,
+	firstName: record.first_name,
+	lastName: record.last_name,
+	country: record.country,
+	state: record.state,
+	city: record.city
+});
+
+const mapValidatedProfile = (profile: ValidatedSignupProfile): UserProfile => ({
+	username: profile.username,
+	firstName: profile.firstName,
+	lastName: profile.lastName,
+	country: profile.country,
+	state: profile.state,
+	city: profile.city
+});
+
+const profilesMatch = (left: UserProfile | null, right: UserProfile) =>
+	Boolean(
+		left &&
+			left.username === right.username &&
+			left.firstName === right.firstName &&
+			left.lastName === right.lastName &&
+			left.country === right.country &&
+			left.state === right.state &&
+			left.city === right.city
+	);
 
 const readPendingSignupProfile = (): PendingSignupProfile | null => {
 	if (!browser) return null;
@@ -166,37 +206,75 @@ const setProfilePersistenceError = (error: PostgrestError | Error | unknown) => 
 	authError.set('Your account was created, but we could not finish saving your profile yet.');
 };
 
-const saveProfileForUser = async (userId: string, profile: ValidatedSignupProfile) => {
+const saveProfileForUser = async (
+	userId: string,
+	profile: ValidatedSignupProfile,
+	options: { rememberOnFailure?: boolean } = {}
+) => {
 	try {
 		const supabase = getSupabaseBrowserClient();
+		const profileRecord = {
+			id: userId,
+			username: profile.username,
+			username_normalized: profile.usernameNormalized,
+			first_name: profile.firstName,
+			last_name: profile.lastName,
+			country: profile.country,
+			state: profile.state,
+			city: profile.city
+		};
 		const { error } = await supabase.from('profiles').upsert(
-			{
-				id: userId,
-				username: profile.username,
-				username_normalized: profile.usernameNormalized,
-				first_name: profile.firstName,
-				last_name: profile.lastName,
-				country: profile.country,
-				state: profile.state,
-				city: profile.city
-			},
+			profileRecord,
 			{
 				onConflict: 'id'
 			}
 		);
 
 		if (error) {
-			rememberPendingSignupProfile(profile, { userId });
+			if (options.rememberOnFailure) {
+				rememberPendingSignupProfile(profile, { userId });
+			}
 			setProfilePersistenceError(error);
 			return false;
 		}
 
+		authProfile.set(mapProfileRecord(profileRecord));
 		writePendingSignupProfile(null);
 		return true;
 	} catch (error) {
-		rememberPendingSignupProfile(profile, { userId });
+		if (options.rememberOnFailure) {
+			rememberPendingSignupProfile(profile, { userId });
+		}
 		setProfilePersistenceError(error);
 		return false;
+	}
+};
+
+const loadProfileForUser = async (userId: string) => {
+	authProfileLoading.set(true);
+
+	try {
+		const supabase = getSupabaseBrowserClient();
+		const { data, error } = await supabase
+			.from('profiles')
+			.select('username, first_name, last_name, country, state, city')
+			.eq('id', userId)
+			.maybeSingle();
+
+		if (error) {
+			setSupabaseError(error);
+			authProfile.set(null);
+			return false;
+		}
+
+		authProfile.set(data ? mapProfileRecord(data) : null);
+		return true;
+	} catch (error) {
+		setSupabaseError(error);
+		authProfile.set(null);
+		return false;
+	} finally {
+		authProfileLoading.set(false);
 	}
 };
 
@@ -230,11 +308,22 @@ export const initializeSupabaseAuth = () => {
 			data: { session }
 		} = await supabase.auth.getSession();
 		authSession.set(session);
+		if (session?.user) {
+			void loadProfileForUser(session.user.id);
+		} else {
+			authProfile.set(null);
+		}
 		void syncPendingSignupProfile(session);
 	})();
 
 	supabase.auth.onAuthStateChange((_event, session) => {
 		authSession.set(session);
+		if (session?.user) {
+			void loadProfileForUser(session.user.id);
+		} else {
+			authProfile.set(null);
+			authProfileLoading.set(false);
+		}
 		void syncPendingSignupProfile(session);
 	});
 };
@@ -313,7 +402,7 @@ export const signUpWithEmail = async (input: {
 
 		if (data.session && data.user) {
 			authSession.set(data.session);
-			return await saveProfileForUser(data.user.id, profile);
+			return await saveProfileForUser(data.user.id, profile, { rememberOnFailure: true });
 		}
 
 		if (data.user) {
@@ -420,7 +509,9 @@ export const verifyPhoneSignUpOtp = async (input: {
 			return false;
 		}
 
-		const profileSaved = await saveProfileForUser(data.session.user.id, profile);
+		const profileSaved = await saveProfileForUser(data.session.user.id, profile, {
+			rememberOnFailure: true
+		});
 		if (!profileSaved) return false;
 
 		authNotice.set('Phone number confirmed. Your account is ready.');
@@ -563,7 +654,9 @@ export const retryPendingProfileSetup = async () => {
 		return false;
 	}
 
-	const retried = await saveProfileForUser(session.user.id, pendingProfile);
+	const retried = await saveProfileForUser(session.user.id, pendingProfile, {
+		rememberOnFailure: true
+	});
 	if (retried) {
 		authNotice.set('Profile setup complete.');
 	}
@@ -585,6 +678,7 @@ export const signOut = async () => {
 		}
 
 		authSession.set(null);
+		authProfile.set(null);
 		return true;
 	} catch (error) {
 		setSupabaseError(error);
@@ -597,4 +691,35 @@ export const signOut = async () => {
 export const getAuthUserLabel = () => {
 	const session = get(authSession);
 	return session?.user?.email ?? session?.user?.phone ?? 'Account';
+};
+
+export const updateCurrentUserProfile = async (input: UserProfile) => {
+	clearAuthFeedback();
+
+	const session = get(authSession);
+	const currentProfile = get(authProfile);
+	if (!session?.user) {
+		authError.set('Sign in before updating your profile.');
+		return false;
+	}
+
+	const profile = validateSignupProfile(input);
+	if (!profile) return false;
+
+	const nextProfile = mapValidatedProfile(profile);
+	if (profilesMatch(currentProfile, nextProfile)) {
+		return true;
+	}
+
+	authProfilePending.set(true);
+
+	try {
+		const saved = await saveProfileForUser(session.user.id, profile);
+		if (!saved) return false;
+
+		authNotice.set('Profile saved.');
+		return true;
+	} finally {
+		authProfilePending.set(false);
+	}
 };

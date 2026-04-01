@@ -30,9 +30,14 @@
 	}: Props = $props();
 
 	let panelElement = $state<HTMLElement | null>(null);
+	let mobilePanelHeight = $state<number | null>(null);
 
 	const focusableSelector =
 		'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+	const MOBILE_BREAKPOINT = '(max-width: 40rem)';
+	const MOBILE_MIN_HEIGHT = 280;
+	const MOBILE_MAX_HEIGHT_RATIO = 0.92;
+	const MOBILE_DEFAULT_HEIGHT_RATIO = 0.78;
 
 	const closeSidebar = () => {
 		onClose?.();
@@ -85,8 +90,55 @@
 		closeSidebar();
 	};
 
+	const isMobileLayout = () =>
+		typeof window !== 'undefined' && window.matchMedia(MOBILE_BREAKPOINT).matches;
+
+	const clampMobileHeight = (height: number) => {
+		const viewportHeight = window.innerHeight;
+		const minHeight = Math.min(MOBILE_MIN_HEIGHT, viewportHeight * 0.75);
+		const maxHeight = viewportHeight * MOBILE_MAX_HEIGHT_RATIO;
+		return Math.min(Math.max(height, minHeight), maxHeight);
+	};
+
+	const setDefaultMobileHeight = () => {
+		if (!isMobileLayout()) {
+			mobilePanelHeight = null;
+			return;
+		}
+
+		mobilePanelHeight = clampMobileHeight(window.innerHeight * MOBILE_DEFAULT_HEIGHT_RATIO);
+	};
+
+	const handleMobileResizeStart = (event: PointerEvent) => {
+		if (!isMobileLayout()) return;
+
+		const handleElement = event.currentTarget as HTMLElement | null;
+		if (!handleElement) return;
+
+		const startY = event.clientY;
+		const startHeight =
+			mobilePanelHeight ?? clampMobileHeight(window.innerHeight * MOBILE_DEFAULT_HEIGHT_RATIO);
+
+		handleElement.setPointerCapture(event.pointerId);
+
+		const handlePointerMove = (moveEvent: PointerEvent) => {
+			mobilePanelHeight = clampMobileHeight(startHeight + (startY - moveEvent.clientY));
+		};
+
+		const handlePointerEnd = () => {
+			handleElement.removeEventListener('pointermove', handlePointerMove);
+			handleElement.removeEventListener('pointerup', handlePointerEnd);
+			handleElement.removeEventListener('pointercancel', handlePointerEnd);
+		};
+
+		handleElement.addEventListener('pointermove', handlePointerMove);
+		handleElement.addEventListener('pointerup', handlePointerEnd);
+		handleElement.addEventListener('pointercancel', handlePointerEnd);
+	};
+
 	$effect(() => {
 		if (!open) return;
+		setDefaultMobileHeight();
 		tick().then(() => {
 			focusFirstElement();
 		});
@@ -106,16 +158,26 @@
 		<div
 			bind:this={panelElement}
 			class="sidebar-panel"
+			style:--mobile-panel-height={mobilePanelHeight ? `${mobilePanelHeight}px` : null}
 			role="dialog"
 			aria-modal="true"
 			aria-labelledby="layer-sidebar-title"
 			tabindex="-1"
 			onkeydown={handlePanelKeydown}
 		>
-			<header class="panel-header">
-				<h2 id="layer-sidebar-title">Layers</h2>
-				<button type="button" class="close-sidebar" onclick={closeSidebar}>X</button>
-			</header>
+			<div class="mobile-top-chrome">
+				<div
+					class="mobile-resize-handle"
+					aria-hidden="true"
+					onpointerdown={handleMobileResizeStart}
+				>
+					<span class="mobile-resize-grip"></span>
+				</div>
+				<header class="panel-header">
+					<h2 id="layer-sidebar-title">Layers</h2>
+					<button type="button" class="close-sidebar" onclick={closeSidebar}>X</button>
+				</header>
+			</div>
 
 			<BaseMapSection
 				baseMaps={registry.baseMaps}
@@ -149,6 +211,7 @@
 
 	.sidebar-panel {
 		--line: rgba(166, 198, 255, 0.28);
+		--mobile-panel-height: 78vh;
 		--panel: rgba(7, 16, 29, 0.95);
 		position: absolute;
 		top: 0;
@@ -165,6 +228,14 @@
 		box-shadow: -12px 0 30px rgba(1, 6, 16, 0.35);
 		overflow: auto;
 		animation: sidebar-slide-in 220ms cubic-bezier(0.16, 1, 0.3, 1);
+	}
+
+	.mobile-resize-handle {
+		display: none;
+	}
+
+	.mobile-top-chrome {
+		display: contents;
 	}
 
 	.panel-header {
@@ -222,12 +293,44 @@
 			left: 0;
 			right: 0;
 			width: 100%;
-			height: auto;
-			max-height: 78vh;
+			height: var(--mobile-panel-height);
+			max-height: 92vh;
 			border-left: 0;
 			border-top: 1px solid var(--line);
 			border-radius: 1rem 1rem 0 0;
 			animation-name: sidebar-slide-up;
+		}
+
+		.mobile-top-chrome {
+			position: sticky;
+			top: -1rem;
+			z-index: 2;
+			display: block;
+			margin: -1rem -1rem 0;
+			padding: 0 1rem 0.75rem;
+			background: var(--panel);
+			border-radius: 1rem 1rem 0 0;
+		}
+
+		.mobile-resize-handle {
+			display: flex;
+			justify-content: center;
+			padding: 0.6rem 0 0.45rem;
+			margin: 0;
+			touch-action: none;
+			cursor: ns-resize;
+		}
+
+		.mobile-resize-grip {
+			width: 3rem;
+			height: 0.3rem;
+			border-radius: 999px;
+			background: rgba(227, 238, 255, 0.34);
+		}
+
+		.panel-header {
+			margin: 0;
+			padding: 0;
 		}
 	}
 

@@ -7,6 +7,9 @@
 		authNotice,
 		authPendingFlow,
 		authPendingProfileSetup,
+		authProfile,
+		authProfileLoading,
+		authProfilePending,
 		authSession,
 		clearAuthFeedback,
 		getAuthUserLabel,
@@ -18,6 +21,7 @@
 		signOut,
 		signUpWithEmail,
 		type SignupProfileInput,
+		updateCurrentUserProfile,
 		verifyPhoneLoginOtp,
 		verifyPhoneSignUpOtp
 	} from '$lib/supabase/auth';
@@ -53,6 +57,14 @@
 	let loginOtpSent = $state(false);
 	let authMode = $state<'signup' | 'login'>('login');
 	let authMethod = $state<'phone' | 'email'>('phone');
+	let profileUsername = $state('');
+	let profileFirstName = $state('');
+	let profileLastName = $state('');
+	let profileCountryCode = $state('');
+	let profileStateCode = $state('');
+	let profileStateText = $state('');
+	let profileCity = $state('');
+	let lastLoadedProfileKey = $state('');
 
 	const signupStates = $derived(signupCountryCode ? getStateOptions(signupCountryCode) : []);
 	const selectedSignupCountry = $derived(
@@ -61,10 +73,23 @@
 	const selectedSignupState = $derived(
 		signupStates.find((state) => state.isoCode === signupStateCode) ?? null
 	);
+	const profileStates = $derived(profileCountryCode ? getStateOptions(profileCountryCode) : []);
+	const selectedProfileCountry = $derived(
+		countryOptions.find((country) => country.isoCode === profileCountryCode) ?? null
+	);
+	const selectedProfileState = $derived(
+		profileStates.find((state) => state.isoCode === profileStateCode) ?? null
+	);
 
 	onMount(() => {
 		initializeSupabaseAuth();
 	});
+
+	const getCountryCodeByName = (countryName: string) =>
+		countryOptions.find((country) => country.name === countryName)?.isoCode ?? '';
+
+	const getStateCodeByName = (countryCode: string, stateName: string) =>
+		getStateOptions(countryCode).find((state) => state.name === stateName)?.isoCode ?? '';
 
 	const getSignupProfile = (): SignupProfileInput => ({
 		username: signupUsername,
@@ -73,6 +98,49 @@
 		country: selectedSignupCountry?.name ?? '',
 		state: signupStates.length > 0 ? (selectedSignupState?.name ?? '') : signupStateText,
 		city: signupCity
+	});
+
+	const getProfileFormValue = (): SignupProfileInput => ({
+		username: profileUsername,
+		firstName: profileFirstName,
+		lastName: profileLastName,
+		country: selectedProfileCountry?.name ?? '',
+		state: profileStates.length > 0 ? (selectedProfileState?.name ?? '') : profileStateText,
+		city: profileCity
+	});
+
+	const hydrateProfileForm = () => {
+		const profile = $authProfile;
+		const nextProfileKey = JSON.stringify(profile ?? null);
+		if (lastLoadedProfileKey === nextProfileKey) return;
+
+		lastLoadedProfileKey = nextProfileKey;
+
+		if (!profile) {
+			profileUsername = '';
+			profileFirstName = '';
+			profileLastName = '';
+			profileCountryCode = '';
+			profileStateCode = '';
+			profileStateText = '';
+			profileCity = '';
+			return;
+		}
+
+		const nextCountryCode = getCountryCodeByName(profile.country);
+		const nextStateCode = nextCountryCode ? getStateCodeByName(nextCountryCode, profile.state) : '';
+
+		profileUsername = profile.username;
+		profileFirstName = profile.firstName;
+		profileLastName = profile.lastName;
+		profileCountryCode = nextCountryCode;
+		profileStateCode = nextStateCode;
+		profileStateText = nextStateCode ? '' : profile.state;
+		profileCity = profile.city;
+	};
+
+	$effect(() => {
+		hydrateProfileForm();
 	});
 
 	const clearAuthFields = () => {
@@ -194,6 +262,12 @@
 		await retryPendingProfileSetup();
 	};
 
+	const handleProfileSave = async (event: SubmitEvent) => {
+		event.preventDefault();
+		const saved = await updateCurrentUserProfile(getProfileFormValue());
+		if (saved) lastLoadedProfileKey = '';
+	};
+
 	const setAuthMode = (mode: 'signup' | 'login') => {
 		authMode = mode;
 		clearAuthFeedback();
@@ -217,6 +291,13 @@
 		signupCountryCode = nextCountryCode;
 		signupStateCode = '';
 		signupStateText = '';
+	};
+
+	const handleProfileCountryChange = (event: Event) => {
+		const nextCountryCode = (event.currentTarget as HTMLSelectElement).value;
+		profileCountryCode = nextCountryCode;
+		profileStateCode = '';
+		profileStateText = '';
 	};
 
 	const toggleSignupPasswordVisibility = () => {
@@ -252,12 +333,8 @@
 		<div class="auth-shell">
 			<div class="auth-header">
 				<div>
-					<p class="auth-kicker">Account</p>
+					<p class="auth-kicker">Profile</p>
 					<h2>Your little safe space.</h2>
-					<p class="auth-blurb-title">Why create an account?</p>
-					<p class="auth-blurb-copy">
-						Well you get to post GREAT stuff and if I know you I can steal your bank account!
-					</p>
 				</div>
 			</div>
 
@@ -266,38 +343,230 @@
 					Supabase auth is not configured yet. Add the public URL and anon key to enable sign in.
 				</p>
 			{:else if $authSession}
-				<div class="auth-account">
-					<div>
-						<p class="auth-kicker">Signed In</p>
-						<p class="auth-account-value">{getAuthUserLabel()}</p>
+				<form class="auth-card auth-card--profile" onsubmit={handleProfileSave}>
+					<div class="auth-card-copy">
+						<h3>Edit Profile</h3>
 					</div>
-					<div class="auth-account-actions">
+
+					{#if $authPendingProfileSetup}
+						<p class="auth-banner auth-banner--error" role="alert">
+							Your account exists, but your profile still needs to be saved.
+						</p>
+					{/if}
+
+					{#if $authProfileLoading}
+						<p class="auth-banner auth-banner--notice">Loading your profile...</p>
+					{/if}
+
+					<div class="auth-profile-grid">
+						<label class="auth-field auth-field--readonly">
+							<span>Email</span>
+							<div class="auth-readonly-field">
+								<input
+									class="auth-input--readonly"
+									type="email"
+									value={$authSession.user.email ?? ''}
+									name="profile-email"
+									autocomplete="email"
+									readonly
+									tabindex="-1"
+								/>
+								<span class="auth-readonly-icon" aria-hidden="true">
+									<svg viewBox="0 0 24 24" class="auth-lock-icon">
+										<path
+											d="M7.5 10V8.5a4.5 4.5 0 1 1 9 0V10"
+											fill="none"
+											stroke="currentColor"
+											stroke-width="1.8"
+											stroke-linecap="round"
+										/>
+										<rect
+											x="5"
+											y="10"
+											width="14"
+											height="10"
+											rx="2.5"
+											fill="none"
+											stroke="currentColor"
+											stroke-width="1.8"
+										/>
+									</svg>
+								</span>
+							</div>
+						</label>
+
+						<label class="auth-field auth-field--readonly">
+							<span>Username</span>
+							<div class="auth-readonly-field">
+								<input
+									class="auth-input--readonly"
+									type="text"
+									value={profileUsername}
+									name="profile-username"
+									autocomplete="username"
+									placeholder="stormwatcher"
+									readonly
+									tabindex="-1"
+								/>
+								<span class="auth-readonly-icon" aria-hidden="true">
+									<svg viewBox="0 0 24 24" class="auth-lock-icon">
+										<path
+											d="M7.5 10V8.5a4.5 4.5 0 1 1 9 0V10"
+											fill="none"
+											stroke="currentColor"
+											stroke-width="1.8"
+											stroke-linecap="round"
+										/>
+										<rect
+											x="5"
+											y="10"
+											width="14"
+											height="10"
+											rx="2.5"
+											fill="none"
+											stroke="currentColor"
+											stroke-width="1.8"
+										/>
+									</svg>
+								</span>
+							</div>
+						</label>
+
+						<div class="auth-field-pair">
+							<label class="auth-field">
+								<span>First Name</span>
+								<input
+									bind:value={profileFirstName}
+									type="text"
+									name="profile-first-name"
+									autocomplete="given-name"
+								/>
+							</label>
+
+							<label class="auth-field">
+								<span>Last Name</span>
+								<input
+									bind:value={profileLastName}
+									type="text"
+									name="profile-last-name"
+									autocomplete="family-name"
+								/>
+							</label>
+						</div>
+
+						<label class="auth-field">
+							<span>Country</span>
+							<select
+								bind:value={profileCountryCode}
+								name="profile-country"
+								onchange={handleProfileCountryChange}
+							>
+								<option value="">Select a country</option>
+								{#each countryOptions as country (country.isoCode)}
+									<option value={country.isoCode}>{country.name}</option>
+								{/each}
+							</select>
+						</label>
+
+						{#if profileCountryCode}
+							{#if profileStates.length > 0}
+								<label class="auth-field">
+									<span>State / Province</span>
+									<select bind:value={profileStateCode} name="profile-state">
+										<option value="">Select a state or province</option>
+										{#each profileStates as state (state.isoCode)}
+											<option value={state.isoCode}>{state.name}</option>
+										{/each}
+									</select>
+								</label>
+							{:else}
+								<label class="auth-field">
+									<span>State / Province</span>
+									<input
+										bind:value={profileStateText}
+										type="text"
+										name="profile-state-text"
+										autocomplete="address-level1"
+									/>
+								</label>
+							{/if}
+						{/if}
+
+						<label class="auth-field">
+							<span>City</span>
+							<input
+								bind:value={profileCity}
+								type="text"
+								name="profile-city"
+								autocomplete="address-level2"
+							/>
+						</label>
+					</div>
+
+					<div class="auth-account-actions auth-account-actions--footer">
 						{#if $authPendingProfileSetup}
 							<button
 								type="button"
-								class="auth-submit"
-								disabled={$authPendingFlow !== null}
+								class="auth-submit auth-submit--secondary"
+								disabled={$authPendingFlow !== null || $authProfilePending}
 								onclick={handleRetryProfileSetup}
 							>
-								Retry Profile Setup
+								Retry Setup
 							</button>
 						{/if}
 						<button
-							type="button"
-							class="auth-submit auth-submit--secondary"
-							disabled={$authPendingFlow === 'signout'}
-							onclick={handleSignOut}
+							type="submit"
+							class="auth-submit auth-submit--soft"
+							disabled={$authProfileLoading || $authProfilePending || $authPendingFlow !== null}
 						>
-							{$authPendingFlow === 'signout' ? 'Signing Out...' : 'Sign Out'}
+							{$authProfilePending ? 'Saving...' : 'Save Profile'}
 						</button>
 					</div>
-				</div>
 
-				{#if $authPendingProfileSetup}
-					<p class="auth-banner auth-banner--error" role="alert">
-						Your account exists, but your profile still needs to be saved.
-					</p>
-				{/if}
+					{#if $authError}
+						<p class="auth-banner auth-banner--error" role="alert">{$authError}</p>
+					{/if}
+
+					{#if $authNotice}
+						<p class="auth-banner auth-banner--notice">{$authNotice}</p>
+					{/if}
+				</form>
+				<div class="auth-sidebar-action">
+					<button
+						type="button"
+						class="auth-logout-button"
+						aria-label={$authPendingFlow === 'signout' ? 'Signing out' : 'Sign out'}
+						title={$authPendingFlow === 'signout' ? 'Signing out' : 'Sign out'}
+						disabled={$authPendingFlow === 'signout' || $authProfilePending}
+						onclick={handleSignOut}
+					>
+						<svg aria-hidden="true" viewBox="0 0 24 24" class="auth-logout-icon">
+							<path
+								d="M10 6H7.75A1.75 1.75 0 0 0 6 7.75v8.5C6 17.216 6.784 18 7.75 18H10"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="1.8"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+							/>
+							<path
+								d="M13 8.5 17 12l-4 3.5"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="1.8"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+							/>
+							<path
+								d="M11 12h6"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="1.8"
+								stroke-linecap="round"
+							/>
+						</svg>
+					</button>
+				</div>
 			{:else}
 				<div class="auth-mode-toggle" role="tablist" aria-label="Auth flow">
 					<button
@@ -383,89 +652,6 @@
 										/>
 									</svg>
 								</button>
-							</div>
-
-							<div class="auth-profile-grid">
-								<label class="auth-field">
-									<span>Username</span>
-									<input
-										bind:value={signupUsername}
-										type="text"
-										name="signup-username"
-										autocomplete="username"
-										placeholder="stormwatcher"
-									/>
-								</label>
-
-								<div class="auth-field-pair">
-									<label class="auth-field">
-										<span>First Name</span>
-										<input
-											bind:value={signupFirstName}
-											type="text"
-											name="signup-first-name"
-											autocomplete="given-name"
-										/>
-									</label>
-
-									<label class="auth-field">
-										<span>Last Name</span>
-										<input
-											bind:value={signupLastName}
-											type="text"
-											name="signup-last-name"
-											autocomplete="family-name"
-										/>
-									</label>
-								</div>
-
-								<label class="auth-field">
-									<span>Country</span>
-									<select
-										bind:value={signupCountryCode}
-										name="signup-country"
-										onchange={handleCountryChange}
-									>
-										<option value="">Select a country</option>
-											{#each countryOptions as country (country.isoCode)}
-												<option value={country.isoCode}>{country.name}</option>
-											{/each}
-									</select>
-								</label>
-
-								{#if signupCountryCode}
-									{#if signupStates.length > 0}
-										<label class="auth-field">
-											<span>State / Province</span>
-											<select bind:value={signupStateCode} name="signup-state">
-												<option value="">Select a state or province</option>
-													{#each signupStates as state (state.isoCode)}
-														<option value={state.isoCode}>{state.name}</option>
-													{/each}
-											</select>
-										</label>
-									{:else}
-										<label class="auth-field">
-											<span>State / Province</span>
-											<input
-												bind:value={signupStateText}
-												type="text"
-												name="signup-state-text"
-												autocomplete="address-level1"
-											/>
-										</label>
-									{/if}
-								{/if}
-
-								<label class="auth-field">
-									<span>City</span>
-									<input
-										bind:value={signupCity}
-										type="text"
-										name="signup-city"
-										autocomplete="address-level2"
-									/>
-								</label>
 							</div>
 
 							{#if authMethod === 'phone'}
@@ -586,6 +772,89 @@
 									</div>
 								</label>
 							{/if}
+
+							<div class="auth-profile-grid">
+								<label class="auth-field">
+									<span>Username</span>
+									<input
+										bind:value={signupUsername}
+										type="text"
+										name="signup-username"
+										autocomplete="username"
+										placeholder="stormwatcher"
+									/>
+								</label>
+
+								<div class="auth-field-pair">
+									<label class="auth-field">
+										<span>First Name</span>
+										<input
+											bind:value={signupFirstName}
+											type="text"
+											name="signup-first-name"
+											autocomplete="given-name"
+										/>
+									</label>
+
+									<label class="auth-field">
+										<span>Last Name</span>
+										<input
+											bind:value={signupLastName}
+											type="text"
+											name="signup-last-name"
+											autocomplete="family-name"
+										/>
+									</label>
+								</div>
+
+								<label class="auth-field">
+									<span>Country</span>
+									<select
+										bind:value={signupCountryCode}
+										name="signup-country"
+										onchange={handleCountryChange}
+									>
+										<option value="">Select a country</option>
+										{#each countryOptions as country (country.isoCode)}
+											<option value={country.isoCode}>{country.name}</option>
+										{/each}
+									</select>
+								</label>
+
+								{#if signupCountryCode}
+									{#if signupStates.length > 0}
+										<label class="auth-field">
+											<span>State / Province</span>
+											<select bind:value={signupStateCode} name="signup-state">
+												<option value="">Select a state or province</option>
+												{#each signupStates as state (state.isoCode)}
+													<option value={state.isoCode}>{state.name}</option>
+												{/each}
+											</select>
+										</label>
+									{:else}
+										<label class="auth-field">
+											<span>State / Province</span>
+											<input
+												bind:value={signupStateText}
+												type="text"
+												name="signup-state-text"
+												autocomplete="address-level1"
+											/>
+										</label>
+									{/if}
+								{/if}
+
+								<label class="auth-field">
+									<span>City</span>
+									<input
+										bind:value={signupCity}
+										type="text"
+										name="signup-city"
+										autocomplete="address-level2"
+									/>
+								</label>
+							</div>
 
 							<button type="submit" class="auth-submit" disabled={$authPendingFlow === 'signup'}>
 								{#if $authPendingFlow === 'signup'}
@@ -824,6 +1093,8 @@
 	.auth-shell {
 		min-height: 100%;
 		padding: 0;
+		display: flex;
+		flex-direction: column;
 	}
 
 	.auth-header {
@@ -839,20 +1110,6 @@
 		font-size: clamp(1.35rem, 2.4vw, 1.9rem);
 		line-height: 1.1;
 		color: #f5f8ff;
-	}
-
-	.auth-blurb-title {
-		margin: 1rem 0 0.3rem;
-		font-size: 0.95rem;
-		font-weight: 700;
-		color: #f5f8ff;
-	}
-
-	.auth-blurb-copy {
-		margin: 0;
-		color: rgba(227, 238, 255, 0.78);
-		line-height: 1.55;
-		font-size: 0.96rem;
 	}
 
 	.auth-banner,
@@ -872,9 +1129,9 @@
 
 	.auth-banner--notice,
 	.auth-empty {
-		background: rgba(12, 26, 47, 0.72);
-		border: 1px solid rgba(166, 198, 255, 0.2);
-		color: rgba(227, 238, 255, 0.9);
+		background: rgba(14, 43, 25, 0.72);
+		border: 1px solid rgba(111, 214, 146, 0.26);
+		color: rgba(219, 255, 228, 0.92);
 	}
 
 	.auth-kicker {
@@ -964,7 +1221,7 @@
 	}
 
 	.auth-card--login,
-	.auth-account {
+	.auth-card--profile {
 		background: linear-gradient(180deg, rgba(11, 24, 46, 0.72), rgba(14, 22, 34, 0.72));
 	}
 
@@ -974,21 +1231,11 @@
 		color: #f5f8ff;
 	}
 
-	.auth-account-value {
-		margin: 0.35rem 0 0;
-		color: rgba(227, 238, 255, 0.88);
-		line-height: 1.5;
-	}
-
-	.auth-account {
+	.auth-card--profile {
 		margin-top: 1rem;
 		padding: 1rem;
 		border-radius: 1.05rem;
 		border: 1px solid rgba(166, 198, 255, 0.18);
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 1rem;
 	}
 
 	.auth-account-actions {
@@ -998,11 +1245,11 @@
 		gap: 0.65rem;
 	}
 
-	.auth-account-value {
-		margin-top: 0;
-		font-size: 1.05rem;
-		font-weight: 600;
-		word-break: break-word;
+	.auth-sidebar-action {
+		margin-top: auto;
+		padding: 1rem 0 0;
+		display: flex;
+		justify-content: flex-end;
 	}
 
 	.auth-field {
@@ -1010,6 +1257,12 @@
 		gap: 0.35rem;
 		font-size: 0.88rem;
 		color: rgba(227, 238, 255, 0.88);
+	}
+
+	.auth-field--readonly,
+	.auth-field--readonly span,
+	.auth-field--readonly .auth-readonly-field {
+		cursor: not-allowed;
 	}
 
 	.auth-field input,
@@ -1020,6 +1273,49 @@
 		color: #f5f8ff;
 		padding: 0.7rem 0.8rem;
 		font: inherit;
+	}
+
+	.auth-input--readonly {
+		border-color: rgba(255, 198, 127, 0.18);
+		background:
+			linear-gradient(180deg, rgba(255, 198, 127, 0.08), rgba(9, 20, 36, 0.7)),
+			rgba(9, 20, 36, 0.6);
+		color: #f5f8ff;
+		cursor: not-allowed;
+		padding-right: 2.8rem;
+		pointer-events: none;
+	}
+
+	.auth-input--readonly:focus {
+		outline: none;
+	}
+
+	.auth-readonly-field {
+		position: relative;
+		width: 100%;
+		pointer-events: none;
+	}
+
+	.auth-readonly-field input {
+		width: 100%;
+		box-sizing: border-box;
+	}
+
+	.auth-readonly-icon {
+		position: absolute;
+		top: 50%;
+		right: 0.8rem;
+		transform: translateY(-50%);
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		color: rgba(255, 217, 168, 0.9);
+		pointer-events: none;
+	}
+
+	.auth-lock-icon {
+		width: 0.95rem;
+		height: 0.95rem;
 	}
 
 	.auth-field select {
@@ -1101,8 +1397,57 @@
 		cursor: pointer;
 	}
 
+	.auth-submit--soft {
+		background: rgba(215, 230, 255, 0.14);
+		border: 1px solid rgba(166, 198, 255, 0.18);
+		color: #e3eeff;
+		font-weight: 600;
+	}
+
 	.auth-submit--secondary {
 		background: #d7e6ff;
+	}
+
+	.auth-logout-button {
+		border: 1px solid rgba(166, 198, 255, 0.16);
+		border-radius: 999px;
+		width: 2.9rem;
+		height: 2.9rem;
+		padding: 0;
+		background: rgba(9, 20, 36, 0.58);
+		color: rgba(227, 238, 255, 0.84);
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		cursor: pointer;
+		transition:
+			background 140ms ease,
+			color 140ms ease,
+			border-color 140ms ease,
+			transform 140ms ease;
+	}
+
+	.auth-logout-button:hover {
+		background: rgba(128, 31, 31, 0.22);
+		border-color: rgba(255, 125, 125, 0.24);
+		color: #ffd6d6;
+		transform: translateY(-1px);
+	}
+
+	.auth-logout-button:focus-visible {
+		outline: 2px solid rgba(255, 198, 127, 0.45);
+		outline-offset: 2px;
+	}
+
+	.auth-logout-button:disabled {
+		opacity: 0.7;
+		cursor: progress;
+		transform: none;
+	}
+
+	.auth-logout-icon {
+		width: 1.1rem;
+		height: 1.1rem;
 	}
 
 	.auth-submit:disabled {
@@ -1128,11 +1473,6 @@
 		.auth-header {
 			grid-template-columns: 1fr;
 			align-items: start;
-		}
-
-		.auth-account {
-			flex-direction: column;
-			align-items: flex-start;
 		}
 
 		.auth-field-pair {
