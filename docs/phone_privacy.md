@@ -1,6 +1,6 @@
 # ToochTown Privacy Policy
 
-**Effective Date:** [Insert Date]
+**Effective Date:** April 1, 2026
 
 ToochTown (“we,” “our,” or “us”) respects your privacy. This Privacy Policy explains how we collect, use, and protect your information when you use https://tooch.dev.
 

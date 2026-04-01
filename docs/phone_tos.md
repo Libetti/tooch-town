@@ -1,6 +1,6 @@
 # ToochTown Terms of Service
 
-**Effective Date:** [Insert Date]
+**Effective Date:** April 1, 2026
 
 Welcome to ToochTown (“we,” “our,” or “us”), accessible at https://tooch.dev.
 
