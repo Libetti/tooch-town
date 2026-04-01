@@ -1,17 +1,25 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { countryOptions, getStateOptions } from '$lib/profile/locations';
 	import { hasSupabaseAuthConfig } from '$lib/supabase/client';
 	import {
 		authError,
 		authNotice,
 		authPendingFlow,
+		authPendingProfileSetup,
 		authSession,
 		clearAuthFeedback,
 		getAuthUserLabel,
 		initializeSupabaseAuth,
+		requestPhoneLoginOtp,
+		requestPhoneSignUpOtp,
+		retryPendingProfileSetup,
 		signInWithEmail,
 		signOut,
-		signUpWithEmail
+		signUpWithEmail,
+		type SignupProfileInput,
+		verifyPhoneLoginOtp,
+		verifyPhoneSignUpOtp
 	} from '$lib/supabase/auth';
 
 	type Props = {
@@ -26,14 +34,45 @@
 	let signupPasswordConfirm = $state('');
 	let signupPasswordVisible = $state(false);
 	let signupPasswordConfirmVisible = $state(false);
+	let signupPhone = $state('');
+	let signupOtp = $state('');
+	let signupOtpSent = $state(false);
+	let signupUsername = $state('');
+	let signupFirstName = $state('');
+	let signupLastName = $state('');
+	let signupCountryCode = $state('');
+	let signupStateCode = $state('');
+	let signupStateText = $state('');
+	let signupCity = $state('');
 
 	let loginEmail = $state('');
 	let loginPassword = $state('');
 	let loginPasswordVisible = $state(false);
+	let loginPhone = $state('');
+	let loginOtp = $state('');
+	let loginOtpSent = $state(false);
 	let authMode = $state<'signup' | 'login'>('login');
+	let authMethod = $state<'phone' | 'email'>('phone');
+
+	const signupStates = $derived(signupCountryCode ? getStateOptions(signupCountryCode) : []);
+	const selectedSignupCountry = $derived(
+		countryOptions.find((country) => country.isoCode === signupCountryCode) ?? null
+	);
+	const selectedSignupState = $derived(
+		signupStates.find((state) => state.isoCode === signupStateCode) ?? null
+	);
 
 	onMount(() => {
 		initializeSupabaseAuth();
+	});
+
+	const getSignupProfile = (): SignupProfileInput => ({
+		username: signupUsername,
+		firstName: signupFirstName,
+		lastName: signupLastName,
+		country: selectedSignupCountry?.name ?? '',
+		state: signupStates.length > 0 ? (selectedSignupState?.name ?? '') : signupStateText,
+		city: signupCity
 	});
 
 	const clearAuthFields = () => {
@@ -42,9 +81,22 @@
 		signupPasswordConfirm = '';
 		signupPasswordVisible = false;
 		signupPasswordConfirmVisible = false;
+		signupPhone = '';
+		signupOtp = '';
+		signupOtpSent = false;
+		signupUsername = '';
+		signupFirstName = '';
+		signupLastName = '';
+		signupCountryCode = '';
+		signupStateCode = '';
+		signupStateText = '';
+		signupCity = '';
 		loginEmail = '';
 		loginPassword = '';
 		loginPasswordVisible = false;
+		loginPhone = '';
+		loginOtp = '';
+		loginOtpSent = false;
 	};
 
 	const closePanel = () => {
@@ -60,10 +112,36 @@
 
 	const handleSignup = async (event: SubmitEvent) => {
 		event.preventDefault();
+		const profile = getSignupProfile();
+
+		if (authMethod === 'phone') {
+			if (!signupOtpSent) {
+				signupOtpSent = await requestPhoneSignUpOtp({
+					phone: signupPhone,
+					profile
+				});
+				if (!signupOtpSent) signupOtp = '';
+				return;
+			}
+
+			const signedIn = await verifyPhoneSignUpOtp({
+				phone: signupPhone,
+				token: signupOtp,
+				profile
+			});
+
+			if (signedIn) {
+				clearAuthFields();
+			}
+
+			return;
+		}
+
 		const signedIn = await signUpWithEmail({
 			email: signupEmail,
 			password: signupPassword,
-			passwordConfirm: signupPasswordConfirm
+			passwordConfirm: signupPasswordConfirm,
+			profile
 		});
 
 		if (signedIn) {
@@ -76,6 +154,28 @@
 
 	const handleLogin = async (event: SubmitEvent) => {
 		event.preventDefault();
+
+		if (authMethod === 'phone') {
+			if (!loginOtpSent) {
+				loginOtpSent = await requestPhoneLoginOtp({
+					phone: loginPhone
+				});
+				if (!loginOtpSent) loginOtp = '';
+				return;
+			}
+
+			const signedIn = await verifyPhoneLoginOtp({
+				phone: loginPhone,
+				token: loginOtp
+			});
+
+			if (signedIn) {
+				clearAuthFields();
+			}
+
+			return;
+		}
+
 		const signedIn = await signInWithEmail({
 			email: loginEmail,
 			password: loginPassword
@@ -90,9 +190,33 @@
 		await signOut();
 	};
 
+	const handleRetryProfileSetup = async () => {
+		await retryPendingProfileSetup();
+	};
+
 	const setAuthMode = (mode: 'signup' | 'login') => {
 		authMode = mode;
 		clearAuthFeedback();
+		signupOtp = '';
+		signupOtpSent = false;
+		loginOtp = '';
+		loginOtpSent = false;
+	};
+
+	const setAuthMethod = (method: 'phone' | 'email') => {
+		authMethod = method;
+		clearAuthFeedback();
+		signupOtp = '';
+		signupOtpSent = false;
+		loginOtp = '';
+		loginOtpSent = false;
+	};
+
+	const handleCountryChange = (event: Event) => {
+		const nextCountryCode = (event.currentTarget as HTMLSelectElement).value;
+		signupCountryCode = nextCountryCode;
+		signupStateCode = '';
+		signupStateText = '';
 	};
 
 	const toggleSignupPasswordVisibility = () => {
@@ -119,30 +243,45 @@
 			onclick={closePanel}
 		></button>
 	{/if}
-		<aside id="hero-auth-panel" class:auth-panel--open={expanded} class="auth-panel" aria-hidden={!expanded}>
-			<div class="auth-shell">
-				<div class="auth-header">
-					<div>
-						<p class="auth-kicker">Account</p>
-						<h2>Your little safe space.</h2>
-						<p class="auth-blurb-title">Why create an account?</p>
-						<p class="auth-blurb-copy">
-							Well you get to post GREAT stuff and if I know you I can steal your bank account!
-						</p>
-					</div>
-
-				</div>
-
-				{#if !hasSupabaseAuthConfig}
-					<p class="auth-empty">
-						Supabase auth is not configured yet. Add the public URL and anon key to enable sign in.
+	<aside
+		id="hero-auth-panel"
+		class:auth-panel--open={expanded}
+		class="auth-panel"
+		aria-hidden={!expanded}
+	>
+		<div class="auth-shell">
+			<div class="auth-header">
+				<div>
+					<p class="auth-kicker">Account</p>
+					<h2>Your little safe space.</h2>
+					<p class="auth-blurb-title">Why create an account?</p>
+					<p class="auth-blurb-copy">
+						Well you get to post GREAT stuff and if I know you I can steal your bank account!
 					</p>
-				{:else if $authSession}
-					<div class="auth-account">
-						<div>
-							<p class="auth-kicker">Signed In</p>
-							<p class="auth-account-value">{getAuthUserLabel()}</p>
-						</div>
+				</div>
+			</div>
+
+			{#if !hasSupabaseAuthConfig}
+				<p class="auth-empty">
+					Supabase auth is not configured yet. Add the public URL and anon key to enable sign in.
+				</p>
+			{:else if $authSession}
+				<div class="auth-account">
+					<div>
+						<p class="auth-kicker">Signed In</p>
+						<p class="auth-account-value">{getAuthUserLabel()}</p>
+					</div>
+					<div class="auth-account-actions">
+						{#if $authPendingProfileSetup}
+							<button
+								type="button"
+								class="auth-submit"
+								disabled={$authPendingFlow !== null}
+								onclick={handleRetryProfileSetup}
+							>
+								Retry Profile Setup
+							</button>
+						{/if}
 						<button
 							type="button"
 							class="auth-submit auth-submit--secondary"
@@ -152,40 +291,215 @@
 							{$authPendingFlow === 'signout' ? 'Signing Out...' : 'Sign Out'}
 						</button>
 					</div>
-				{:else}
-					<div class="auth-mode-toggle" role="tablist" aria-label="Auth flow">
-						<button
-							type="button"
-							class:auth-mode-button--active={authMode === 'login'}
-							class="auth-mode-button"
-							role="tab"
-							aria-selected={authMode === 'login'}
-							onclick={() => setAuthMode('login')}
-						>
-							You're back
-						</button>
-						<button
-							type="button"
-							class:auth-mode-button--active={authMode === 'signup'}
-							class="auth-mode-button"
-							role="tab"
-							aria-selected={authMode === 'signup'}
-							onclick={() => setAuthMode('signup')}
-						>
-							Join Us
-						</button>
-					</div>
+				</div>
 
-					<div class="auth-grid">
-						{#if authMode === 'signup'}
-							<form class="auth-card auth-card--signup" onsubmit={handleSignup}>
-								<div class="auth-card-copy">
-									<h3>Create Account</h3>
+				{#if $authPendingProfileSetup}
+					<p class="auth-banner auth-banner--error" role="alert">
+						Your account exists, but your profile still needs to be saved.
+					</p>
+				{/if}
+			{:else}
+				<div class="auth-mode-toggle" role="tablist" aria-label="Auth flow">
+					<button
+						type="button"
+						class:auth-mode-button--active={authMode === 'login'}
+						class="auth-mode-button"
+						role="tab"
+						aria-selected={authMode === 'login'}
+						onclick={() => setAuthMode('login')}
+					>
+						You're back
+					</button>
+					<button
+						type="button"
+						class:auth-mode-button--active={authMode === 'signup'}
+						class="auth-mode-button"
+						role="tab"
+						aria-selected={authMode === 'signup'}
+						onclick={() => setAuthMode('signup')}
+					>
+						Join Us
+					</button>
+				</div>
+
+				<div class="auth-grid">
+					{#if authMode === 'signup'}
+						<form class="auth-card auth-card--signup" onsubmit={handleSignup}>
+							<div class="auth-card-copy">
+								<h3>
+									{authMethod === 'phone'
+										? 'Create Account With Phone'
+										: 'Create Account With Email'}
+								</h3>
+							</div>
+
+							<div class="auth-method-toggle" role="tablist" aria-label="Auth method">
+								<button
+									type="button"
+									class:auth-mode-button--active={authMethod === 'phone'}
+									class="auth-mode-button auth-method-icon-button"
+									role="tab"
+									aria-selected={authMethod === 'phone'}
+									aria-label="Use phone"
+									title="Phone"
+									onclick={() => setAuthMethod('phone')}
+								>
+									<svg aria-hidden="true" viewBox="0 0 24 24" class="auth-method-icon">
+										<path
+											d="M7.2 3.6h2.1c.4 0 .8.3.9.7l.6 2.7c.1.3 0 .7-.2 1l-1.2 1.5a15 15 0 0 0 5.5 5.5l1.5-1.2c.3-.2.7-.3 1-.2l2.7.6c.4.1.7.5.7.9v2.1c0 .6-.4 1-.9 1.1-.7.1-1.4.2-2.1.2A16.8 16.8 0 0 1 5.9 6.6c0-.7.1-1.4.2-2.1.1-.5.5-.9 1.1-.9Z"
+											fill="none"
+											stroke="currentColor"
+											stroke-width="1.8"
+											stroke-linecap="round"
+											stroke-linejoin="round"
+										/>
+									</svg>
+								</button>
+								<button
+									type="button"
+									class:auth-mode-button--active={authMethod === 'email'}
+									class="auth-mode-button auth-method-icon-button"
+									role="tab"
+									aria-selected={authMethod === 'email'}
+									aria-label="Use email"
+									title="Email"
+									onclick={() => setAuthMethod('email')}
+								>
+									<svg aria-hidden="true" viewBox="0 0 24 24" class="auth-method-icon">
+										<path
+											d="M4 6.5h16A1.5 1.5 0 0 1 21.5 8v8A1.5 1.5 0 0 1 20 17.5H4A1.5 1.5 0 0 1 2.5 16V8A1.5 1.5 0 0 1 4 6.5Z"
+											fill="none"
+											stroke="currentColor"
+											stroke-width="1.8"
+											stroke-linejoin="round"
+										/>
+										<path
+											d="m4 8 8 5 8-5"
+											fill="none"
+											stroke="currentColor"
+											stroke-width="1.8"
+											stroke-linecap="round"
+											stroke-linejoin="round"
+										/>
+									</svg>
+								</button>
+							</div>
+
+							<div class="auth-profile-grid">
+								<label class="auth-field">
+									<span>Username</span>
+									<input
+										bind:value={signupUsername}
+										type="text"
+										name="signup-username"
+										autocomplete="username"
+										placeholder="stormwatcher"
+									/>
+								</label>
+
+								<div class="auth-field-pair">
+									<label class="auth-field">
+										<span>First Name</span>
+										<input
+											bind:value={signupFirstName}
+											type="text"
+											name="signup-first-name"
+											autocomplete="given-name"
+										/>
+									</label>
+
+									<label class="auth-field">
+										<span>Last Name</span>
+										<input
+											bind:value={signupLastName}
+											type="text"
+											name="signup-last-name"
+											autocomplete="family-name"
+										/>
+									</label>
 								</div>
 
 								<label class="auth-field">
+									<span>Country</span>
+									<select
+										bind:value={signupCountryCode}
+										name="signup-country"
+										onchange={handleCountryChange}
+									>
+										<option value="">Select a country</option>
+											{#each countryOptions as country (country.isoCode)}
+												<option value={country.isoCode}>{country.name}</option>
+											{/each}
+									</select>
+								</label>
+
+								{#if signupCountryCode}
+									{#if signupStates.length > 0}
+										<label class="auth-field">
+											<span>State / Province</span>
+											<select bind:value={signupStateCode} name="signup-state">
+												<option value="">Select a state or province</option>
+													{#each signupStates as state (state.isoCode)}
+														<option value={state.isoCode}>{state.name}</option>
+													{/each}
+											</select>
+										</label>
+									{:else}
+										<label class="auth-field">
+											<span>State / Province</span>
+											<input
+												bind:value={signupStateText}
+												type="text"
+												name="signup-state-text"
+												autocomplete="address-level1"
+											/>
+										</label>
+									{/if}
+								{/if}
+
+								<label class="auth-field">
+									<span>City</span>
+									<input
+										bind:value={signupCity}
+										type="text"
+										name="signup-city"
+										autocomplete="address-level2"
+									/>
+								</label>
+							</div>
+
+							{#if authMethod === 'phone'}
+								<label class="auth-field">
+									<span>Phone</span>
+									<input
+										bind:value={signupPhone}
+										type="tel"
+										name="signup-phone"
+										autocomplete="tel"
+										placeholder="+15551234567"
+									/>
+								</label>
+
+								{#if signupOtpSent}
+									<label class="auth-field">
+										<span>Verification Code</span>
+										<input
+											bind:value={signupOtp}
+											inputmode="numeric"
+											name="signup-otp"
+											autocomplete="one-time-code"
+										/>
+									</label>
+								{/if}
+							{:else}
+								<label class="auth-field">
 									<span>Email</span>
-									<input bind:value={signupEmail} type="email" name="signup-email" autocomplete="email" />
+									<input
+										bind:value={signupEmail}
+										type="email"
+										name="signup-email"
+										autocomplete="email"
+									/>
 								</label>
 
 								<label class="auth-field">
@@ -243,7 +557,9 @@
 											type="button"
 											class="auth-password-toggle"
 											aria-pressed={signupPasswordConfirmVisible}
-											aria-label={signupPasswordConfirmVisible ? 'Hide confirm password' : 'Show confirm password'}
+											aria-label={signupPasswordConfirmVisible
+												? 'Hide confirm password'
+												: 'Show confirm password'}
 											onclick={toggleSignupPasswordConfirmVisibility}
 										>
 											<svg aria-hidden="true" viewBox="0 0 24 24" class="auth-password-icon">
@@ -269,28 +585,118 @@
 										</button>
 									</div>
 								</label>
+							{/if}
 
-								<button type="submit" class="auth-submit" disabled={$authPendingFlow === 'signup'}>
-									{$authPendingFlow === 'signup' ? 'Creating Account...' : 'Create Account'}
+							<button type="submit" class="auth-submit" disabled={$authPendingFlow === 'signup'}>
+								{#if $authPendingFlow === 'signup'}
+									{signupOtpSent ? 'Verifying...' : 'Sending Code...'}
+								{:else}
+									{authMethod === 'phone'
+										? signupOtpSent
+											? 'Verify And Create Account'
+											: 'Send Verification Code'
+										: 'Create Account'}
+								{/if}
+							</button>
+
+							{#if $authError}
+								<p class="auth-banner auth-banner--error" role="alert">{$authError}</p>
+							{/if}
+
+							{#if $authNotice}
+								<p class="auth-banner auth-banner--notice">{$authNotice}</p>
+							{/if}
+						</form>
+					{:else}
+						<form class="auth-card auth-card--login" onsubmit={handleLogin}>
+							<div class="auth-card-copy">
+								<h3>{authMethod === 'phone' ? 'Log In With Phone' : 'Log In With Email'}</h3>
+							</div>
+
+							<div class="auth-method-toggle" role="tablist" aria-label="Auth method">
+								<button
+									type="button"
+									class:auth-mode-button--active={authMethod === 'phone'}
+									class="auth-mode-button auth-method-icon-button"
+									role="tab"
+									aria-selected={authMethod === 'phone'}
+									aria-label="Use phone"
+									title="Phone"
+									onclick={() => setAuthMethod('phone')}
+								>
+									<svg aria-hidden="true" viewBox="0 0 24 24" class="auth-method-icon">
+										<path
+											d="M7.2 3.6h2.1c.4 0 .8.3.9.7l.6 2.7c.1.3 0 .7-.2 1l-1.2 1.5a15 15 0 0 0 5.5 5.5l1.5-1.2c.3-.2.7-.3 1-.2l2.7.6c.4.1.7.5.7.9v2.1c0 .6-.4 1-.9 1.1-.7.1-1.4.2-2.1.2A16.8 16.8 0 0 1 5.9 6.6c0-.7.1-1.4.2-2.1.1-.5.5-.9 1.1-.9Z"
+											fill="none"
+											stroke="currentColor"
+											stroke-width="1.8"
+											stroke-linecap="round"
+											stroke-linejoin="round"
+										/>
+									</svg>
 								</button>
+								<button
+									type="button"
+									class:auth-mode-button--active={authMethod === 'email'}
+									class="auth-mode-button auth-method-icon-button"
+									role="tab"
+									aria-selected={authMethod === 'email'}
+									aria-label="Use email"
+									title="Email"
+									onclick={() => setAuthMethod('email')}
+								>
+									<svg aria-hidden="true" viewBox="0 0 24 24" class="auth-method-icon">
+										<path
+											d="M4 6.5h16A1.5 1.5 0 0 1 21.5 8v8A1.5 1.5 0 0 1 20 17.5H4A1.5 1.5 0 0 1 2.5 16V8A1.5 1.5 0 0 1 4 6.5Z"
+											fill="none"
+											stroke="currentColor"
+											stroke-width="1.8"
+											stroke-linejoin="round"
+										/>
+										<path
+											d="m4 8 8 5 8-5"
+											fill="none"
+											stroke="currentColor"
+											stroke-width="1.8"
+											stroke-linecap="round"
+											stroke-linejoin="round"
+										/>
+									</svg>
+								</button>
+							</div>
 
-								{#if $authError}
-									<p class="auth-banner auth-banner--error" role="alert">{$authError}</p>
+							{#if authMethod === 'phone'}
+								<label class="auth-field">
+									<span>Phone</span>
+									<input
+										bind:value={loginPhone}
+										type="tel"
+										name="login-phone"
+										autocomplete="tel"
+										placeholder="+15551234567"
+									/>
+								</label>
+
+								{#if loginOtpSent}
+									<label class="auth-field">
+										<span>Verification Code</span>
+										<input
+											bind:value={loginOtp}
+											inputmode="numeric"
+											name="login-otp"
+											autocomplete="one-time-code"
+										/>
+									</label>
 								{/if}
-
-								{#if $authNotice}
-									<p class="auth-banner auth-banner--notice">{$authNotice}</p>
-								{/if}
-							</form>
-						{:else}
-							<form class="auth-card auth-card--login" onsubmit={handleLogin}>
-								<div class="auth-card-copy">
-									<h3>Log In</h3>
-								</div>
-
+							{:else}
 								<label class="auth-field">
 									<span>Email</span>
-									<input bind:value={loginEmail} type="email" name="login-email" autocomplete="email" />
+									<input
+										bind:value={loginEmail}
+										type="email"
+										name="login-email"
+										autocomplete="email"
+									/>
 								</label>
 
 								<label class="auth-field">
@@ -332,28 +738,37 @@
 										</button>
 									</div>
 								</label>
+							{/if}
 
-								<button
-									type="submit"
-									class="auth-submit auth-submit--secondary"
-									disabled={$authPendingFlow === 'login'}
-								>
-									{$authPendingFlow === 'login' ? 'Logging In...' : 'Log In'}
-								</button>
-
-								{#if $authError}
-									<p class="auth-banner auth-banner--error" role="alert">{$authError}</p>
+							<button
+								type="submit"
+								class="auth-submit auth-submit--secondary"
+								disabled={$authPendingFlow === 'login'}
+							>
+								{#if $authPendingFlow === 'login'}
+									{loginOtpSent ? 'Verifying...' : 'Sending Code...'}
+								{:else}
+									{authMethod === 'phone'
+										? loginOtpSent
+											? 'Verify And Log In'
+											: 'Text Me A Code'
+										: 'Log In'}
 								{/if}
+							</button>
 
-								{#if $authNotice}
-									<p class="auth-banner auth-banner--notice">{$authNotice}</p>
-								{/if}
-							</form>
-						{/if}
-					</div>
-				{/if}
-			</div>
-		</aside>
+							{#if $authError}
+								<p class="auth-banner auth-banner--error" role="alert">{$authError}</p>
+							{/if}
+
+							{#if $authNotice}
+								<p class="auth-banner auth-banner--notice">{$authNotice}</p>
+							{/if}
+						</form>
+					{/if}
+				</div>
+			{/if}
+		</div>
+	</aside>
 </div>
 
 <style>
@@ -489,6 +904,30 @@
 		border: 1px solid rgba(166, 198, 255, 0.16);
 	}
 
+	.auth-method-toggle {
+		display: inline-grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 0.25rem;
+		margin-top: 0.65rem;
+		padding: 0.25rem;
+		border-radius: 999px;
+		background: rgba(8, 18, 33, 0.58);
+		border: 1px solid rgba(166, 198, 255, 0.12);
+	}
+
+	.auth-method-icon-button {
+		min-width: 2.2rem;
+		padding: 0.45rem;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.auth-method-icon {
+		width: 0.9rem;
+		height: 0.9rem;
+	}
+
 	.auth-mode-button {
 		border: 0;
 		border-radius: 999px;
@@ -552,6 +991,13 @@
 		gap: 1rem;
 	}
 
+	.auth-account-actions {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: flex-end;
+		gap: 0.65rem;
+	}
+
 	.auth-account-value {
 		margin-top: 0;
 		font-size: 1.05rem;
@@ -566,7 +1012,8 @@
 		color: rgba(227, 238, 255, 0.88);
 	}
 
-	.auth-field input {
+	.auth-field input,
+	.auth-field select {
 		border: 1px solid rgba(166, 198, 255, 0.22);
 		border-radius: 0.85rem;
 		background: rgba(9, 20, 36, 0.6);
@@ -575,9 +1022,25 @@
 		font: inherit;
 	}
 
-	.auth-field input:focus {
+	.auth-field select {
+		appearance: none;
+	}
+
+	.auth-field input:focus,
+	.auth-field select:focus {
 		outline: 2px solid rgba(255, 198, 127, 0.34);
 		outline-offset: 1px;
+	}
+
+	.auth-profile-grid {
+		display: grid;
+		gap: 0.85rem;
+	}
+
+	.auth-field-pair {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 0.75rem;
 	}
 
 	.auth-password-field {
@@ -670,6 +1133,10 @@
 		.auth-account {
 			flex-direction: column;
 			align-items: flex-start;
+		}
+
+		.auth-field-pair {
+			grid-template-columns: 1fr;
 		}
 	}
 

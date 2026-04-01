@@ -20,6 +20,8 @@
 	import MapContainer from '$lib/components/MapContainer.svelte';
 	import LayerSidebar from '$lib/components/LayerSidebar.svelte';
 	import MusingsCard from '$lib/components/MusingsCard.svelte';
+	import { sampleMusings } from '$lib/musings/sample-musings';
+	import { authSession } from '$lib/supabase/auth';
 	import { onMount } from 'svelte';
 	import type { LayerRegistry } from '$lib/layers/layer-registry';
 	import type { PageData } from './$types';
@@ -411,6 +413,7 @@
 			<p class="eyebrow">Tooch Town</p>
 			<h1 id="about-title">Anthony Libetti</h1>
 			<p class="intro">
+				Software Enginner at FlightAware <br/>
 				So you made it, welcome to my hood. Home to me, a map-fancy software engineer whose
 				life mission is to continue to afford a series of stupid hobbies which end up abandoned. A Cayman GTS would be nice too...
 			</p>
@@ -454,6 +457,12 @@
 			</section>
 
 			<MusingsCard
+				musings={sampleMusings}
+				canAddThought={Boolean($authSession)}
+				viewerLabel={$authSession?.user?.email ?? null}
+				onSignInRequest={() => {
+					authExpanded = true;
+				}}
 				expanded={musingsExpanded}
 				onToggle={() => {
 					musingsExpanded = !musingsExpanded;

@@ -10,6 +10,8 @@
 		"prepare": "svelte-kit sync || echo ''",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+		"supabase:types": "bash ./scripts/generate-supabase-types.sh",
+		"supabase:types:local": "bash ./scripts/generate-supabase-types.sh --local",
 		"lint": "prettier --check . && eslint .",
 		"format": "prettier --write .",
 		"test:unit": "vitest",
@@ -51,6 +53,7 @@
 	"dependencies": {
 		"@maptiler/weather": "^3.1.1",
 		"@supabase/supabase-js": "^2.101.0",
+		"country-state-city": "^3.2.1",
 		"maplibre-gl": "^5.19.0",
 		"three": "^0.183.2"
 	}
