@@ -1,7 +1,8 @@
 import { PUBLIC_SUPABASE_ANON_KEY, PUBLIC_SUPABASE_URL } from '$env/static/public';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '$lib/supabase/types';
 
-let browserClient: SupabaseClient | undefined;
+let browserClient: SupabaseClient<Database> | undefined;
 
 export const hasSupabaseAuthConfig = Boolean(PUBLIC_SUPABASE_URL && PUBLIC_SUPABASE_ANON_KEY);
 
@@ -11,7 +12,7 @@ export const getSupabaseBrowserClient = () => {
 	}
 
 	if (!browserClient) {
-		browserClient = createClient(PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY, {
+		browserClient = createClient<Database>(PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY, {
 			auth: {
 				persistSession: true,
 				autoRefreshToken: true,
