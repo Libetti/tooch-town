@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { countryOptions, getStateOptions } from '$lib/profile/locations';
-	import { hasSupabaseAuthConfig } from '$lib/supabase/client';
 	import {
 		authError,
 		authNotice,
@@ -27,11 +26,12 @@
 	} from '$lib/supabase/auth';
 
 	type Props = {
+		hasSupabaseAuthConfig: boolean;
 		expanded?: boolean;
 		onClose?: () => void;
 	};
 
-	let { expanded = false, onClose }: Props = $props();
+	let { hasSupabaseAuthConfig, expanded = false, onClose }: Props = $props();
 
 	let signupEmail = $state('');
 	let signupPassword = $state('');
@@ -82,6 +82,7 @@
 	);
 
 	onMount(() => {
+		if (!hasSupabaseAuthConfig) return;
 		initializeSupabaseAuth();
 	});
 
@@ -340,7 +341,8 @@
 
 			{#if !hasSupabaseAuthConfig}
 				<p class="auth-empty">
-					Supabase auth is not configured yet. Add the public URL and anon key to enable sign in.
+					Supabase auth is not configured yet. Add the server-side Supabase URL and anon key to
+					enable sign in.
 				</p>
 			{:else if $authSession}
 				<form class="auth-card auth-card--profile" onsubmit={handleProfileSave}>
@@ -1278,8 +1280,7 @@
 	.auth-input--readonly {
 		border-color: rgba(255, 198, 127, 0.18);
 		background:
-			linear-gradient(180deg, rgba(255, 198, 127, 0.08), rgba(9, 20, 36, 0.7)),
-			rgba(9, 20, 36, 0.6);
+			linear-gradient(180deg, rgba(255, 198, 127, 0.08), rgba(9, 20, 36, 0.7)), rgba(9, 20, 36, 0.6);
 		color: #f5f8ff;
 		cursor: not-allowed;
 		padding-right: 2.8rem;

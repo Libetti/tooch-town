@@ -1,14 +1,19 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { hasSupabaseAuthConfig } from '$lib/supabase/client';
-	import { authSession, clearAuthFeedback, getAuthUserLabel, initializeSupabaseAuth } from '$lib/supabase/auth';
+	import {
+		authSession,
+		clearAuthFeedback,
+		getAuthUserLabel,
+		initializeSupabaseAuth
+	} from '$lib/supabase/auth';
 
 	type Props = {
+		hasSupabaseAuthConfig: boolean;
 		expanded?: boolean;
 		onToggle?: () => void;
 	};
 
-	let { expanded = false, onToggle }: Props = $props();
+	let { hasSupabaseAuthConfig, expanded = false, onToggle }: Props = $props();
 
 	const getTriggerLabel = () => {
 		if (hasSupabaseAuthConfig) {
@@ -31,6 +36,7 @@
 	};
 
 	onMount(() => {
+		if (!hasSupabaseAuthConfig) return;
 		initializeSupabaseAuth();
 	});
 
@@ -97,5 +103,4 @@
 			0 0 0 1px rgba(255, 198, 127, 0.18),
 			0 14px 28px rgba(1, 6, 16, 0.24);
 	}
-
 </style>
