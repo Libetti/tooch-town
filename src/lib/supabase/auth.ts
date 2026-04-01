@@ -1,32 +1,40 @@
 import { browser } from '$app/environment';
-import type { PostgrestError, Session } from '@supabase/supabase-js';
+import type { Session } from '@supabase/supabase-js';
 import { get, writable } from 'svelte/store';
-import { getSupabaseBrowserClient, hasSupabaseAuthConfig } from '$lib/supabase/client';
+import {
+	mapValidatedProfile,
+	validateSignupProfile,
+	type SignupProfileInput,
+	type UserProfile,
+	type ValidatedSignupProfile
+} from '$lib/supabase/profile';
+
+export type { SignupProfileInput, UserProfile } from '$lib/supabase/profile';
 
 export type PendingAuthFlow = 'signup' | 'login' | 'signout' | null;
-export type SignupProfileInput = {
-	username: string;
-	firstName: string;
-	lastName: string;
-	country: string;
-	state: string;
-	city: string;
-};
-export type UserProfile = SignupProfileInput;
-
-type ValidatedSignupProfile = {
-	username: string;
-	usernameNormalized: string;
-	firstName: string;
-	lastName: string;
-	country: string;
-	state: string;
-	city: string;
-};
 
 type PendingSignupProfile = ValidatedSignupProfile & {
 	userId: string | null;
 	savedAt: string;
+};
+
+type AuthSnapshotResponse = {
+	configured: boolean;
+	session: Session | null;
+	profile: UserProfile | null;
+	error?: string;
+};
+
+type AuthMutationResponse = {
+	session?: Session | null;
+	profile?: UserProfile | null;
+	userId?: string | null;
+	error?: string;
+};
+
+type RequestResult<T> = {
+	data: T | null;
+	error: string | null;
 };
 
 export const authSession = writable<Session | null>(null);
@@ -39,49 +47,22 @@ export const authProfileLoading = writable(false);
 export const authProfilePending = writable(false);
 
 let initialized = false;
+let refreshTimer: number | undefined;
 const PENDING_SIGNUP_PROFILE_STORAGE_KEY = 'tooch-town.pending-signup-profile';
-const USERNAME_PATTERN = /^[A-Za-z0-9_]+$/;
-const USERNAME_MIN_LENGTH = 3;
-const USERNAME_MAX_LENGTH = 24;
 
 const setPendingProfileFlag = (hasPendingProfile: boolean) => {
 	authPendingProfileSetup.set(hasPendingProfile);
 };
 
-const mapProfileRecord = (record: {
-	username: string;
-	first_name: string;
-	last_name: string;
-	country: string;
-	state: string;
-	city: string;
-}): UserProfile => ({
-	username: record.username,
-	firstName: record.first_name,
-	lastName: record.last_name,
-	country: record.country,
-	state: record.state,
-	city: record.city
-});
-
-const mapValidatedProfile = (profile: ValidatedSignupProfile): UserProfile => ({
-	username: profile.username,
-	firstName: profile.firstName,
-	lastName: profile.lastName,
-	country: profile.country,
-	state: profile.state,
-	city: profile.city
-});
-
 const profilesMatch = (left: UserProfile | null, right: UserProfile) =>
 	Boolean(
 		left &&
-			left.username === right.username &&
-			left.firstName === right.firstName &&
-			left.lastName === right.lastName &&
-			left.country === right.country &&
-			left.state === right.state &&
-			left.city === right.city
+		left.username === right.username &&
+		left.firstName === right.firstName &&
+		left.lastName === right.lastName &&
+		left.country === right.country &&
+		left.state === right.state &&
+		left.city === right.city
 	);
 
 const readPendingSignupProfile = (): PendingSignupProfile | null => {
@@ -125,212 +106,17 @@ const rememberPendingSignupProfile = (
 };
 
 const normalizePhone = (value: string) => value.trim().replace(/[\s()-]/g, '');
-const normalizeUsername = (value: string) => value.trim().toLowerCase();
 
-const validateSignupProfile = (input: SignupProfileInput): ValidatedSignupProfile | null => {
-	const username = input.username.trim();
-	const usernameNormalized = normalizeUsername(input.username);
-	const firstName = input.firstName.trim();
-	const lastName = input.lastName.trim();
-	const country = input.country.trim();
-	const state = input.state.trim();
-	const city = input.city.trim();
-
-	if (!username) {
-		authError.set('Choose a username to create your account.');
-		return null;
-	}
-
-	if (username.length < USERNAME_MIN_LENGTH || username.length > USERNAME_MAX_LENGTH) {
-		authError.set(
-			`Use ${USERNAME_MIN_LENGTH}-${USERNAME_MAX_LENGTH} characters for your username.`
-		);
-		return null;
-	}
-
-	if (!USERNAME_PATTERN.test(username)) {
-		authError.set('Usernames can only use letters, numbers, and underscores.');
-		return null;
-	}
-
-	if (!firstName) {
-		authError.set('Enter your first name.');
-		return null;
-	}
-
-	if (!lastName) {
-		authError.set('Enter your last name.');
-		return null;
-	}
-
-	if (!country) {
-		authError.set('Choose your country.');
-		return null;
-	}
-
-	if (!state) {
-		authError.set('Choose your state or province.');
-		return null;
-	}
-
-	if (!city) {
-		authError.set('Enter your city.');
-		return null;
-	}
-
-	return {
-		username,
-		usernameNormalized,
-		firstName,
-		lastName,
-		country,
-		state,
-		city
-	};
+const setAuthSnapshot = (snapshot: { session?: Session | null; profile?: UserProfile | null }) => {
+	authSession.set(snapshot.session ?? null);
+	authProfile.set(snapshot.profile ?? null);
+	scheduleSessionRefresh(snapshot.session ?? null);
 };
 
-const setProfilePersistenceError = (error: PostgrestError | Error | unknown) => {
-	if (
-		error &&
-		typeof error === 'object' &&
-		'code' in error &&
-		error.code === '23505' &&
-		'message' in error &&
-		typeof error.message === 'string' &&
-		error.message.includes('username_normalized')
-	) {
-		authError.set('That username is already taken.');
-		return;
-	}
-
-	authError.set('Your account was created, but we could not finish saving your profile yet.');
-};
-
-const saveProfileForUser = async (
-	userId: string,
-	profile: ValidatedSignupProfile,
-	options: { rememberOnFailure?: boolean } = {}
-) => {
-	try {
-		const supabase = getSupabaseBrowserClient();
-		const profileRecord = {
-			id: userId,
-			username: profile.username,
-			username_normalized: profile.usernameNormalized,
-			first_name: profile.firstName,
-			last_name: profile.lastName,
-			country: profile.country,
-			state: profile.state,
-			city: profile.city
-		};
-		const { error } = await supabase.from('profiles').upsert(
-			profileRecord,
-			{
-				onConflict: 'id'
-			}
-		);
-
-		if (error) {
-			if (options.rememberOnFailure) {
-				rememberPendingSignupProfile(profile, { userId });
-			}
-			setProfilePersistenceError(error);
-			return false;
-		}
-
-		authProfile.set(mapProfileRecord(profileRecord));
-		writePendingSignupProfile(null);
-		return true;
-	} catch (error) {
-		if (options.rememberOnFailure) {
-			rememberPendingSignupProfile(profile, { userId });
-		}
-		setProfilePersistenceError(error);
-		return false;
-	}
-};
-
-const loadProfileForUser = async (userId: string) => {
-	authProfileLoading.set(true);
-
-	try {
-		const supabase = getSupabaseBrowserClient();
-		const { data, error } = await supabase
-			.from('profiles')
-			.select('username, first_name, last_name, country, state, city')
-			.eq('id', userId)
-			.maybeSingle();
-
-		if (error) {
-			setSupabaseError(error);
-			authProfile.set(null);
-			return false;
-		}
-
-		authProfile.set(data ? mapProfileRecord(data) : null);
-		return true;
-	} catch (error) {
-		setSupabaseError(error);
-		authProfile.set(null);
-		return false;
-	} finally {
-		authProfileLoading.set(false);
-	}
-};
-
-const syncPendingSignupProfile = async (session: Session | null) => {
-	if (!browser) return false;
-
-	const pendingProfile = readPendingSignupProfile();
-	setPendingProfileFlag(Boolean(pendingProfile));
-
-	if (!pendingProfile || !session?.user) return false;
-	if (pendingProfile.userId && pendingProfile.userId !== session.user.id) return false;
-
-	const synced = await saveProfileForUser(session.user.id, pendingProfile);
-	if (synced) {
-		authNotice.set('Profile setup complete.');
-	}
-
-	return synced;
-};
-
-export const initializeSupabaseAuth = () => {
-	if (!browser || initialized || !hasSupabaseAuthConfig) return;
-
-	initialized = true;
-	setPendingProfileFlag(Boolean(readPendingSignupProfile()));
-
-	const supabase = getSupabaseBrowserClient();
-
-	void (async () => {
-		const {
-			data: { session }
-		} = await supabase.auth.getSession();
-		authSession.set(session);
-		if (session?.user) {
-			void loadProfileForUser(session.user.id);
-		} else {
-			authProfile.set(null);
-		}
-		void syncPendingSignupProfile(session);
-	})();
-
-	supabase.auth.onAuthStateChange((_event, session) => {
-		authSession.set(session);
-		if (session?.user) {
-			void loadProfileForUser(session.user.id);
-		} else {
-			authProfile.set(null);
-			authProfileLoading.set(false);
-		}
-		void syncPendingSignupProfile(session);
-	});
-};
-
-export const clearAuthFeedback = () => {
-	authError.set(null);
-	authNotice.set(null);
+const setProfilePersistenceError = (error: string | null) => {
+	authError.set(
+		error ?? 'Your account was created, but we could not finish saving your profile yet.'
+	);
 };
 
 const setSupabaseError = (error: unknown) => {
@@ -354,6 +140,258 @@ const setSupabaseError = (error: unknown) => {
 	authError.set('Something went wrong while contacting Supabase.');
 };
 
+const requestJson = async <T>(
+	url: string,
+	options: RequestInit,
+	fallback: string
+): Promise<RequestResult<T>> => {
+	try {
+		const headers = new Headers(options.headers);
+		if (options.body && !headers.has('content-type')) {
+			headers.set('content-type', 'application/json');
+		}
+
+		const response = await fetch(url, {
+			...options,
+			headers
+		});
+		const body = (await response.json().catch(() => null)) as (T & { error?: string }) | null;
+
+		if (!response.ok) {
+			return {
+				data: null,
+				error: body?.error ?? fallback
+			};
+		}
+
+		return {
+			data: body as T,
+			error: null
+		};
+	} catch (error) {
+		return {
+			data: null,
+			error: error instanceof Error ? error.message : fallback
+		};
+	}
+};
+
+const clearAuthUrlArtifacts = (mode: 'hash' | 'query') => {
+	if (!browser) return;
+
+	const nextUrl = new URL(window.location.href);
+
+	if (mode === 'hash') {
+		nextUrl.hash = '';
+	} else {
+		nextUrl.searchParams.delete('code');
+		nextUrl.searchParams.delete('type');
+		nextUrl.searchParams.delete('error');
+		nextUrl.searchParams.delete('error_code');
+		nextUrl.searchParams.delete('error_description');
+	}
+
+	window.history.replaceState({}, '', nextUrl);
+};
+
+const syncSessionFromUrl = async () => {
+	if (!browser) return true;
+
+	const currentUrl = new URL(window.location.href);
+	const code = currentUrl.searchParams.get('code');
+
+	if (code) {
+		const result = await requestJson<AuthSnapshotResponse>(
+			'/api/auth/session/exchange',
+			{
+				method: 'POST',
+				body: JSON.stringify({ code })
+			},
+			'Unable to finish signing you in.'
+		);
+
+		clearAuthUrlArtifacts('query');
+
+		if (result.error) {
+			setSupabaseError(result.error);
+			return false;
+		}
+
+		if (result.data) {
+			setAuthSnapshot(result.data);
+		}
+
+		return true;
+	}
+
+	const hash = window.location.hash.startsWith('#')
+		? window.location.hash.slice(1)
+		: window.location.hash;
+	const hashParams = new URLSearchParams(hash);
+	const accessToken = hashParams.get('access_token');
+	const refreshToken = hashParams.get('refresh_token');
+
+	if (accessToken && refreshToken) {
+		const result = await requestJson<AuthSnapshotResponse>(
+			'/api/auth/session/exchange',
+			{
+				method: 'POST',
+				body: JSON.stringify({ accessToken, refreshToken })
+			},
+			'Unable to finish signing you in.'
+		);
+
+		clearAuthUrlArtifacts('hash');
+
+		if (result.error) {
+			setSupabaseError(result.error);
+			return false;
+		}
+
+		if (result.data) {
+			setAuthSnapshot(result.data);
+		}
+	}
+
+	return true;
+};
+
+const loadCurrentAuthSnapshot = async () => {
+	const result = await requestJson<AuthSnapshotResponse>(
+		'/api/auth/session',
+		{ method: 'GET' },
+		'Unable to load your account right now.'
+	);
+
+	if (result.error) {
+		setSupabaseError(result.error);
+		setAuthSnapshot({ session: null, profile: null });
+		return null;
+	}
+
+	if (!result.data) {
+		setAuthSnapshot({ session: null, profile: null });
+		return null;
+	}
+
+	if (!result.data.configured) {
+		setAuthSnapshot({ session: null, profile: null });
+		return result.data;
+	}
+
+	setAuthSnapshot(result.data);
+	return result.data;
+};
+
+const syncPendingSignupProfile = async (session: Session | null) => {
+	if (!browser) return false;
+
+	const pendingProfile = readPendingSignupProfile();
+	setPendingProfileFlag(Boolean(pendingProfile));
+
+	if (!pendingProfile || !session?.user) return false;
+	if (pendingProfile.userId && pendingProfile.userId !== session.user.id) return false;
+
+	const synced = await saveProfileForCurrentUser(pendingProfile);
+	if (synced) {
+		authNotice.set('Profile setup complete.');
+	}
+
+	return synced;
+};
+
+const scheduleSessionRefresh = (session: Session | null) => {
+	if (!browser) return;
+	if (refreshTimer) window.clearTimeout(refreshTimer);
+
+	if (!session?.expires_at) return;
+
+	const refreshAtMs = session.expires_at * 1000 - 60_000;
+	const delayMs = Math.max(refreshAtMs - Date.now(), 30_000);
+
+	refreshTimer = window.setTimeout(() => {
+		void hydrateAuthState({ syncPendingProfile: false });
+	}, delayMs);
+};
+
+const hydrateAuthState = async (
+	options: {
+		syncPendingProfile?: boolean;
+	} = {}
+) => {
+	authProfileLoading.set(true);
+
+	try {
+		const callbackSynced = await syncSessionFromUrl();
+		if (!callbackSynced) return false;
+
+		const snapshot = await loadCurrentAuthSnapshot();
+		if (!snapshot) return false;
+
+		if (options.syncPendingProfile !== false) {
+			await syncPendingSignupProfile(snapshot.session);
+		}
+
+		return true;
+	} finally {
+		authProfileLoading.set(false);
+	}
+};
+
+const saveProfileForCurrentUser = async (
+	profile: ValidatedSignupProfile,
+	options: { rememberOnFailure?: boolean } = {}
+) => {
+	const result = await requestJson<AuthMutationResponse>(
+		'/api/auth/profile',
+		{
+			method: 'POST',
+			body: JSON.stringify({
+				profile: {
+					username: profile.username,
+					firstName: profile.firstName,
+					lastName: profile.lastName,
+					country: profile.country,
+					state: profile.state,
+					city: profile.city
+				}
+			})
+		},
+		'Your account was created, but we could not finish saving your profile yet.'
+	);
+
+	if (result.error || !result.data) {
+		if (options.rememberOnFailure) {
+			rememberPendingSignupProfile(profile, { userId: get(authSession)?.user?.id ?? null });
+		}
+		setProfilePersistenceError(result.error);
+		return false;
+	}
+
+	authSession.set(result.data.session ?? get(authSession));
+	authProfile.set(result.data.profile ?? mapValidatedProfile(profile));
+	writePendingSignupProfile(null);
+	return true;
+};
+
+export const initializeSupabaseAuth = () => {
+	if (!browser || initialized) return;
+
+	initialized = true;
+	setPendingProfileFlag(Boolean(readPendingSignupProfile()));
+
+	void hydrateAuthState();
+
+	window.addEventListener('focus', () => {
+		void hydrateAuthState({ syncPendingProfile: false });
+	});
+};
+
+export const clearAuthFeedback = () => {
+	authError.set(null);
+	authNotice.set(null);
+};
+
 export const signUpWithEmail = async (input: {
 	email: string;
 	password: string;
@@ -363,13 +401,17 @@ export const signUpWithEmail = async (input: {
 	clearAuthFeedback();
 
 	const email = input.email.trim();
-	const profile = validateSignupProfile(input.profile);
+	const validation = validateSignupProfile(input.profile);
+
 	if (!email) {
 		authError.set('Enter an email address to create an account.');
 		return false;
 	}
 
-	if (!profile) return false;
+	if (!validation.profile) {
+		authError.set(validation.error);
+		return false;
+	}
 
 	if (input.password.length < 8) {
 		authError.set('Use at least 8 characters for your password.');
@@ -384,29 +426,31 @@ export const signUpWithEmail = async (input: {
 	authPendingFlow.set('signup');
 
 	try {
-		const supabase = getSupabaseBrowserClient();
-		const { data, error } = await supabase.auth.signUp({
-			email,
-			password: input.password,
-			options: browser
-				? {
-						emailRedirectTo: window.location.origin
-					}
-				: undefined
-		});
+		const result = await requestJson<AuthMutationResponse>(
+			'/api/auth/email/signup',
+			{
+				method: 'POST',
+				body: JSON.stringify({
+					email,
+					password: input.password,
+					emailRedirectTo: browser ? window.location.origin : undefined
+				})
+			},
+			'Unable to create your account right now.'
+		);
 
-		if (error) {
-			setSupabaseError(error);
+		if (result.error || !result.data) {
+			setSupabaseError(result.error);
 			return false;
 		}
 
-		if (data.session && data.user) {
-			authSession.set(data.session);
-			return await saveProfileForUser(data.user.id, profile, { rememberOnFailure: true });
+		if (result.data.session) {
+			authSession.set(result.data.session);
+			return await saveProfileForCurrentUser(validation.profile, { rememberOnFailure: true });
 		}
 
-		if (data.user) {
-			rememberPendingSignupProfile(profile, { userId: data.user.id });
+		if (result.data.userId) {
+			rememberPendingSignupProfile(validation.profile, { userId: result.data.userId });
 			authNotice.set(
 				'Account created. Check your email for the confirmation link. We will finish setting up your profile after you confirm.'
 			);
@@ -415,9 +459,6 @@ export const signUpWithEmail = async (input: {
 
 		authNotice.set('Account created. Check your email for the confirmation link.');
 		return true;
-	} catch (error) {
-		setSupabaseError(error);
-		return false;
 	} finally {
 		authPendingFlow.set(null);
 	}
@@ -430,36 +471,38 @@ export const requestPhoneSignUpOtp = async (input: {
 	clearAuthFeedback();
 
 	const phone = normalizePhone(input.phone);
-	const profile = validateSignupProfile(input.profile);
+	const validation = validateSignupProfile(input.profile);
+
 	if (!phone) {
 		authError.set('Enter a phone number to create an account.');
 		return false;
 	}
 
-	if (!profile) return false;
+	if (!validation.profile) {
+		authError.set(validation.error);
+		return false;
+	}
 
 	authPendingFlow.set('signup');
 
 	try {
-		const supabase = getSupabaseBrowserClient();
-		const { error } = await supabase.auth.signInWithOtp({
-			phone,
-			options: {
-				shouldCreateUser: true
-			}
-		});
+		const result = await requestJson<{ ok: true }>(
+			'/api/auth/phone/signup/request',
+			{
+				method: 'POST',
+				body: JSON.stringify({ phone })
+			},
+			'Unable to send a verification code right now.'
+		);
 
-		if (error) {
-			setSupabaseError(error);
+		if (result.error) {
+			setSupabaseError(result.error);
 			return false;
 		}
 
-		rememberPendingSignupProfile(profile);
+		rememberPendingSignupProfile(validation.profile);
 		authNotice.set('Verification code sent. Enter the SMS code to finish creating your account.');
 		return true;
-	} catch (error) {
-		setSupabaseError(error);
-		return false;
 	} finally {
 		authPendingFlow.set(null);
 	}
@@ -474,7 +517,7 @@ export const verifyPhoneSignUpOtp = async (input: {
 
 	const phone = normalizePhone(input.phone);
 	const token = input.token.trim();
-	const profile = validateSignupProfile(input.profile);
+	const validation = validateSignupProfile(input.profile);
 
 	if (!phone) {
 		authError.set('Enter the phone number you used to sign up.');
@@ -486,39 +529,39 @@ export const verifyPhoneSignUpOtp = async (input: {
 		return false;
 	}
 
-	if (!profile) return false;
+	if (!validation.profile) {
+		authError.set(validation.error);
+		return false;
+	}
 
 	authPendingFlow.set('signup');
 
 	try {
-		const supabase = getSupabaseBrowserClient();
-		const { data, error } = await supabase.auth.verifyOtp({
-			phone,
-			token,
-			type: 'sms'
-		});
+		const result = await requestJson<AuthMutationResponse>(
+			'/api/auth/phone/signup/verify',
+			{
+				method: 'POST',
+				body: JSON.stringify({ phone, token })
+			},
+			'Unable to verify your code right now.'
+		);
 
-		if (error) {
-			setSupabaseError(error);
+		if (result.error || !result.data?.session) {
+			setSupabaseError(
+				result.error ?? 'Your phone was verified, but we could not finish your account setup.'
+			);
 			return false;
 		}
 
-		authSession.set(data.session);
-		if (!data.session?.user) {
-			authError.set('Your phone was verified, but we could not finish your account setup.');
-			return false;
-		}
-
-		const profileSaved = await saveProfileForUser(data.session.user.id, profile, {
+		authSession.set(result.data.session);
+		const profileSaved = await saveProfileForCurrentUser(validation.profile, {
 			rememberOnFailure: true
 		});
+
 		if (!profileSaved) return false;
 
 		authNotice.set('Phone number confirmed. Your account is ready.');
 		return true;
-	} catch (error) {
-		setSupabaseError(error);
-		return false;
 	} finally {
 		authPendingFlow.set(null);
 	}
@@ -536,22 +579,26 @@ export const signInWithEmail = async (input: { email: string; password: string }
 	authPendingFlow.set('login');
 
 	try {
-		const supabase = getSupabaseBrowserClient();
-		const { data, error } = await supabase.auth.signInWithPassword({
-			email,
-			password: input.password
-		});
+		const result = await requestJson<AuthMutationResponse>(
+			'/api/auth/email/login',
+			{
+				method: 'POST',
+				body: JSON.stringify({
+					email,
+					password: input.password
+				})
+			},
+			'Unable to sign you in right now.'
+		);
 
-		if (error) {
-			setSupabaseError(error);
+		if (result.error || !result.data?.session) {
+			setSupabaseError(result.error ?? 'Unable to sign you in right now.');
 			return false;
 		}
 
-		authSession.set(data.session);
+		authSession.set(result.data.session);
+		await hydrateAuthState();
 		return true;
-	} catch (error) {
-		setSupabaseError(error);
-		return false;
 	} finally {
 		authPendingFlow.set(null);
 	}
@@ -569,24 +616,22 @@ export const requestPhoneLoginOtp = async (input: { phone: string }) => {
 	authPendingFlow.set('login');
 
 	try {
-		const supabase = getSupabaseBrowserClient();
-		const { error } = await supabase.auth.signInWithOtp({
-			phone,
-			options: {
-				shouldCreateUser: false
-			}
-		});
+		const result = await requestJson<{ ok: true }>(
+			'/api/auth/phone/login/request',
+			{
+				method: 'POST',
+				body: JSON.stringify({ phone })
+			},
+			'Unable to send a verification code right now.'
+		);
 
-		if (error) {
-			setSupabaseError(error);
+		if (result.error) {
+			setSupabaseError(result.error);
 			return false;
 		}
 
 		authNotice.set('Verification code sent. Enter the SMS code to log in.');
 		return true;
-	} catch (error) {
-		setSupabaseError(error);
-		return false;
 	} finally {
 		authPendingFlow.set(null);
 	}
@@ -611,23 +656,23 @@ export const verifyPhoneLoginOtp = async (input: { phone: string; token: string 
 	authPendingFlow.set('login');
 
 	try {
-		const supabase = getSupabaseBrowserClient();
-		const { data, error } = await supabase.auth.verifyOtp({
-			phone,
-			token,
-			type: 'sms'
-		});
+		const result = await requestJson<AuthMutationResponse>(
+			'/api/auth/phone/login/verify',
+			{
+				method: 'POST',
+				body: JSON.stringify({ phone, token })
+			},
+			'Unable to verify your code right now.'
+		);
 
-		if (error) {
-			setSupabaseError(error);
+		if (result.error || !result.data?.session) {
+			setSupabaseError(result.error ?? 'Unable to sign you in right now.');
 			return false;
 		}
 
-		authSession.set(data.session);
+		authSession.set(result.data.session);
+		await hydrateAuthState();
 		return true;
-	} catch (error) {
-		setSupabaseError(error);
-		return false;
 	} finally {
 		authPendingFlow.set(null);
 	}
@@ -654,7 +699,7 @@ export const retryPendingProfileSetup = async () => {
 		return false;
 	}
 
-	const retried = await saveProfileForUser(session.user.id, pendingProfile, {
+	const retried = await saveProfileForCurrentUser(pendingProfile, {
 		rememberOnFailure: true
 	});
 	if (retried) {
@@ -669,20 +714,21 @@ export const signOut = async () => {
 	authPendingFlow.set('signout');
 
 	try {
-		const supabase = getSupabaseBrowserClient();
-		const { error } = await supabase.auth.signOut();
+		const result = await requestJson<{ ok: true }>(
+			'/api/auth/signout',
+			{
+				method: 'POST'
+			},
+			'Unable to sign you out right now.'
+		);
 
-		if (error) {
-			setSupabaseError(error);
+		if (result.error) {
+			setSupabaseError(result.error);
 			return false;
 		}
 
-		authSession.set(null);
-		authProfile.set(null);
+		setAuthSnapshot({ session: null, profile: null });
 		return true;
-	} catch (error) {
-		setSupabaseError(error);
-		return false;
 	} finally {
 		authPendingFlow.set(null);
 	}
@@ -698,15 +744,19 @@ export const updateCurrentUserProfile = async (input: UserProfile) => {
 
 	const session = get(authSession);
 	const currentProfile = get(authProfile);
+
 	if (!session?.user) {
 		authError.set('Sign in before updating your profile.');
 		return false;
 	}
 
-	const profile = validateSignupProfile(input);
-	if (!profile) return false;
+	const validation = validateSignupProfile(input);
+	if (!validation.profile) {
+		authError.set(validation.error);
+		return false;
+	}
 
-	const nextProfile = mapValidatedProfile(profile);
+	const nextProfile = mapValidatedProfile(validation.profile);
 	if (profilesMatch(currentProfile, nextProfile)) {
 		return true;
 	}
@@ -714,7 +764,7 @@ export const updateCurrentUserProfile = async (input: UserProfile) => {
 	authProfilePending.set(true);
 
 	try {
-		const saved = await saveProfileForUser(session.user.id, profile);
+		const saved = await saveProfileForCurrentUser(validation.profile);
 		if (!saved) return false;
 
 		authNotice.set('Profile saved.');

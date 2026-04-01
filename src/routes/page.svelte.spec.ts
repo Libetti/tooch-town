@@ -6,6 +6,7 @@ import Page from './+page.svelte';
 const renderPage = () => {
 	render(Page, {
 		data: {
+			hasSupabaseAuthConfig: false,
 			initialCenter: [-75.5663, 39.662]
 		}
 	});

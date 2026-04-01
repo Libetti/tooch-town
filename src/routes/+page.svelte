@@ -23,8 +23,7 @@
 	import { createMusing, listMusings } from '$lib/musings/api';
 	import { sampleMusings } from '$lib/musings/sample-musings';
 	import type { CreateMusingInput, Musing } from '$lib/musings/types';
-	import { hasSupabaseAuthConfig } from '$lib/supabase/client';
-	import { authProfile, authSession, getAuthUserLabel } from '$lib/supabase/auth';
+	import { authProfile, authSession } from '$lib/supabase/auth';
 	import { onMount } from 'svelte';
 	import type { LayerRegistry } from '$lib/layers/layer-registry';
 	import type { PageData } from './$types';
@@ -48,8 +47,9 @@
 	let layerSidebarOpen = $state(false);
 	let authExpanded = $state(false);
 	let musingsExpanded = $state(false);
-	let musings = $state<Musing[]>(hasSupabaseAuthConfig ? [] : sampleMusings);
-	let musingsLoading = $state(hasSupabaseAuthConfig);
+	let hasSupabaseAuthConfig = $derived.by(() => data.hasSupabaseAuthConfig);
+	let musings = $state<Musing[]>([]);
+	let musingsLoading = $state(true);
 	let musingsError = $state<string | null>(null);
 	let musingsCreatePending = $state(false);
 	let removeMoonOrbitLayer: (() => void) | undefined;
@@ -144,11 +144,7 @@
 		musingsCreatePending = true;
 		musingsError = null;
 
-		const result = await createMusing({
-			...input,
-			authorId: currentSession.user.id,
-			authorLabel: $authProfile?.username?.trim() || getAuthUserLabel()
-		});
+		const result = await createMusing(input);
 
 		musingsCreatePending = false;
 
@@ -441,6 +437,7 @@
 {#if !cardsCollapsed}
 	<div class="auth-dock">
 		<AuthTrigger
+			{hasSupabaseAuthConfig}
 			expanded={authExpanded}
 			onToggle={() => {
 				authExpanded = !authExpanded;
@@ -450,6 +447,7 @@
 {/if}
 
 <AuthPanel
+	{hasSupabaseAuthConfig}
 	expanded={authExpanded}
 	onClose={() => {
 		authExpanded = false;
