@@ -287,6 +287,12 @@
 			label: 'Check out repo'
 		},
 		{
+			name: '🎨 Pipette',
+			description: 'A Brave extension for grabbing colors from websites.',
+			href: 'https://github.com/Libetti/pipette',
+			label: 'Check out repo'
+		},
+		{
 			name: 'Upcoming AI project....',
 			description: 'Wee Wooo Coming Soon!',
 			href: '#',
