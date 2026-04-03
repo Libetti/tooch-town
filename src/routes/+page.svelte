@@ -271,13 +271,6 @@
 
 	const projects = [
 		{
-			name: 'My Flightfeeder',
-			icon: '🛫',
-			description: 'Live data view of my hosted FlightAware FlightFeeder',
-			href: '/feeder',
-			label: 'View feeder map'
-		},
-		{
 			name: 'Lightning Rod',
 			icon: '⚡',
 			description:
@@ -292,9 +285,16 @@
 		{
 			name: 'Pipette',
 			icon: pipetteIcon,
-			description: 'A Brave extension for grabbing colors from websites.',
+			description: 'A chromium extension for grabbing colors from websites.',
 			href: 'https://github.com/Libetti/pipette',
 			label: 'Check out repo'
+		},
+		{
+			name: 'My Flightfeeder',
+			icon: '🛫',
+			description: 'Live data view of my hosted FlightAware FlightFeeder',
+			href: '/feeder',
+			label: 'View feeder map'
 		},
 		{
 			name: 'Upcoming AI project....',
