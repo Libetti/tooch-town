@@ -1,44 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="faviconTitle">
   <title id="faviconTitle">Tooch Town favicon</title>
-  <defs>
-    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
-      <feGaussianBlur in="SourceGraphic" stdDeviation="1.6" />
-    </filter>
-  </defs>
-  <path
-    d="M12 10
-    C12 7.8 13.8 6 16 6
-    H40
-    C42.2 6 44 7.8 44 10
-    C44 12.2 42.2 14 40 14
-    H32
-    V42
-    C32 44.2 30.2 46 28 46
-    H27
-    C24.8 46 23 44.2 23 42
-    V14
-    H16
-    C13.8 14 12 12.2 12 10
-    Z"
-    fill="#000000"
-    fill-opacity="0.4"
-    filter="url(#shadow)"
-  />
-  <path
-    d="M16 16
-    C16 13.8 17.8 12 20 12
-    H44
-    C46.2 12 48 13.8 48 16
-    C48 18.2 46.2 20 44 20
-    H36
-    V48
-    C36 50.2 34.2 52 32 52
-    H31
-    C28.8 52 27 50.2 27 48
-    V20
-    H20
-    C17.8 20 16 18.2 16 16
-    Z"
-    fill="#ffc67f"
-  />
+  <rect x="10" y="8" width="44" height="10" rx="5" fill="#ffc67f" />
+  <rect x="27" y="14" width="10" height="40" rx="5" fill="#ffc67f" />
 </svg>
