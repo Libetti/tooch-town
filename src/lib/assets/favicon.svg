@@ -1,5 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="faviconTitle">
   <title id="faviconTitle">Tooch Town favicon</title>
-  <rect x="10" y="8" width="44" height="10" rx="5" fill="#ffc67f" />
-  <rect x="27" y="14" width="10" height="40" rx="5" fill="#ffc67f" />
+  <defs>
+    <linearGradient id="tFill" x1="18" y1="6" x2="40" y2="54" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffe1ba" />
+      <stop offset="0.45" stop-color="#ffc67f" />
+      <stop offset="1" stop-color="#f0ab62" />
+    </linearGradient>
+  </defs>
+  <rect x="10" y="8" width="44" height="10" rx="5" fill="url(#tFill)" />
+  <rect x="27" y="14" width="10" height="40" rx="5" fill="url(#tFill)" />
 </svg>
