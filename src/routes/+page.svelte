@@ -20,6 +20,7 @@
 	import MapContainer from '$lib/components/MapContainer.svelte';
 	import LayerSidebar from '$lib/components/LayerSidebar.svelte';
 	import MusingsCard from '$lib/components/MusingsCard.svelte';
+	import pipetteIcon from '$lib/assets/pipette-icon.svg';
 	import { createMusing, listMusings } from '$lib/musings/api';
 	import { sampleMusings } from '$lib/musings/sample-musings';
 	import type { CreateMusingInput, Musing } from '$lib/musings/types';
@@ -270,13 +271,15 @@
 
 	const projects = [
 		{
-			name: '🛫 My Flightfeeder',
+			name: 'My Flightfeeder',
+			icon: '🛫',
 			description: 'Live data view of my hosted FlightAware FlightFeeder',
 			href: '/feeder',
 			label: 'View feeder map'
 		},
 		{
-			name: '⚡ Lightning Rod',
+			name: 'Lightning Rod',
+			icon: '⚡',
 			description:
 				'A FastAPI server for exposing and transforming GOES-R Series data for web maps.',
 			includes: [
@@ -287,7 +290,8 @@
 			label: 'Check out repo'
 		},
 		{
-			name: '🎨 Pipette',
+			name: 'Pipette',
+			icon: pipetteIcon,
 			description: 'A Brave extension for grabbing colors from websites.',
 			href: 'https://github.com/Libetti/pipette',
 			label: 'Check out repo'
@@ -503,7 +507,16 @@
 					{#each projects as project (project.name)}
 						<li class="project-item">
 							<div>
-								<h3>{project.name}</h3>
+								<h3 class="project-title">
+									{#if project.icon}
+										{#if project.icon.includes('/')}
+											<img class="project-title-icon" src={project.icon} alt="" aria-hidden="true" />
+										{:else}
+											<span class="project-title-emoji" aria-hidden="true">{project.icon}</span>
+										{/if}
+									{/if}
+									<span>{project.name}</span>
+								</h3>
 								<p>{project.description}</p>
 								{#if project.includes}
 									<ul class="project-includes">
@@ -871,6 +884,24 @@
 		margin: 0;
 		font-size: 1.02rem;
 		color: var(--headline);
+	}
+
+	.project-title {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	.project-title-emoji {
+		font-size: 1.15rem;
+		line-height: 1;
+	}
+
+	.project-title-icon {
+		width: 1.15rem;
+		height: 1.15rem;
+		flex: 0 0 auto;
+		display: block;
 	}
 
 	.project-item p {
