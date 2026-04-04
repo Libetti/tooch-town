@@ -510,7 +510,12 @@
 								<h3 class="project-title">
 									{#if project.icon}
 										{#if project.icon.includes('/')}
-											<img class="project-title-icon" src={project.icon} alt="" aria-hidden="true" />
+											<img
+												class="project-title-icon"
+												src={project.icon}
+												alt=""
+												aria-hidden="true"
+											/>
 										{:else}
 											<span class="project-title-emoji" aria-hidden="true">{project.icon}</span>
 										{/if}

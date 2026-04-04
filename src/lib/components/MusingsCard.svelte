@@ -160,19 +160,16 @@
 				</div>
 			{/if}
 
-			<div class="musings-cta-row">
+			<div class:musings-cta-row--signin={!canAddThought} class="musings-cta-row">
 				{#if canAddThought}
 					<button type="button" class="musings-add-button" onclick={openComposer}>
 						<span class="musings-add-icon" aria-hidden="true">+</span>
 						<span>{composerOpen ? 'Adding a thought below' : 'Add a thought'}</span>
 					</button>
 				{:else}
-					<div class="musings-signin-prompt">
-						<p>Sign in to add one of your own.</p>
-						<button type="button" class="musings-signin-button" onclick={() => onSignInRequest?.()}>
-							Open sign in
-						</button>
-					</div>
+					<button type="button" class="musings-signin-button" onclick={() => onSignInRequest?.()}>
+						Sign in to add one of your own
+					</button>
 				{/if}
 			</div>
 
@@ -390,6 +387,12 @@
 
 	.musings-cta-row {
 		margin-top: 1rem;
+		display: flex;
+		justify-content: flex-end;
+	}
+
+	.musings-cta-row--signin {
+		margin-top: 1.35rem;
 	}
 
 	.musings-status {
@@ -415,7 +418,6 @@
 		align-items: center;
 		justify-content: center;
 		gap: 0.7rem;
-		border-radius: 999px;
 		font: inherit;
 		font-weight: 600;
 		cursor: pointer;
@@ -426,8 +428,12 @@
 	}
 
 	.musings-add-button,
-	.musings-primary-button,
-	.musings-signin-button {
+	.musings-primary-button {
+		border-radius: 999px;
+	}
+
+	.musings-add-button,
+	.musings-primary-button {
 		padding: 0.68rem 1rem 0.68rem 0.85rem;
 		border: 1px solid rgba(255, 216, 172, 0.28);
 		background:
@@ -441,6 +447,20 @@
 		border: 1px solid rgba(166, 198, 255, 0.22);
 		background: rgba(10, 24, 43, 0.62);
 		color: #e8f1ff;
+	}
+
+	.musings-signin-button {
+		padding: 0;
+		border: none;
+		background: transparent;
+		color: var(--link, #ffd8ac);
+		line-height: 1.4;
+		text-decoration: underline;
+		text-underline-offset: 0.16em;
+	}
+
+	.musings-signin-button:hover {
+		color: #ffe8ca;
 	}
 
 	.musings-add-button:hover,
@@ -460,18 +480,6 @@
 		color: var(--link, #ffd8ac);
 		font-size: 1.1rem;
 		line-height: 1;
-	}
-
-	.musings-signin-prompt {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 0.8rem;
-		padding: 0.9rem 1rem;
-		border-radius: 0.95rem;
-		border: 1px dashed rgba(166, 198, 255, 0.26);
-		background: rgba(9, 20, 36, 0.3);
-		color: var(--muted, rgba(203, 219, 247, 0.78));
 	}
 
 	.musings-composer {
