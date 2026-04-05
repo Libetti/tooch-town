@@ -154,19 +154,44 @@
 				</div>
 			</div>
 
-			{#if errorMessage}
+			{#if errorMessage && canAddThought}
 				<div class="musings-status" role="status">
+					<svg
+						class="musings-status-icon"
+						aria-hidden="true"
+						viewBox="0 -960 960 960"
+						focusable="false"
+					>
+						<path d="m40-120 440-760 440 760H40Zm138-80h604L480-720 178-200Zm330.5-51.5Q520-263 520-280t-11.5-28.5Q497-320 480-320t-28.5 11.5Q440-297 440-280t11.5 28.5Q463-240 480-240t28.5-11.5ZM440-360h80v-200h-80v200Zm40-100Z" />
+					</svg>
 					<p>{errorMessage}</p>
 				</div>
 			{/if}
 
-			<div class:musings-cta-row--signin={!canAddThought} class="musings-cta-row">
+			<div
+				class:musings-cta-row--signin={!canAddThought}
+				class:musings-cta-row--with-status={!canAddThought && !!errorMessage}
+				class="musings-cta-row"
+			>
 				{#if canAddThought}
 					<button type="button" class="musings-add-button" onclick={openComposer}>
 						<span class="musings-add-icon" aria-hidden="true">+</span>
 						<span>{composerOpen ? 'Adding a thought below' : 'Add a thought'}</span>
 					</button>
 				{:else}
+					{#if errorMessage}
+						<div class="musings-status musings-status--inline" role="status">
+							<svg
+								class="musings-status-icon"
+								aria-hidden="true"
+								viewBox="0 -960 960 960"
+								focusable="false"
+							>
+								<path d="m40-120 440-760 440 760H40Zm138-80h604L480-720 178-200Zm330.5-51.5Q520-263 520-280t-11.5-28.5Q497-320 480-320t-28.5 11.5Q440-297 440-280t11.5 28.5Q463-240 480-240t28.5-11.5ZM440-360h80v-200h-80v200Zm40-100Z" />
+							</svg>
+							<p>{errorMessage}</p>
+						</div>
+					{/if}
 					<button type="button" class="musings-signin-button" onclick={() => onSignInRequest?.()}>
 						Sign in to add one of your own
 					</button>
@@ -389,25 +414,53 @@
 		margin-top: 1rem;
 		display: flex;
 		justify-content: flex-end;
+		align-items: center;
+		gap: 0.85rem;
 	}
 
 	.musings-cta-row--signin {
 		margin-top: 1.35rem;
 	}
 
+	.musings-cta-row--with-status {
+		display: grid;
+		grid-template-columns: 1fr auto 1fr;
+		align-items: center;
+	}
+
 	.musings-status {
 		margin-top: 1rem;
-		border: 1px solid rgba(255, 198, 127, 0.24);
-		border-radius: 0.85rem;
-		padding: 0.85rem 0.95rem;
-		background: rgba(56, 23, 7, 0.28);
-		color: #ffe0bb;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.55rem;
+		color: #ff9f9f;
+		text-align: center;
 	}
 
 	.musings-status p {
 		margin: 0;
 		font-size: 0.9rem;
 		line-height: 1.45;
+	}
+
+	.musings-status--inline {
+		margin-top: 0;
+		grid-column: 2;
+		justify-content: center;
+		text-align: center;
+	}
+
+	.musings-cta-row--with-status .musings-signin-button {
+		grid-column: 3;
+		justify-self: end;
+	}
+
+	.musings-status-icon {
+		width: 1.1rem;
+		height: 1.1rem;
+		flex-shrink: 0;
+		fill: currentColor;
 	}
 
 	.musings-add-button,
@@ -457,6 +510,7 @@
 		line-height: 1.4;
 		text-decoration: underline;
 		text-underline-offset: 0.16em;
+		white-space: nowrap;
 	}
 
 	.musings-signin-button:hover {
