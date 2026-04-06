@@ -77,4 +77,11 @@
 		line-height: 1.2;
 		letter-spacing: 0.01em;
 	}
+
+	@media (max-width: 640px) {
+		.weather-legend {
+			left: 50%;
+			transform: translateX(-50%);
+		}
+	}
 </style>

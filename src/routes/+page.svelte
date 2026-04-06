@@ -48,6 +48,7 @@
 	let layerSidebarOpen = $state(false);
 	let authExpanded = $state(false);
 	let musingsExpanded = $state(false);
+	let compactLayout = $state(false);
 	let hasSupabaseAuthConfig = $derived.by(() => data.hasSupabaseAuthConfig);
 	let musings = $state<Musing[]>([]);
 	let musingsLoading = $state(true);
@@ -56,6 +57,7 @@
 	let removeMoonOrbitLayer: (() => void) | undefined;
 	let spaceBattleLayerController: SpaceBattleLayerController | undefined;
 	let mapRef: MapLibreMap | undefined;
+	const projectsCollapsed = $derived(musingsExpanded && !compactLayout);
 
 	const lightningLayerController = createLightningLayerController({
 		frameApiPath: '/api/lightning/latest-frame',
@@ -248,6 +250,14 @@
 	};
 
 	onMount(() => {
+		const compactLayoutMediaQuery = window.matchMedia('(max-width: 56rem)');
+		const updateCompactLayout = () => {
+			compactLayout = compactLayoutMediaQuery.matches;
+		};
+
+		updateCompactLayout();
+		compactLayoutMediaQuery.addEventListener('change', updateCompactLayout);
+
 		const unsubscribeWeather = cmiRasterLayerController.tileTemplate.subscribe((tileTemplate) => {
 			weatherTileTemplate = tileTemplate;
 		});
@@ -255,6 +265,7 @@
 		void loadMusings();
 
 		return () => {
+			compactLayoutMediaQuery.removeEventListener('change', updateCompactLayout);
 			unsubscribeWeather();
 			lightningLayerController.stop();
 			cmiRasterLayerController.stop();
@@ -494,11 +505,11 @@
 
 		<div class:content-grid--musings-expanded={musingsExpanded} class="content-grid">
 			<section
-				class:projects--hidden={musingsExpanded}
+				class:projects--hidden={projectsCollapsed}
 				class="panel projects"
 				aria-labelledby="projects-title"
-				aria-hidden={musingsExpanded}
-				inert={musingsExpanded}
+				aria-hidden={projectsCollapsed}
+				inert={projectsCollapsed}
 			>
 				<div class="section-heading">
 					<h2 id="projects-title">Some Projects</h2>
