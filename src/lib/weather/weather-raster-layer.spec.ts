@@ -52,4 +52,36 @@ describe('createWeatherRasterLayerManager', () => {
 			'space-battle-layer'
 		);
 	});
+
+	it('configures raster source and layer zoom bounds for overscaling', () => {
+		const { map, mapMock } = createMockMap();
+		const manager = createWeatherRasterLayerManager({
+			sourceMinZoom: 2,
+			sourceMaxZoom: 2,
+			layerMinZoom: 2,
+			layerMaxZoom: 4
+		});
+
+		manager.sync(map, {
+			visible: true,
+			tileTemplate: '/tiles/{z}/{x}/{y}.png'
+		});
+
+		expect(mapMock.addSource).toHaveBeenCalledWith(
+			'weather-cmi',
+			expect.objectContaining({
+				type: 'raster',
+				tileSize: 256,
+				minzoom: 2,
+				maxzoom: 2
+			})
+		);
+		expect(mapMock.addLayer).toHaveBeenCalledWith(
+			expect.objectContaining({
+				id: 'weather-cmi-layer',
+				minzoom: 2,
+				maxzoom: 4
+			})
+		);
+	});
 });
