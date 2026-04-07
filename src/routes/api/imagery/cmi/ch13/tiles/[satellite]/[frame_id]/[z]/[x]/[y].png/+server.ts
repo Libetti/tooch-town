@@ -57,6 +57,9 @@ export const GET: RequestHandler = async ({ fetch, params }) => {
 	if (!headers.has('content-type')) {
 		headers.set('content-type', 'image/png');
 	}
+	// Frame ids are content-addressed enough for browser caching: once a new frame
+	// exists, the URL changes, so the old tile can be treated as immutable.
+	headers.set('cache-control', 'public, max-age=31536000, immutable');
 
 	return new Response(upstreamResponse.body, {
 		status: 200,

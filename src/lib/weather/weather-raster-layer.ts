@@ -18,6 +18,10 @@ type WeatherRasterLayerManagerOptions = {
 	opacity?: number;
 	fadeOutZoomStart?: number;
 	fadeOutZoomEnd?: number;
+	sourceMinZoom?: number;
+	sourceMaxZoom?: number;
+	layerMinZoom?: number;
+	layerMaxZoom?: number;
 };
 
 const resolveBeforeLayerId = (
@@ -36,7 +40,11 @@ export const createWeatherRasterLayerManager = ({
 	beforeLayerId,
 	opacity = 0.72,
 	fadeOutZoomStart = 8,
-	fadeOutZoomEnd = 10
+	fadeOutZoomEnd = 10,
+	sourceMinZoom,
+	sourceMaxZoom,
+	layerMinZoom,
+	layerMaxZoom
 }: WeatherRasterLayerManagerOptions = {}): WeatherRasterLayerManager => {
 	let appliedVisible: boolean | undefined;
 	let appliedTileTemplate: string | undefined;
@@ -56,6 +64,8 @@ export const createWeatherRasterLayerManager = ({
 				id: layerId,
 				type: 'raster',
 				source: sourceId,
+				minzoom: layerMinZoom,
+				maxzoom: layerMaxZoom,
 				paint: {
 					'raster-opacity': [
 						'interpolate',
@@ -106,7 +116,9 @@ export const createWeatherRasterLayerManager = ({
 			targetMap.addSource(sourceId, {
 				type: 'raster',
 				tiles: [tileTemplate],
-				tileSize: 256
+				tileSize: 256,
+				minzoom: sourceMinZoom,
+				maxzoom: sourceMaxZoom
 			});
 			ensureLayer(targetMap);
 		} else {

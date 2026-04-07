@@ -45,6 +45,10 @@
 		sourceId: 'weather-cmi',
 		layerId: 'weather-cmi-layer',
 		beforeLayerId: ['space-battle-layer', 'moon-orbit-layer'],
+		sourceMinZoom: 2,
+		sourceMaxZoom: 2,
+		layerMinZoom: 2,
+		layerMaxZoom: 4,
 		opacity: 0.72,
 		fadeOutZoomStart: 8,
 		fadeOutZoomEnd: 10

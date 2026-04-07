@@ -42,7 +42,7 @@ describe('GET /api/imagery/cmi/ch13/tiles/[satellite]/[frame_id]/[z]/[x]/[y].png
 		);
 		expect(response.status).toBe(200);
 		expect(response.headers.get('content-type')).toBe('image/png');
-		expect(response.headers.get('cache-control')).toBe('public, max-age=60');
+		expect(response.headers.get('cache-control')).toBe('public, max-age=31536000, immutable');
 		expect(response.headers.get('etag')).toBe('"abc123"');
 	});
 
