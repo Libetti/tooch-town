@@ -8,12 +8,12 @@ vi.mock('$env/dynamic/private', () => ({
 
 import { GET } from './+server';
 
-describe('GET /api/imagery/cmi/ch13/tiles/[satellite]/[frame_id]/[z]/[x]/[y].png', () => {
+describe('GET /api/imagery/cmi/ch13/images/[satellite]/[frame_id].png', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 	});
 
-	it('proxies PNG tile bytes and key headers', async () => {
+	it('proxies PNG image bytes and key headers', async () => {
 		const fetchMock = vi.fn().mockResolvedValue(
 			new Response(new Uint8Array([137, 80, 78, 71]), {
 				status: 200,
@@ -29,16 +29,13 @@ describe('GET /api/imagery/cmi/ch13/tiles/[satellite]/[frame_id]/[z]/[x]/[y].png
 			fetch: fetchMock,
 			params: {
 				satellite: 'goes-east',
-				frame_id: 'frame-1',
-				z: '2',
-				x: '3',
-				y: '4'
+				frame_id: 'frame-1'
 			}
 		} as never);
 
 		expect(fetchMock).toHaveBeenCalledTimes(1);
 		expect(fetchMock.mock.calls[0]?.[0]).toBe(
-			'http://127.0.0.1:8000/imagery/cmi/ch13/tiles/goes-east/frame-1/2/3/4.png'
+			'http://127.0.0.1:8000/imagery/cmi/ch13/images/goes-east/frame-1.png'
 		);
 		expect(response.status).toBe(200);
 		expect(response.headers.get('content-type')).toBe('image/png');
@@ -46,22 +43,19 @@ describe('GET /api/imagery/cmi/ch13/tiles/[satellite]/[frame_id]/[z]/[x]/[y].png
 		expect(response.headers.get('etag')).toBe('"abc123"');
 	});
 
-	it('returns upstream status for failed tile fetch', async () => {
+	it('returns upstream status for failed image fetch', async () => {
 		const fetchMock = vi.fn().mockResolvedValue(new Response('not found', { status: 404 }));
 		const response = await GET({
 			fetch: fetchMock,
 			params: {
 				satellite: 'goes-east',
-				frame_id: 'frame-1',
-				z: '2',
-				x: '3',
-				y: '4'
+				frame_id: 'frame-1'
 			}
 		} as never);
 
 		expect(response.status).toBe(404);
 		await expect(response.json()).resolves.toEqual({
-			error: 'Failed to fetch CMI tile image',
+			error: 'Failed to fetch CMI image',
 			status: 404
 		});
 	});

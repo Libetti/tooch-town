@@ -1,4 +1,5 @@
 import { writable, type Readable } from 'svelte/store';
+import type { Coordinates } from 'maplibre-gl';
 
 type Satellite = 'goes-east' | 'goes-west';
 
@@ -7,7 +8,8 @@ export type CMIFrameModel = {
 	satellite: string;
 	start_time: string;
 	end_time: string;
-	tile_url_template: string;
+	image_url: string;
+	coordinates: Coordinates;
 };
 
 export type CMIFramesResponse = {
@@ -17,9 +19,14 @@ export type CMIFramesResponse = {
 	frames: CMIFrameModel[];
 };
 
+export type CmiRasterOverlay = {
+	frameId: string;
+	imageUrl: string;
+	coordinates: Coordinates;
+};
+
 type CmiRasterLayerControllerOptions = {
 	apiPath?: string;
-	tilePathPrefix?: string;
 	satellite?: Satellite;
 	visible?: boolean;
 	frameLimit?: number;
@@ -28,7 +35,7 @@ type CmiRasterLayerControllerOptions = {
 };
 
 type CmiRasterLayerController = {
-	tileTemplate: Readable<string | undefined>;
+	overlay: Readable<CmiRasterOverlay | undefined>;
 	start: () => void;
 	stop: () => void;
 	setSatellite: (satellite: Satellite) => void;
@@ -45,23 +52,17 @@ const frameSortKey = (frame: CMIFrameModel): number => {
 	return Number.isFinite(timestampMs) ? timestampMs : 0;
 };
 
-const buildTileTemplate = (tilePathPrefix: string, satellite: Satellite, frameId: string): string =>
-	`${tilePathPrefix}/${satellite}/${encodeURIComponent(frameId)}/{z}/{x}/{y}.png`;
-
 export const createCmiRasterLayerController = ({
 	apiPath = '/api/imagery/cmi/ch13/frames',
-	tilePathPrefix = '/api/imagery/cmi/ch13/tiles',
 	satellite = 'goes-east',
 	visible = true,
 	frameLimit = 12,
 	pollHintSeconds = 10,
 	animationIntervalMs = 700
 }: CmiRasterLayerControllerOptions = {}): CmiRasterLayerController => {
-	const tileTemplateStore = writable<string | undefined>(undefined);
+	const overlayStore = writable<CmiRasterOverlay | undefined>(undefined);
 
 	const normalizedApiPath = apiPath.trim() || '/api/imagery/cmi/ch13/frames';
-	const normalizedTilePathPrefix =
-		tilePathPrefix.replace(/\/+$/, '') || '/api/imagery/cmi/ch13/tiles';
 
 	let activeSatellite: Satellite = satellite;
 	let weatherVisible = visible;
@@ -85,19 +86,21 @@ export const createCmiRasterLayerController = ({
 
 	const publishCurrentFrame = (): void => {
 		if (!weatherVisible || frames.length === 0) {
-			tileTemplateStore.set(undefined);
+			overlayStore.set(undefined);
 			return;
 		}
 
 		const frame = frames[currentFrameIndex];
 		if (!frame) {
-			tileTemplateStore.set(undefined);
+			overlayStore.set(undefined);
 			return;
 		}
 
-		tileTemplateStore.set(
-			buildTileTemplate(normalizedTilePathPrefix, activeSatellite, frame.frame_id)
-		);
+		overlayStore.set({
+			frameId: frame.frame_id,
+			imageUrl: frame.image_url,
+			coordinates: frame.coordinates
+		});
 	};
 
 	const refreshFrames = async (): Promise<void> => {
@@ -141,7 +144,7 @@ export const createCmiRasterLayerController = ({
 		try {
 			await refreshFrames();
 		} catch {
-			tileTemplateStore.set(undefined);
+			overlayStore.set(undefined);
 		}
 		startPollLoop();
 	};
@@ -155,7 +158,7 @@ export const createCmiRasterLayerController = ({
 	const stop = (): void => {
 		running = false;
 		clearIntervals();
-		tileTemplateStore.set(undefined);
+		overlayStore.set(undefined);
 	};
 
 	const setSatellite = (nextSatellite: Satellite): void => {
@@ -164,7 +167,7 @@ export const createCmiRasterLayerController = ({
 		frames = [];
 		currentFrameIndex = 0;
 		if (!running || !weatherVisible) {
-			tileTemplateStore.set(undefined);
+			overlayStore.set(undefined);
 			return;
 		}
 		void refreshFrames();
@@ -175,13 +178,13 @@ export const createCmiRasterLayerController = ({
 		weatherVisible = nextVisible;
 
 		if (!running) {
-			if (!weatherVisible) tileTemplateStore.set(undefined);
+			if (!weatherVisible) overlayStore.set(undefined);
 			return;
 		}
 
 		if (!weatherVisible) {
 			clearIntervals();
-			tileTemplateStore.set(undefined);
+			overlayStore.set(undefined);
 			return;
 		}
 
@@ -189,7 +192,7 @@ export const createCmiRasterLayerController = ({
 	};
 
 	return {
-		tileTemplate: { subscribe: tileTemplateStore.subscribe },
+		overlay: { subscribe: overlayStore.subscribe },
 		start,
 		stop,
 		setSatellite,

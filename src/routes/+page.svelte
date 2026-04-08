@@ -1,7 +1,10 @@
 <script lang="ts">
 	import { PUBLIC_MAPTILER_KEY } from '$env/static/public';
 	import { createLightningLayerController } from '$lib/lightning/lightning-layer-controller';
-	import { createCmiRasterLayerController } from '$lib/weather/cmi-raster-layer-controller';
+	import {
+		createCmiRasterLayerController,
+		type CmiRasterOverlay
+	} from '$lib/weather/cmi-raster-layer-controller';
 	import { mountMoonOrbitLayer } from '$lib/space/moon-orbit-layer';
 	import {
 		mountSpaceBattleLayer,
@@ -44,7 +47,7 @@
 	let lightningHeatmapVisible = $state(true);
 	let lightningStrikesVisible = $state(true);
 	let selectedLightningSatellite = $state<'all' | 'goes-east' | 'goes-west'>('all');
-	let weatherTileTemplate = $state<string | undefined>(undefined);
+	let weatherOverlay = $state<CmiRasterOverlay | undefined>(undefined);
 	let layerSidebarOpen = $state(false);
 	let authExpanded = $state(false);
 	let musingsExpanded = $state(false);
@@ -66,7 +69,6 @@
 	});
 	const cmiRasterLayerController = createCmiRasterLayerController({
 		apiPath: '/api/imagery/cmi/ch13/frames',
-		tilePathPrefix: '/api/imagery/cmi/ch13/tiles',
 		satellite: 'goes-east',
 		visible: false,
 		frameLimit: 12,
@@ -258,8 +260,8 @@
 		updateCompactLayout();
 		compactLayoutMediaQuery.addEventListener('change', updateCompactLayout);
 
-		const unsubscribeWeather = cmiRasterLayerController.tileTemplate.subscribe((tileTemplate) => {
-			weatherTileTemplate = tileTemplate;
+		const unsubscribeWeather = cmiRasterLayerController.overlay.subscribe((overlay) => {
+			weatherOverlay = overlay;
 		});
 		cmiRasterLayerController.start();
 		void loadMusings();
@@ -288,7 +290,7 @@
 				'A FastAPI server for exposing and transforming GOES-R Series data for web maps.',
 			includes: [
 				'Realtime GLM data providing latest strikes and frames for animation',
-				'Cloud and Moisture Imagery (CMI) served as raster tiles'
+				'Cloud and Moisture Imagery (CMI) served as image overlays'
 			],
 			href: 'https://github.com/Libetti/lightning-rod',
 			label: 'Check out repo'
@@ -433,7 +435,7 @@
 	interactionsEnabled={cardsCollapsed}
 	weatherLegendEnabled={cardsCollapsed}
 	weatherVisible={weatherLayerEnabled}
-	{weatherTileTemplate}
+	{weatherOverlay}
 	precipitationVisible={precipitationLayerEnabled}
 	pressureVisible={pressureLayerEnabled}
 	radarVisible={radarLayerEnabled}

@@ -1,5 +1,6 @@
 import { env } from '$env/dynamic/private';
 import { json } from '@sveltejs/kit';
+import type { Coordinates } from 'maplibre-gl';
 import type { RequestHandler } from './$types';
 
 type Satellite = 'goes-east' | 'goes-west';
@@ -12,6 +13,22 @@ const parsePositiveInteger = (raw: string | null): number | undefined => {
 	const parsed = Number(raw);
 	if (!Number.isInteger(parsed) || parsed <= 0) return undefined;
 	return parsed;
+};
+
+type UpstreamCMIFrameModel = {
+	frame_id: string;
+	satellite: string;
+	start_time: string;
+	end_time: string;
+	image_url: string;
+	coordinates: Coordinates;
+};
+
+type UpstreamCMIFramesResponse = {
+	satellite: string;
+	count: number;
+	poll_interval_seconds: number;
+	frames: UpstreamCMIFrameModel[];
 };
 
 export const GET: RequestHandler = async ({ fetch, url }) => {
@@ -51,6 +68,12 @@ export const GET: RequestHandler = async ({ fetch, url }) => {
 		);
 	}
 
-	const body = await upstreamResponse.json();
-	return json(body);
+	const body = (await upstreamResponse.json()) as UpstreamCMIFramesResponse;
+	return json({
+		...body,
+		frames: body.frames.map((frame) => ({
+			...frame,
+			image_url: `/api/imagery/cmi/ch13/images/${encodeURIComponent(frame.satellite)}/${encodeURIComponent(frame.frame_id)}.png`
+		}))
+	});
 };

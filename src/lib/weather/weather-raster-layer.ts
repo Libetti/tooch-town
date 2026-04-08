@@ -1,8 +1,9 @@
-import type { LayerSpecification, Map, RasterTileSource } from 'maplibre-gl';
+import type { Coordinates, ImageSource, LayerSpecification, Map } from 'maplibre-gl';
 
 type WeatherRasterLayerSyncInput = {
 	visible: boolean;
-	tileTemplate: string | undefined;
+	imageUrl: string | undefined;
+	coordinates: Coordinates | undefined;
 };
 
 type WeatherRasterLayerManager = {
@@ -18,8 +19,6 @@ type WeatherRasterLayerManagerOptions = {
 	opacity?: number;
 	fadeOutZoomStart?: number;
 	fadeOutZoomEnd?: number;
-	sourceMinZoom?: number;
-	sourceMaxZoom?: number;
 	layerMinZoom?: number;
 	layerMaxZoom?: number;
 };
@@ -41,13 +40,12 @@ export const createWeatherRasterLayerManager = ({
 	opacity = 0.72,
 	fadeOutZoomStart = 8,
 	fadeOutZoomEnd = 10,
-	sourceMinZoom,
-	sourceMaxZoom,
 	layerMinZoom,
 	layerMaxZoom
 }: WeatherRasterLayerManagerOptions = {}): WeatherRasterLayerManager => {
 	let appliedVisible: boolean | undefined;
-	let appliedTileTemplate: string | undefined;
+	let appliedImageUrl: string | undefined;
+	let appliedCoordinates: Coordinates | undefined;
 
 	const removeLayerArtifacts = (targetMap: Map): void => {
 		if (targetMap.getLayer(layerId)) {
@@ -90,45 +88,50 @@ export const createWeatherRasterLayerManager = ({
 
 	const resetAppliedState = (): void => {
 		appliedVisible = undefined;
-		appliedTileTemplate = undefined;
+		appliedImageUrl = undefined;
+		appliedCoordinates = undefined;
 	};
 
 	const sync = (targetMap: Map, input: WeatherRasterLayerSyncInput): void => {
-		const { visible, tileTemplate } = input;
+		const { visible, imageUrl, coordinates } = input;
 		if (!targetMap.isStyleLoaded()) return;
 		if (
 			appliedVisible === visible &&
-			appliedTileTemplate === tileTemplate &&
+			appliedImageUrl === imageUrl &&
+			appliedCoordinates === coordinates &&
 			targetMap.getLayer(layerId) !== undefined
 		) {
 			return;
 		}
 
-		if (!visible || !tileTemplate) {
+		if (!visible || !imageUrl || !coordinates) {
 			removeLayerArtifacts(targetMap);
 			appliedVisible = visible;
-			appliedTileTemplate = tileTemplate;
+			appliedImageUrl = imageUrl;
+			appliedCoordinates = coordinates;
 			return;
 		}
 
-		const existingSource = targetMap.getSource(sourceId) as RasterTileSource | undefined;
+		const existingSource = targetMap.getSource(sourceId) as ImageSource | undefined;
 		if (!existingSource) {
 			targetMap.addSource(sourceId, {
-				type: 'raster',
-				tiles: [tileTemplate],
-				tileSize: 256,
-				minzoom: sourceMinZoom,
-				maxzoom: sourceMaxZoom
+				type: 'image',
+				url: imageUrl,
+				coordinates
 			});
 			ensureLayer(targetMap);
 		} else {
-			if (appliedTileTemplate !== tileTemplate) {
-				existingSource.setTiles([tileTemplate]);
+			if (appliedImageUrl !== imageUrl || appliedCoordinates !== coordinates) {
+				existingSource.updateImage({
+					url: imageUrl,
+					coordinates
+				});
 			}
 			ensureLayer(targetMap);
 		}
 		appliedVisible = visible;
-		appliedTileTemplate = tileTemplate;
+		appliedImageUrl = imageUrl;
+		appliedCoordinates = coordinates;
 	};
 
 	const clear = (targetMap: Map): void => {

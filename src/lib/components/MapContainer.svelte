@@ -6,6 +6,7 @@
 	import { applyMapTilerWeatherMapShim } from '$lib/weather/maptiler-weather-map-shim';
 	import { createPrecipitationLayerManager } from '$lib/weather/precipitation-layer-manager';
 	import { createWeatherRasterLayerManager } from '$lib/weather/weather-raster-layer';
+	import type { CmiRasterOverlay } from '$lib/weather/cmi-raster-layer-controller';
 	import WeatherLayerKey from '$lib/components/WeatherLayerKey.svelte';
 	import { onMount } from 'svelte';
 	import maplibregl, { type Map, type StyleSpecification } from 'maplibre-gl';
@@ -33,7 +34,7 @@
 	export let interactionsEnabled = false;
 	export let weatherLegendEnabled = true;
 	export let weatherVisible = true;
-	export let weatherTileTemplate: string | undefined = undefined;
+	export let weatherOverlay: CmiRasterOverlay | undefined = undefined;
 	export let precipitationVisible = false;
 	export let pressureVisible = false;
 	export let radarVisible = true;
@@ -45,8 +46,6 @@
 		sourceId: 'weather-cmi',
 		layerId: 'weather-cmi-layer',
 		beforeLayerId: ['space-battle-layer', 'moon-orbit-layer'],
-		sourceMinZoom: 2,
-		sourceMaxZoom: 2,
 		layerMinZoom: 2,
 		layerMaxZoom: 4,
 		opacity: 0.72,
@@ -187,7 +186,8 @@
 				applyMapTilerWeatherMapShim(map, PUBLIC_MAPTILER_KEY);
 				weatherLayerManager.sync(map, {
 					visible: weatherVisible,
-					tileTemplate: weatherTileTemplate
+					imageUrl: weatherOverlay?.imageUrl,
+					coordinates: weatherOverlay?.coordinates
 				});
 				schedulePrecipitationSync(map);
 			}
@@ -259,7 +259,8 @@
 				windLayerManager.resetAppliedState();
 				weatherLayerManager.sync(map, {
 					visible: weatherVisible,
-					tileTemplate: weatherTileTemplate
+					imageUrl: weatherOverlay?.imageUrl,
+					coordinates: weatherOverlay?.coordinates
 				});
 				schedulePrecipitationSync(map);
 			}
@@ -268,8 +269,9 @@
 
 	$: if (map) {
 		const visible = weatherVisible;
-		const tileTemplate = weatherTileTemplate;
-		weatherLayerManager.sync(map, { visible, tileTemplate });
+		const imageUrl = weatherOverlay?.imageUrl;
+		const coordinates = weatherOverlay?.coordinates;
+		weatherLayerManager.sync(map, { visible, imageUrl, coordinates });
 	}
 
 	$: if (map && precipitationSyncReady) {
