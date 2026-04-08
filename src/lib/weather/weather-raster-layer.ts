@@ -47,6 +47,12 @@ export const createWeatherRasterLayerManager = ({
 	let appliedImageUrl: string | undefined;
 	let appliedCoordinates: Coordinates | undefined;
 
+	const setAppliedState = (input: WeatherRasterLayerSyncInput): void => {
+		appliedVisible = input.visible;
+		appliedImageUrl = input.imageUrl;
+		appliedCoordinates = input.coordinates;
+	};
+
 	const removeLayerArtifacts = (targetMap: Map): void => {
 		if (targetMap.getLayer(layerId)) {
 			targetMap.removeLayer(layerId);
@@ -106,9 +112,7 @@ export const createWeatherRasterLayerManager = ({
 
 		if (!visible || !imageUrl || !coordinates) {
 			removeLayerArtifacts(targetMap);
-			appliedVisible = visible;
-			appliedImageUrl = imageUrl;
-			appliedCoordinates = coordinates;
+			setAppliedState(input);
 			return;
 		}
 
@@ -129,9 +133,7 @@ export const createWeatherRasterLayerManager = ({
 			}
 			ensureLayer(targetMap);
 		}
-		appliedVisible = visible;
-		appliedImageUrl = imageUrl;
-		appliedCoordinates = coordinates;
+		setAppliedState(input);
 	};
 
 	const clear = (targetMap: Map): void => {
