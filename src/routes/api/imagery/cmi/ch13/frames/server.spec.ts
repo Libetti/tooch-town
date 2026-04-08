@@ -18,7 +18,21 @@ describe('GET /api/imagery/cmi/ch13/frames', () => {
 			satellite: 'goes-east',
 			count: 1,
 			poll_interval_seconds: 10,
-			frames: []
+			frames: [
+				{
+					frame_id: 'frame-1',
+					satellite: 'goes-west',
+					start_time: '2026-04-07T00:00:00Z',
+					end_time: '2026-04-07T00:10:00Z',
+					image_url: 'http://127.0.0.1:8000/imagery/cmi/ch13/images/goes-west/frame-1.png',
+					coordinates: [
+						[-100, 50],
+						[-90, 50],
+						[-90, 40],
+						[-100, 40]
+					]
+				}
+			]
 		};
 		const fetchMock = vi.fn().mockResolvedValue(
 			new Response(JSON.stringify(upstreamPayload), {
@@ -39,7 +53,15 @@ describe('GET /api/imagery/cmi/ch13/frames', () => {
 			'http://127.0.0.1:8000/imagery/cmi/ch13/frames?satellite=goes-west&limit=5&poll_hint=12'
 		);
 		expect(response.status).toBe(200);
-		await expect(response.json()).resolves.toEqual(upstreamPayload);
+		await expect(response.json()).resolves.toEqual({
+			...upstreamPayload,
+			frames: [
+				{
+					...upstreamPayload.frames[0],
+					image_url: '/api/imagery/cmi/ch13/images/goes-west/frame-1.png'
+				}
+			]
+		});
 	});
 
 	it('returns 400 for invalid poll_hint', async () => {

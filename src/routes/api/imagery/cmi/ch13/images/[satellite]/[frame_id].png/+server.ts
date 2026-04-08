@@ -7,8 +7,6 @@ type Satellite = 'goes-east' | 'goes-west';
 const isValidSatellite = (value: string): value is Satellite =>
 	value === 'goes-east' || value === 'goes-west';
 
-const isValidTileCoordinate = (value: string): boolean => /^[0-9]+$/.test(value);
-
 const copiedHeaders = [
 	'cache-control',
 	'content-type',
@@ -24,19 +22,16 @@ export const GET: RequestHandler = async ({ fetch, params }) => {
 		return json({ error: 'LIGHTNING_API_BASE_URL is not configured' }, { status: 500 });
 	}
 
-	const { satellite, frame_id: frameId, z, x, y } = params;
+	const { satellite, frame_id: frameId } = params;
 	if (!satellite || !isValidSatellite(satellite)) {
 		return json({ error: 'Invalid satellite value' }, { status: 400 });
 	}
 	if (!frameId) {
 		return json({ error: 'Invalid frame_id value' }, { status: 400 });
 	}
-	if (!z || !x || !y || !isValidTileCoordinate(z) || !isValidTileCoordinate(x) || !isValidTileCoordinate(y)) {
-		return json({ error: 'Invalid tile coordinate' }, { status: 400 });
-	}
 
 	const upstreamUrl = new URL(
-		`${apiBaseUrl}/imagery/cmi/ch13/tiles/${encodeURIComponent(satellite)}/${encodeURIComponent(frameId)}/${z}/${x}/${y}.png`
+		`${apiBaseUrl}/imagery/cmi/ch13/images/${encodeURIComponent(satellite)}/${encodeURIComponent(frameId)}.png`
 	);
 	const upstreamResponse = await fetch(upstreamUrl.toString(), {
 		headers: { accept: 'image/png' }
@@ -44,7 +39,7 @@ export const GET: RequestHandler = async ({ fetch, params }) => {
 
 	if (!upstreamResponse.ok) {
 		return json(
-			{ error: 'Failed to fetch CMI tile image', status: upstreamResponse.status },
+			{ error: 'Failed to fetch CMI image', status: upstreamResponse.status },
 			{ status: upstreamResponse.status }
 		);
 	}
@@ -57,8 +52,7 @@ export const GET: RequestHandler = async ({ fetch, params }) => {
 	if (!headers.has('content-type')) {
 		headers.set('content-type', 'image/png');
 	}
-	// Frame ids are content-addressed enough for browser caching: once a new frame
-	// exists, the URL changes, so the old tile can be treated as immutable.
+	// Frame ids are stable enough to cache aggressively because a new frame produces a new URL.
 	headers.set('cache-control', 'public, max-age=31536000, immutable');
 
 	return new Response(upstreamResponse.body, {
