@@ -53,6 +53,8 @@
 	let weatherClockMinTime = $state(new Date());
 	let weatherClockMaxTime = $state(new Date());
 	let weatherClockPlaying = $state(false);
+	let earliestCmiTime = $state<Date | undefined>(undefined);
+	let earliestForecastTime = $state<Date | undefined>(undefined);
 	let latestCmiTime = $state<Date | undefined>(undefined);
 	let latestForecastTime = $state<Date | undefined>(undefined);
 	let layerSidebarOpen = $state(false);
@@ -101,7 +103,22 @@
 	};
 
 	const resolveWeatherClockRange = (): { min: Date; max: Date } => {
-		const min = resolveBestWeatherNow() ?? latestForecastTime ?? latestCmiTime ?? new Date();
+		const minCandidates: number[] = [];
+		if (weatherLayerEnabled && earliestCmiTime) minCandidates.push(earliestCmiTime.getTime());
+		if (
+			(precipitationLayerEnabled ||
+				pressureLayerEnabled ||
+				radarLayerEnabled ||
+				temperatureLayerEnabled ||
+				windLayerEnabled) &&
+			earliestForecastTime
+		) {
+			minCandidates.push(earliestForecastTime.getTime());
+		}
+		const min =
+			minCandidates.length > 0
+				? new Date(Math.min(...minCandidates))
+				: resolveBestWeatherNow() ?? latestForecastTime ?? latestCmiTime ?? new Date();
 		const hasVisibleForecastLayer =
 			precipitationLayerEnabled ||
 			pressureLayerEnabled ||
@@ -323,6 +340,11 @@
 		const unsubscribeLatestCmiTime = cmiRasterLayerController.latestAvailableTime.subscribe((value) => {
 			latestCmiTime = value;
 		});
+		const unsubscribeEarliestCmiTime = cmiRasterLayerController.earliestAvailableTime.subscribe(
+			(value) => {
+				earliestCmiTime = value;
+			}
+		);
 		cmiRasterLayerController.start();
 		void loadMusings();
 
@@ -330,6 +352,7 @@
 			compactLayoutMediaQuery.removeEventListener('change', updateCompactLayout);
 			unsubscribeWeather();
 			unsubscribeWeatherClock();
+			unsubscribeEarliestCmiTime();
 			unsubscribeLatestCmiTime();
 			lightningLayerController.stop();
 			cmiRasterLayerController.stop();
@@ -501,6 +524,8 @@
 	{weatherClockMinTime}
 	{weatherClockMaxTime}
 	{weatherClockPlaying}
+	cmiTimelineMinTime={earliestCmiTime}
+	cmiTimelineMaxTime={latestCmiTime}
 	weatherVisible={weatherLayerEnabled}
 	{weatherOverlay}
 	precipitationVisible={precipitationLayerEnabled}
@@ -524,6 +549,9 @@
 	}}
 	onForecastLatestTimeChange={(time) => {
 		latestForecastTime = time;
+	}}
+	onForecastEarliestTimeChange={(time) => {
+		earliestForecastTime = time;
 	}}
 	onMapReady={(map) => {
 		lightningLayerController.attach(map);

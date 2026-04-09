@@ -4,6 +4,13 @@
 	export let layerIds: string[] = [];
 	export let playing = false;
 	export let lightningLiveVisible = false;
+	export let layerTimelineEntries: Array<{
+		id: string;
+		label: string;
+		minLabel: string;
+		maxLabel: string;
+		progressPercent: number | undefined;
+	}> = [];
 	export let sliderValue = 0;
 	export let sliderMin = 0;
 	export let sliderMax = 0;
@@ -11,7 +18,6 @@
 	export let onSliderInput: ((value: number) => void) | undefined = undefined;
 	export let onTogglePlay: (() => void) | undefined = undefined;
 	export let onNow: (() => void) | undefined = undefined;
-	export let forecastDebugEntries: Array<{ label: string; time: string }> = [];
 </script>
 
 {#if visible}
@@ -45,14 +51,26 @@
 				<span class="weather-legend-layer-pill">{layerId}</span>
 			{/each}
 		</div>
-		{#if forecastDebugEntries.length > 0}
-			<p class="weather-legend-layers-label">Forecast Debug:</p>
-			<div class="weather-legend-debug-list">
-				{#each forecastDebugEntries as entry (entry.label)}
-					<p class="weather-legend-debug-entry">
-						<span>{entry.label}</span>
-						<span>{entry.time}</span>
-					</p>
+		{#if layerTimelineEntries.length > 0}
+			<p class="weather-legend-layers-label">Layer timelines:</p>
+			<div class="weather-legend-timeline-list">
+				{#each layerTimelineEntries as entry (entry.id)}
+					<div class="weather-legend-timeline-row">
+						<div class="weather-legend-timeline-header">
+							<span>{entry.label}</span>
+							<span>{entry.minLabel}</span>
+							<span>{entry.maxLabel}</span>
+						</div>
+						<div class="weather-legend-timeline-rail" aria-hidden="true">
+							<div class="weather-legend-timeline-fill"></div>
+							{#if entry.progressPercent !== undefined}
+								<div
+									class="weather-legend-timeline-marker"
+									style={`left: calc(${entry.progressPercent}% - 0.32rem);`}
+								></div>
+							{/if}
+						</div>
+					</div>
 				{/each}
 			</div>
 		{/if}
@@ -155,20 +173,58 @@
 		letter-spacing: 0.01em;
 	}
 
-	.weather-legend-debug-list {
-		margin-top: 0.24rem;
+	.weather-legend-timeline-list {
+		margin-top: 0.3rem;
+		display: grid;
+		gap: 0.42rem;
+	}
+
+	.weather-legend-timeline-row {
 		display: grid;
 		gap: 0.18rem;
 	}
 
-	.weather-legend-debug-entry {
-		margin: 0;
-		display: flex;
-		justify-content: space-between;
-		gap: 0.75rem;
-		font-size: 0.72rem;
-		line-height: 1.35;
-		color: rgba(209, 226, 255, 0.82);
+	.weather-legend-timeline-header {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto auto;
+		gap: 0.45rem;
+		align-items: center;
+		font-size: 0.68rem;
+		line-height: 1.25;
+		color: rgba(214, 230, 255, 0.84);
+	}
+
+	.weather-legend-timeline-header span:first-child {
+		font-weight: 600;
+		color: rgba(243, 248, 255, 0.95);
+	}
+
+	.weather-legend-timeline-rail {
+		position: relative;
+		height: 0.44rem;
+		border-radius: 999px;
+		overflow: hidden;
+		background: rgba(11, 27, 55, 0.9);
+		border: 1px solid rgba(173, 200, 240, 0.18);
+	}
+
+	.weather-legend-timeline-fill {
+		position: absolute;
+		inset: 0;
+		background: linear-gradient(90deg, rgba(76, 132, 225, 0.42), rgba(117, 180, 255, 0.85));
+		opacity: 0.78;
+	}
+
+	.weather-legend-timeline-marker {
+		position: absolute;
+		top: 50%;
+		width: 0.64rem;
+		height: 0.64rem;
+		border-radius: 999px;
+		background: #f7fbff;
+		border: 2px solid rgba(43, 96, 188, 0.95);
+		box-shadow: 0 0 0 0.16rem rgba(133, 188, 255, 0.2);
+		transform: translateY(-50%);
 	}
 
 	.weather-legend-note {

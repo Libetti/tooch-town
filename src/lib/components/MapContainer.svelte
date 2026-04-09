@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { PressureLayer, RadarLayer, TemperatureLayer, WindLayer } from '@maptiler/weather';
-	import { dev } from '$app/environment';
 	import { PUBLIC_MAPTILER_KEY } from '$env/static/public';
 	import { DEFAULT_BASE_LAYER_ID, getBaseMapStyle } from '$lib/maps/base-map-catalog';
 	import { createMapTilerWeatherLayerManager } from '$lib/weather/maptiler-weather-layer-manager';
@@ -23,7 +22,14 @@
 	let isWeatherLegendVisible = false;
 	let weatherLegendTime = 'Loading weather timeline...';
 	let activeWeatherLayerIds: string[] = [];
-	let forecastDebugEntries: Array<{ label: string; time: string }> = [];
+	type LayerTimelineEntry = {
+		id: string;
+		label: string;
+		minLabel: string;
+		maxLabel: string;
+		progressPercent: number | undefined;
+	};
+	let layerTimelineEntries: LayerTimelineEntry[] = [];
 
 	export let styleUrl: string | StyleSpecification = getBaseMapStyle(
 		DEFAULT_BASE_LAYER_ID,
@@ -39,6 +45,8 @@
 	export let weatherClockMinTime: Date | undefined = undefined;
 	export let weatherClockMaxTime: Date | undefined = undefined;
 	export let weatherClockPlaying = false;
+	export let cmiTimelineMinTime: Date | undefined = undefined;
+	export let cmiTimelineMaxTime: Date | undefined = undefined;
 	export let weatherVisible = true;
 	export let weatherOverlay: CmiRasterOverlay | undefined = undefined;
 	export let precipitationVisible = false;
@@ -51,6 +59,7 @@
 	export let onWeatherClockSetTime: ((value: Date) => void) | undefined = undefined;
 	export let onWeatherClockNow: (() => void) | undefined = undefined;
 	export let onWeatherClockTogglePlay: (() => void) | undefined = undefined;
+	export let onForecastEarliestTimeChange: ((time: Date | undefined) => void) | undefined = undefined;
 	export let onForecastLatestTimeChange: ((time: Date | undefined) => void) | undefined = undefined;
 
 	const weatherLayerManager = createWeatherRasterLayerManager({
@@ -96,6 +105,18 @@
 		timeZoneName: 'short'
 	});
 
+	const getActiveForecastEarliestTime = (): Date | undefined => {
+		const candidates = [
+			precipitationVisible ? precipitationLayerManager.getAnimationStartDate() : undefined,
+			pressureVisible ? pressureLayerManager.getAnimationStartDate() : undefined,
+			radarVisible ? radarLayerManager.getAnimationStartDate() : undefined,
+			temperatureVisible ? temperatureLayerManager.getAnimationStartDate() : undefined,
+			windVisible ? windLayerManager.getAnimationStartDate() : undefined
+		].filter((value): value is Date => value !== undefined);
+		if (candidates.length === 0) return undefined;
+		return new Date(Math.min(...candidates.map((value) => value.getTime())));
+	};
+
 	const getActiveForecastLatestTime = (): Date | undefined => {
 		const candidates = [
 			precipitationVisible ? precipitationLayerManager.getAnimationEndDate() : undefined,
@@ -117,53 +138,87 @@
 	const formatWeatherLegendTime = (value: Date | undefined): string =>
 		value ? weatherLegendTimeFormatter.format(value) : 'Loading weather timeline...';
 
-	const getForecastDebugEntries = (): Array<{ label: string; time: string }> => {
-		const entries = [
+	const clampProgressPercent = (value: number): number => Math.min(100, Math.max(0, value));
+
+	const resolveLayerTimelineProgress = (
+		minTime: Date | undefined,
+		maxTime: Date | undefined
+	): number | undefined => {
+		if (!weatherClockTime || !minTime || !maxTime) return undefined;
+		const minMs = minTime.getTime();
+		const maxMs = maxTime.getTime();
+		if (maxMs <= minMs) return undefined;
+		return clampProgressPercent(
+			((weatherClockTime.getTime() - minMs) / (maxMs - minMs)) * 100
+		);
+	};
+
+	const buildLayerTimelineEntry = (
+		id: string,
+		label: string,
+		minTime: Date | undefined,
+		maxTime: Date | undefined
+	) => ({
+		id,
+		label,
+		minLabel: formatWeatherLegendTime(minTime),
+		maxLabel: formatWeatherLegendTime(maxTime),
+		progressPercent: resolveLayerTimelineProgress(minTime, maxTime)
+	});
+
+	const getLayerTimelineEntries = (): LayerTimelineEntry[] => {
+		const candidates: Array<LayerTimelineEntry | undefined> = [
+			weatherVisible
+				? buildLayerTimelineEntry(
+						'weather-cmi',
+						'CMI',
+						cmiTimelineMinTime,
+						cmiTimelineMaxTime
+					)
+				: undefined,
 			precipitationVisible
-				? {
-						label: 'Precipitation max',
-						value: precipitationLayerManager.getAnimationEndDate()
-					}
+				? buildLayerTimelineEntry(
+						'weather-precipitation',
+						'Precipitation',
+						precipitationLayerManager.getAnimationStartDate(),
+						precipitationLayerManager.getAnimationEndDate()
+					)
 				: undefined,
 			pressureVisible
-				? {
-						label: 'Pressure max',
-						value: pressureLayerManager.getAnimationEndDate()
-					}
+				? buildLayerTimelineEntry(
+						'weather-pressure',
+						'Pressure',
+						pressureLayerManager.getAnimationStartDate(),
+						pressureLayerManager.getAnimationEndDate()
+					)
 				: undefined,
 			radarVisible
-				? {
-						label: 'Radar max',
-						value: radarLayerManager.getAnimationEndDate()
-					}
+				? buildLayerTimelineEntry(
+						'weather-radar',
+						'Radar',
+						radarLayerManager.getAnimationStartDate(),
+						radarLayerManager.getAnimationEndDate()
+					)
 				: undefined,
 			temperatureVisible
-				? {
-						label: 'Temperature max',
-						value: temperatureLayerManager.getAnimationEndDate()
-					}
+				? buildLayerTimelineEntry(
+						'weather-temperature',
+						'Temperature',
+						temperatureLayerManager.getAnimationStartDate(),
+						temperatureLayerManager.getAnimationEndDate()
+					)
 				: undefined,
 			windVisible
-				? {
-						label: 'Wind max',
-						value: windLayerManager.getAnimationEndDate()
-					}
+				? buildLayerTimelineEntry(
+						'weather-wind',
+						'Wind',
+						windLayerManager.getAnimationStartDate(),
+						windLayerManager.getAnimationEndDate()
+					)
 				: undefined
-		].filter((entry): entry is { label: string; value: Date | undefined } => entry !== undefined);
+		];
 
-		const formattedEntries = entries.map(({ label, value }) => ({
-			label,
-			time: formatWeatherLegendTime(value)
-		}));
-
-		if (formattedEntries.length > 0) {
-			formattedEntries.push({
-				label: 'Shared max',
-				time: formatWeatherLegendTime(latestForecastTime)
-			});
-		}
-
-		return formattedEntries;
+		return candidates.filter((entry): entry is LayerTimelineEntry => entry !== undefined);
 	};
 
 	$: isWeatherLegendVisible =
@@ -291,12 +346,13 @@
 		});
 
 		weatherLayerInfoIntervalId = setInterval(() => {
+			onForecastEarliestTimeChange?.(getActiveForecastEarliestTime());
 			const nextForecastTime = getActiveForecastLatestTime();
 			if (!areDatesEqual(latestForecastTime, nextForecastTime)) {
 				latestForecastTime = nextForecastTime;
 				onForecastLatestTimeChange?.(nextForecastTime);
 			}
-			forecastDebugEntries = getForecastDebugEntries();
+			layerTimelineEntries = getLayerTimelineEntries();
 		}, 350);
 
 		return () => {
@@ -312,7 +368,8 @@
 			map = undefined;
 			precipitationSyncReady = false;
 			latestForecastTime = undefined;
-			forecastDebugEntries = [];
+			layerTimelineEntries = [];
+			onForecastEarliestTimeChange?.(undefined);
 			onForecastLatestTimeChange?.(undefined);
 		};
 	});
@@ -380,7 +437,7 @@
 		}
 		playing={weatherClockPlaying}
 		layerIds={activeWeatherLayerIds}
-		forecastDebugEntries={dev ? forecastDebugEntries : []}
+		layerTimelineEntries={layerTimelineEntries}
 		lightningLiveVisible={lightningLiveVisible}
 		onSliderInput={(value) => onWeatherClockSetTime?.(new Date(value))}
 		onNow={onWeatherClockNow}

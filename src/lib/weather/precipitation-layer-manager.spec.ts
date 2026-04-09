@@ -114,7 +114,9 @@ describe('createPrecipitationLayerManager', () => {
 		await flushAsync();
 
 		expect(instances[0]?.animate).toHaveBeenCalledWith(0);
-		expect(instances[0]?.setAnimationTime).toHaveBeenCalledWith(targetTime.getTime());
+		expect(instances[0]?.setAnimationTime).toHaveBeenCalledWith(
+			Math.floor(targetTime.getTime() / 1000)
+		);
 		expect(manager.getAnimationEndDate()?.toISOString()).toBe('2026-03-16T06:00:00.000Z');
 	});
 

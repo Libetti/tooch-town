@@ -39,6 +39,7 @@ type CmiRasterLayerControllerOptions = {
 
 type CmiRasterLayerController = {
 	overlay: Readable<CmiRasterOverlay | undefined>;
+	earliestAvailableTime: Readable<Date | undefined>;
 	latestAvailableTime: Readable<Date | undefined>;
 	start: () => void;
 	stop: () => void;
@@ -67,6 +68,7 @@ export const createCmiRasterLayerController = ({
 	pollHintSeconds = 10
 }: CmiRasterLayerControllerOptions = {}): CmiRasterLayerController => {
 	const overlayStore = writable<CmiRasterOverlay | undefined>(undefined);
+	const earliestAvailableTimeStore = writable<Date | undefined>(undefined);
 	const latestAvailableTimeStore = writable<Date | undefined>(undefined);
 
 	const normalizedApiPath = apiPath.trim() || '/api/imagery/cmi/ch13/frames';
@@ -87,6 +89,7 @@ export const createCmiRasterLayerController = ({
 
 	const resetFrames = (): void => {
 		frames = [];
+		earliestAvailableTimeStore.set(undefined);
 		latestAvailableTimeStore.set(undefined);
 	};
 
@@ -155,6 +158,9 @@ export const createCmiRasterLayerController = ({
 		const payload = (await response.json()) as CMIFramesResponse;
 		frames = [...payload.frames].sort((a, b) => frameSortKey(a) - frameSortKey(b)).map(normalizeFrame);
 		pollIntervalMs = Math.max(1, payload.poll_interval_seconds || 0) * 1000;
+		earliestAvailableTimeStore.set(
+			frames.length > 0 ? new Date(frames[0].timestampMs) : undefined
+		);
 		latestAvailableTimeStore.set(
 			frames.length > 0 ? new Date(frames[frames.length - 1].timestampMs) : undefined
 		);
@@ -233,6 +239,7 @@ export const createCmiRasterLayerController = ({
 
 	return {
 		overlay: { subscribe: overlayStore.subscribe },
+		earliestAvailableTime: { subscribe: earliestAvailableTimeStore.subscribe },
 		latestAvailableTime: { subscribe: latestAvailableTimeStore.subscribe },
 		start,
 		stop,

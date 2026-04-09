@@ -4,6 +4,7 @@ type MapTilerWeatherLayer = {
 	id: string;
 	animate: (factor: number) => void;
 	onSourceReadyAsync: () => Promise<void>;
+	getAnimationStartDate?: () => Date;
 	getAnimationEndDate?: () => Date;
 	setAnimationTime?: (time: number) => void;
 };
@@ -25,6 +26,7 @@ type MapTilerWeatherLayerManager = {
 	sync: (targetMap: Map, input: MapTilerWeatherLayerSyncInput) => void;
 	clear: (targetMap: Map) => void;
 	resetAppliedState: () => void;
+	getAnimationStartDate: () => Date | undefined;
 	getAnimationEndDate: () => Date | undefined;
 };
 
@@ -108,7 +110,7 @@ export const createMapTilerWeatherLayerManager = ({
 	const applyLayerTime = (targetTimeMs: number | undefined): void => {
 		if (!layerReady || !layer) return;
 		layer.animate(0);
-		if (targetTimeMs !== undefined) layer.setAnimationTime?.(targetTimeMs);
+		if (targetTimeMs !== undefined) layer.setAnimationTime?.(Math.floor(targetTimeMs / 1000));
 	};
 
 	const sync = (targetMap: Map, input: MapTilerWeatherLayerSyncInput): void => {
@@ -175,10 +177,17 @@ export const createMapTilerWeatherLayerManager = ({
 		return Number.isFinite(animationEndDate.getTime()) ? animationEndDate : undefined;
 	};
 
+	const getAnimationStartDate = (): Date | undefined => {
+		if (!layer?.getAnimationStartDate) return undefined;
+		const animationStartDate = layer.getAnimationStartDate();
+		return Number.isFinite(animationStartDate.getTime()) ? animationStartDate : undefined;
+	};
+
 	return {
 		sync,
 		clear,
 		resetAppliedState,
+		getAnimationStartDate,
 		getAnimationEndDate
 	};
 };
