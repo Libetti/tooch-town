@@ -5,6 +5,7 @@
 		createCmiRasterLayerController,
 		type CmiRasterOverlay
 	} from '$lib/weather/cmi-raster-layer-controller';
+	import { createWeatherClockController } from '$lib/weather/weather-clock';
 	import { mountMoonOrbitLayer } from '$lib/space/moon-orbit-layer';
 	import {
 		mountSpaceBattleLayer,
@@ -48,6 +49,12 @@
 	let lightningStrikesVisible = $state(true);
 	let selectedLightningSatellite = $state<'all' | 'goes-east' | 'goes-west'>('all');
 	let weatherOverlay = $state<CmiRasterOverlay | undefined>(undefined);
+	let weatherClockTime = $state(new Date());
+	let weatherClockMinTime = $state(new Date());
+	let weatherClockMaxTime = $state(new Date());
+	let weatherClockPlaying = $state(false);
+	let latestCmiTime = $state<Date | undefined>(undefined);
+	let latestForecastTime = $state<Date | undefined>(undefined);
 	let layerSidebarOpen = $state(false);
 	let authExpanded = $state(false);
 	let musingsExpanded = $state(false);
@@ -71,10 +78,42 @@
 		apiPath: '/api/imagery/cmi/ch13/frames',
 		satellite: 'goes-east',
 		visible: false,
-		frameLimit: 12,
-		pollHintSeconds: 10,
-		animationIntervalMs: 700
+		frameLimit: 24,
+		pollHintSeconds: 10
 	});
+	const weatherClockController = createWeatherClockController();
+
+	const resolveBestWeatherNow = (): Date | undefined => {
+		const candidates: number[] = [];
+		if (weatherLayerEnabled && latestCmiTime) candidates.push(latestCmiTime.getTime());
+		if (
+			(precipitationLayerEnabled ||
+				pressureLayerEnabled ||
+				radarLayerEnabled ||
+				temperatureLayerEnabled ||
+				windLayerEnabled) &&
+			latestForecastTime
+		) {
+			candidates.push(latestForecastTime.getTime());
+		}
+		if (candidates.length === 0) return undefined;
+		return new Date(Math.min(...candidates));
+	};
+
+	const resolveWeatherClockRange = (): { min: Date; max: Date } => {
+		const min = resolveBestWeatherNow() ?? latestForecastTime ?? latestCmiTime ?? new Date();
+		const hasVisibleForecastLayer =
+			precipitationLayerEnabled ||
+			pressureLayerEnabled ||
+			radarLayerEnabled ||
+			temperatureLayerEnabled ||
+			windLayerEnabled;
+		const max =
+			hasVisibleForecastLayer && latestForecastTime && latestForecastTime.getTime() >= min.getTime()
+				? latestForecastTime
+				: min;
+		return { min, max };
+	};
 
 	$effect(() => {
 		cmiRasterLayerController.setSatellite(selectedWeatherSatellite);
@@ -82,6 +121,18 @@
 
 	$effect(() => {
 		cmiRasterLayerController.setVisible(weatherLayerEnabled);
+	});
+
+	$effect(() => {
+		cmiRasterLayerController.setTime(weatherClockTime);
+	});
+
+	$effect(() => {
+		weatherClockController.setNowReference(resolveBestWeatherNow());
+	});
+
+	$effect(() => {
+		weatherClockController.setRange(resolveWeatherClockRange());
 	});
 
 	$effect(() => {
@@ -263,14 +314,26 @@
 		const unsubscribeWeather = cmiRasterLayerController.overlay.subscribe((overlay) => {
 			weatherOverlay = overlay;
 		});
+		const unsubscribeWeatherClock = weatherClockController.subscribe((state) => {
+			weatherClockTime = state.currentTime;
+			weatherClockMinTime = state.minTime;
+			weatherClockMaxTime = state.maxTime;
+			weatherClockPlaying = state.playing;
+		});
+		const unsubscribeLatestCmiTime = cmiRasterLayerController.latestAvailableTime.subscribe((value) => {
+			latestCmiTime = value;
+		});
 		cmiRasterLayerController.start();
 		void loadMusings();
 
 		return () => {
 			compactLayoutMediaQuery.removeEventListener('change', updateCompactLayout);
 			unsubscribeWeather();
+			unsubscribeWeatherClock();
+			unsubscribeLatestCmiTime();
 			lightningLayerController.stop();
 			cmiRasterLayerController.stop();
+			weatherClockController.destroy();
 			removeMoonOrbitLayer?.();
 			removeMoonOrbitLayer = undefined;
 			spaceBattleLayerController?.destroy();
@@ -434,6 +497,10 @@
 	spinDegreesPerSecond={0.6}
 	interactionsEnabled={cardsCollapsed}
 	weatherLegendEnabled={cardsCollapsed}
+	{weatherClockTime}
+	{weatherClockMinTime}
+	{weatherClockMaxTime}
+	{weatherClockPlaying}
 	weatherVisible={weatherLayerEnabled}
 	{weatherOverlay}
 	precipitationVisible={precipitationLayerEnabled}
@@ -441,6 +508,23 @@
 	radarVisible={radarLayerEnabled}
 	temperatureVisible={temperatureLayerEnabled}
 	windVisible={windLayerEnabled}
+	lightningLiveVisible={lightningLayerEnabled}
+	onWeatherClockSetTime={(value) => {
+		weatherClockController.setTime(value);
+	}}
+	onWeatherClockNow={() => {
+		weatherClockController.jumpToNow();
+	}}
+	onWeatherClockTogglePlay={() => {
+		if (weatherClockPlaying) {
+			weatherClockController.pause();
+			return;
+		}
+		weatherClockController.play();
+	}}
+	onForecastLatestTimeChange={(time) => {
+		latestForecastTime = time;
+	}}
 	onMapReady={(map) => {
 		lightningLayerController.attach(map);
 		mapRef = map;

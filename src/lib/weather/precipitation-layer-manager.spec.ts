@@ -7,8 +7,9 @@ type MockLayer = { id: string };
 const instances: Array<{
 	id: string;
 	animate: ReturnType<typeof vi.fn>;
-	animateByFactor: ReturnType<typeof vi.fn>;
+	setAnimationTime: ReturnType<typeof vi.fn>;
 	onSourceReadyAsync: ReturnType<typeof vi.fn>;
+	getAnimationEndDate: ReturnType<typeof vi.fn>;
 }> = [];
 
 vi.mock('@maptiler/weather', () => {
@@ -16,8 +17,9 @@ vi.mock('@maptiler/weather', () => {
 		PrecipitationLayer: class {
 			id: string;
 			animate = vi.fn();
-			animateByFactor = vi.fn();
+			setAnimationTime = vi.fn();
 			onSourceReadyAsync = vi.fn(async () => {});
+			getAnimationEndDate = vi.fn(() => new Date('2026-03-16T06:00:00.000Z'));
 
 			constructor(options?: { id?: string }) {
 				this.id = options?.id ?? 'MapTiler Precipitation';
@@ -58,13 +60,12 @@ describe('createPrecipitationLayerManager', () => {
 		vi.clearAllMocks();
 	});
 
-	it('adds layer and starts built-in animation when visible', async () => {
+	it('adds layer when visible', async () => {
 		const { map, mapMock, layers } = createMockMap();
 		layers.set('moon-orbit-layer', { id: 'moon-orbit-layer' });
 		const manager = createPrecipitationLayerManager({
 			layerId: 'weather-precipitation',
-			beforeLayerId: 'moon-orbit-layer',
-			animationFactor: 3600
+			beforeLayerId: 'moon-orbit-layer'
 		});
 
 		manager.sync(map, { visible: true });
@@ -73,7 +74,6 @@ describe('createPrecipitationLayerManager', () => {
 		expect(mapMock.addLayer).toHaveBeenCalledTimes(1);
 		expect(mapMock.addLayer).toHaveBeenCalledWith(expect.objectContaining({ id: 'weather-precipitation' }), 'moon-orbit-layer');
 		expect(instances).toHaveLength(1);
-		expect(instances[0]?.animateByFactor).toHaveBeenCalledWith(3600);
 	});
 
 	it('prefers the first available model anchor when inserting the layer', async () => {
@@ -82,8 +82,7 @@ describe('createPrecipitationLayerManager', () => {
 		layers.set('moon-orbit-layer', { id: 'moon-orbit-layer' });
 		const manager = createPrecipitationLayerManager({
 			layerId: 'weather-precipitation',
-			beforeLayerId: ['space-battle-layer', 'moon-orbit-layer'],
-			animationFactor: 3600
+			beforeLayerId: ['space-battle-layer', 'moon-orbit-layer']
 		});
 
 		manager.sync(map, { visible: true });
@@ -95,18 +94,28 @@ describe('createPrecipitationLayerManager', () => {
 		);
 	});
 
-	it('still animates after repeated no-op sync calls', async () => {
+	it('does not recreate the layer after repeated no-op sync calls', async () => {
 		const { map } = createMockMap();
-		const manager = createPrecipitationLayerManager({
-			animationFactor: 3600
-		});
+		const manager = createPrecipitationLayerManager();
 
 		manager.sync(map, { visible: true });
 		manager.sync(map, { visible: true });
 		await flushAsync();
 
 		expect(instances).toHaveLength(1);
-		expect(instances[0]?.animateByFactor).toHaveBeenCalledWith(3600);
+	});
+
+	it('accepts explicit clock time updates when visible', async () => {
+		const { map } = createMockMap();
+		const manager = createPrecipitationLayerManager();
+		const targetTime = new Date('2026-03-16T03:00:00.000Z');
+
+		manager.sync(map, { visible: true, time: targetTime });
+		await flushAsync();
+
+		expect(instances[0]?.animate).toHaveBeenCalledWith(0);
+		expect(instances[0]?.setAnimationTime).toHaveBeenCalledWith(targetTime.getTime());
+		expect(manager.getAnimationEndDate()?.toISOString()).toBe('2026-03-16T06:00:00.000Z');
 	});
 
 	it('pauses and removes layer when hidden', async () => {
@@ -138,7 +147,6 @@ describe('createPrecipitationLayerManager', () => {
 		await flushAsync();
 
 		expect(mapMock.addLayer).toHaveBeenCalledTimes(2);
-		expect(instances[1]?.animateByFactor).toHaveBeenCalledWith(3600);
 	});
 
 	it('cleans up active layer state', async () => {

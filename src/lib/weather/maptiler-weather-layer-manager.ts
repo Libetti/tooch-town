@@ -3,9 +3,9 @@ import type { LayerSpecification, Map } from 'maplibre-gl';
 type MapTilerWeatherLayer = {
 	id: string;
 	animate: (factor: number) => void;
-	animateByFactor: (factor: number) => void;
 	onSourceReadyAsync: () => Promise<void>;
-	getAnimationTimeDate?: () => Date;
+	getAnimationEndDate?: () => Date;
+	setAnimationTime?: (time: number) => void;
 };
 
 type MapTilerWeatherLayerCtor = new (options?: { id?: string }) => MapTilerWeatherLayer;
@@ -18,20 +18,20 @@ type MapLibreLayerLifecycle = {
 
 type MapTilerWeatherLayerSyncInput = {
 	visible: boolean;
+	time?: Date | number;
 };
 
 type MapTilerWeatherLayerManager = {
 	sync: (targetMap: Map, input: MapTilerWeatherLayerSyncInput) => void;
 	clear: (targetMap: Map) => void;
 	resetAppliedState: () => void;
-	getAnimationTimeDate: () => Date | undefined;
+	getAnimationEndDate: () => Date | undefined;
 };
 
 type MapTilerWeatherLayerManagerOptions = {
 	layerId: string;
 	layerCtor: MapTilerWeatherLayerCtor;
 	beforeLayerId?: string | string[];
-	animationFactor?: number;
 };
 
 const resolveBeforeLayerId = (
@@ -78,54 +78,84 @@ const applyMapLibreAsyncOnAddGuard = (layer: MapTilerWeatherLayer): void => {
 export const createMapTilerWeatherLayerManager = ({
 	layerId,
 	layerCtor,
-	beforeLayerId,
-	animationFactor = 3600
+	beforeLayerId
 }: MapTilerWeatherLayerManagerOptions): MapTilerWeatherLayerManager => {
 	let appliedVisible: boolean | undefined;
+	let appliedTimeMs: number | undefined;
 	let layer: MapTilerWeatherLayer | undefined;
 	let syncVersion = 0;
+	let layerReady = false;
 
 	const removeLayerArtifacts = (targetMap: Map): void => {
 		if (targetMap.getLayer(layerId)) {
 			targetMap.removeLayer(layerId);
 		}
 		layer = undefined;
+		layerReady = false;
 	};
 
 	const resetAppliedState = (): void => {
 		appliedVisible = undefined;
+		appliedTimeMs = undefined;
+	};
+
+	const normalizeTime = (value: Date | number | undefined): number | undefined => {
+		if (value instanceof Date) return value.getTime();
+		if (typeof value === 'number' && Number.isFinite(value)) return value;
+		return undefined;
+	};
+
+	const applyLayerTime = (targetTimeMs: number | undefined): void => {
+		if (!layerReady || !layer) return;
+		layer.animate(0);
+		if (targetTimeMs !== undefined) layer.setAnimationTime?.(targetTimeMs);
 	};
 
 	const sync = (targetMap: Map, input: MapTilerWeatherLayerSyncInput): void => {
 		const { visible } = input;
+		const timeMs = normalizeTime(input.time);
 		if (!targetMap.isStyleLoaded()) return;
 
-		if (appliedVisible === visible && (!visible || targetMap.getLayer(layerId) !== undefined)) {
+		if (
+			appliedVisible === visible &&
+			appliedTimeMs === timeMs &&
+			(!visible || targetMap.getLayer(layerId) !== undefined)
+		) {
 			return;
 		}
-
-		syncVersion += 1;
-		const currentSyncVersion = syncVersion;
 
 		if (!visible) {
 			layer?.animate(0);
 			removeLayerArtifacts(targetMap);
 			appliedVisible = visible;
+			appliedTimeMs = timeMs;
 			return;
 		}
 
+		if (layer && targetMap.getLayer(layerId)) {
+			appliedVisible = visible;
+			appliedTimeMs = timeMs;
+			applyLayerTime(timeMs);
+			return;
+		}
+
+		syncVersion += 1;
+		const currentSyncVersion = syncVersion;
 		const beforeId = resolveBeforeLayerId(targetMap, beforeLayerId);
 		const createdLayer = new layerCtor({ id: layerId });
 		applyMapLibreAsyncOnAddGuard(createdLayer);
 		layer = createdLayer;
+		layerReady = false;
 		targetMap.addLayer(createdLayer as unknown as LayerSpecification, beforeId);
 		appliedVisible = visible;
+		appliedTimeMs = timeMs;
 
 		void (async () => {
 			try {
 				await createdLayer.onSourceReadyAsync();
 				if (syncVersion !== currentSyncVersion || layer !== createdLayer) return;
-				createdLayer.animateByFactor(animationFactor);
+				layerReady = true;
+				applyLayerTime(appliedTimeMs);
 			} catch {
 				// Keep this manager best-effort and avoid bubbling errors into map lifecycle.
 			}
@@ -139,16 +169,16 @@ export const createMapTilerWeatherLayerManager = ({
 		resetAppliedState();
 	};
 
-	const getAnimationTimeDate = (): Date | undefined => {
-		if (!layer?.getAnimationTimeDate) return undefined;
-		const animationTimeDate = layer.getAnimationTimeDate();
-		return Number.isFinite(animationTimeDate.getTime()) ? animationTimeDate : undefined;
+	const getAnimationEndDate = (): Date | undefined => {
+		if (!layer?.getAnimationEndDate) return undefined;
+		const animationEndDate = layer.getAnimationEndDate();
+		return Number.isFinite(animationEndDate.getTime()) ? animationEndDate : undefined;
 	};
 
 	return {
 		sync,
 		clear,
 		resetAppliedState,
-		getAnimationTimeDate
+		getAnimationEndDate
 	};
 };

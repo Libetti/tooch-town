@@ -25,21 +25,26 @@ export type CmiRasterOverlay = {
 	coordinates: Coordinates;
 };
 
+type CmiTimelineFrame = CMIFrameModel & {
+	timestampMs: number;
+};
+
 type CmiRasterLayerControllerOptions = {
 	apiPath?: string;
 	satellite?: Satellite;
 	visible?: boolean;
 	frameLimit?: number;
 	pollHintSeconds?: number;
-	animationIntervalMs?: number;
 };
 
 type CmiRasterLayerController = {
 	overlay: Readable<CmiRasterOverlay | undefined>;
+	latestAvailableTime: Readable<Date | undefined>;
 	start: () => void;
 	stop: () => void;
 	setSatellite: (satellite: Satellite) => void;
 	setVisible: (visible: boolean) => void;
+	setTime: (value: Date) => void;
 };
 
 const FALLBACK_POLL_INTERVAL_MS = 30_000;
@@ -49,15 +54,20 @@ const frameSortKey = (frame: CMIFrameModel): number => {
 	return Number.isFinite(timestampMs) ? timestampMs : 0;
 };
 
+const normalizeFrame = (frame: CMIFrameModel): CmiTimelineFrame => ({
+	...frame,
+	timestampMs: frameSortKey(frame)
+});
+
 export const createCmiRasterLayerController = ({
 	apiPath = '/api/imagery/cmi/ch13/frames',
 	satellite = 'goes-east',
 	visible = true,
 	frameLimit = 12,
-	pollHintSeconds = 10,
-	animationIntervalMs = 700
+	pollHintSeconds = 10
 }: CmiRasterLayerControllerOptions = {}): CmiRasterLayerController => {
 	const overlayStore = writable<CmiRasterOverlay | undefined>(undefined);
+	const latestAvailableTimeStore = writable<Date | undefined>(undefined);
 
 	const normalizedApiPath = apiPath.trim() || '/api/imagery/cmi/ch13/frames';
 
@@ -65,48 +75,72 @@ export const createCmiRasterLayerController = ({
 	let weatherVisible = visible;
 	let running = false;
 	let pollIntervalMs = FALLBACK_POLL_INTERVAL_MS;
-	let frames: CMIFrameModel[] = [];
-	let currentFrameIndex = 0;
+	let frames: CmiTimelineFrame[] = [];
+	let requestedTimeMs = Date.now();
+	let currentOverlay: CmiRasterOverlay | undefined;
 	let pollIntervalId: ReturnType<typeof setInterval> | undefined;
-	let animationIntervalId: ReturnType<typeof setInterval> | undefined;
 
 	const clearOverlay = (): void => {
+		currentOverlay = undefined;
 		overlayStore.set(undefined);
 	};
 
 	const resetFrames = (): void => {
 		frames = [];
-		currentFrameIndex = 0;
+		latestAvailableTimeStore.set(undefined);
 	};
 
-	const clearIntervals = (): void => {
+	const clearPollLoop = (): void => {
 		if (pollIntervalId !== undefined) {
 			clearInterval(pollIntervalId);
 			pollIntervalId = undefined;
 		}
-		if (animationIntervalId !== undefined) {
-			clearInterval(animationIntervalId);
-			animationIntervalId = undefined;
-		}
 	};
 
-	const publishCurrentFrame = (): void => {
-		if (!weatherVisible || frames.length === 0) {
+	const publishFrame = (frame: CmiTimelineFrame | undefined): void => {
+		if (!weatherVisible || !frame) {
 			clearOverlay();
 			return;
 		}
 
-		const frame = frames[currentFrameIndex];
-		if (!frame) {
-			clearOverlay();
-			return;
-		}
-
-		overlayStore.set({
+		const overlay = {
 			frameId: frame.frame_id,
 			imageUrl: frame.image_url,
 			coordinates: frame.coordinates
-		});
+		};
+		currentOverlay = overlay;
+		overlayStore.set(overlay);
+	};
+
+	const resolveFrameForRequestedTime = (): CmiTimelineFrame | undefined => {
+		if (frames.length === 0) return undefined;
+		const latestFrame = frames[frames.length - 1];
+		if (requestedTimeMs > latestFrame.timestampMs) return undefined;
+
+		let bestAtOrBefore: CmiTimelineFrame | undefined;
+		for (const frame of frames) {
+			if (frame.timestampMs <= requestedTimeMs) {
+				bestAtOrBefore = frame;
+				continue;
+			}
+			break;
+		}
+		if (bestAtOrBefore) return bestAtOrBefore;
+
+		let nearestFrame = frames[0];
+		let nearestDistance = Math.abs(frames[0].timestampMs - requestedTimeMs);
+		for (const frame of frames) {
+			const distance = Math.abs(frame.timestampMs - requestedTimeMs);
+			if (distance < nearestDistance) {
+				nearestDistance = distance;
+				nearestFrame = frame;
+			}
+		}
+		return nearestFrame;
+	};
+
+	const publishRequestedFrame = (): void => {
+		publishFrame(resolveFrameForRequestedTime());
 	};
 
 	const refreshFrames = async (): Promise<void> => {
@@ -119,34 +153,24 @@ export const createCmiRasterLayerController = ({
 		if (!response.ok) throw new Error(`Failed to fetch CMI frames for ${activeSatellite}`);
 
 		const payload = (await response.json()) as CMIFramesResponse;
-		frames = [...payload.frames].sort((a, b) => frameSortKey(a) - frameSortKey(b));
-		currentFrameIndex = 0;
+		frames = [...payload.frames].sort((a, b) => frameSortKey(a) - frameSortKey(b)).map(normalizeFrame);
 		pollIntervalMs = Math.max(1, payload.poll_interval_seconds || 0) * 1000;
-		publishCurrentFrame();
-	};
-
-	const ensureAnimationLoop = (): void => {
-		if (animationIntervalId !== undefined) return;
-		animationIntervalId = setInterval(() => {
-			if (!weatherVisible || frames.length <= 1) return;
-			// Animate forward through available frames once, then hold on the latest frame
-			// until fresh metadata arrives.
-			if (currentFrameIndex >= frames.length - 1) return;
-			currentFrameIndex += 1;
-			publishCurrentFrame();
-		}, animationIntervalMs);
+		latestAvailableTimeStore.set(
+			frames.length > 0 ? new Date(frames[frames.length - 1].timestampMs) : undefined
+		);
+		publishRequestedFrame();
 	};
 
 	const refreshFramesSafely = async (): Promise<void> => {
 		try {
 			await refreshFrames();
 		} catch {
-			clearOverlay();
+			if (!currentOverlay) clearOverlay();
 		}
 	};
 
 	const restartPollLoop = (): void => {
-		if (pollIntervalId !== undefined) clearInterval(pollIntervalId);
+		clearPollLoop();
 		pollIntervalId = setInterval(() => {
 			void refreshFramesSafely();
 		}, pollIntervalMs);
@@ -154,8 +178,8 @@ export const createCmiRasterLayerController = ({
 
 	const startLoops = async (): Promise<void> => {
 		if (!running || !weatherVisible) return;
-		ensureAnimationLoop();
 		await refreshFramesSafely();
+		if (!running || !weatherVisible) return;
 		restartPollLoop();
 	};
 
@@ -167,7 +191,7 @@ export const createCmiRasterLayerController = ({
 
 	const stop = (): void => {
 		running = false;
-		clearIntervals();
+		clearPollLoop();
 		clearOverlay();
 	};
 
@@ -175,11 +199,9 @@ export const createCmiRasterLayerController = ({
 		if (nextSatellite === activeSatellite) return;
 		activeSatellite = nextSatellite;
 		resetFrames();
-		if (!running || !weatherVisible) {
-			clearOverlay();
-			return;
-		}
-		void refreshFramesSafely();
+		clearOverlay();
+		if (!running || !weatherVisible) return;
+		void startLoops();
 	};
 
 	const setVisible = (nextVisible: boolean): void => {
@@ -192,19 +214,30 @@ export const createCmiRasterLayerController = ({
 		}
 
 		if (!weatherVisible) {
-			clearIntervals();
+			clearPollLoop();
 			clearOverlay();
 			return;
 		}
 
+		if (frames.length > 0) {
+			publishRequestedFrame();
+		}
 		void startLoops();
+	};
+
+	const setTime = (value: Date): void => {
+		requestedTimeMs = value.getTime();
+		if (!weatherVisible) return;
+		publishRequestedFrame();
 	};
 
 	return {
 		overlay: { subscribe: overlayStore.subscribe },
+		latestAvailableTime: { subscribe: latestAvailableTimeStore.subscribe },
 		start,
 		stop,
 		setSatellite,
-		setVisible
+		setVisible,
+		setTime
 	};
 };

@@ -4,17 +4,14 @@ import { createMapTilerWeatherLayerManager } from './maptiler-weather-layer-mana
 export type PrecipitationLayerManagerOptions = {
 	layerId?: string;
 	beforeLayerId?: string | string[];
-	animationFactor?: number;
 };
 
 export const createPrecipitationLayerManager = ({
 	layerId = 'weather-precipitation',
-	beforeLayerId,
-	animationFactor = 3600
+	beforeLayerId
 }: PrecipitationLayerManagerOptions = {}) =>
 	createMapTilerWeatherLayerManager({
 		layerId,
 		layerCtor: PrecipitationLayer,
-		beforeLayerId,
-		animationFactor
+		beforeLayerId
 	});
