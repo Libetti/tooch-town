@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { PressureLayer, RadarLayer, TemperatureLayer, WindLayer } from '@maptiler/weather';
+	import { dev } from '$app/environment';
 	import { PUBLIC_MAPTILER_KEY } from '$env/static/public';
 	import { DEFAULT_BASE_LAYER_ID, getBaseMapStyle } from '$lib/maps/base-map-catalog';
 	import { createMapTilerWeatherLayerManager } from '$lib/weather/maptiler-weather-layer-manager';
@@ -22,6 +23,7 @@
 	let isWeatherLegendVisible = false;
 	let weatherLegendTime = 'Loading weather timeline...';
 	let activeWeatherLayerIds: string[] = [];
+	let forecastDebugEntries: Array<{ label: string; time: string }> = [];
 
 	export let styleUrl: string | StyleSpecification = getBaseMapStyle(
 		DEFAULT_BASE_LAYER_ID,
@@ -114,6 +116,55 @@
 
 	const formatWeatherLegendTime = (value: Date | undefined): string =>
 		value ? weatherLegendTimeFormatter.format(value) : 'Loading weather timeline...';
+
+	const getForecastDebugEntries = (): Array<{ label: string; time: string }> => {
+		const entries = [
+			precipitationVisible
+				? {
+						label: 'Precipitation max',
+						value: precipitationLayerManager.getAnimationEndDate()
+					}
+				: undefined,
+			pressureVisible
+				? {
+						label: 'Pressure max',
+						value: pressureLayerManager.getAnimationEndDate()
+					}
+				: undefined,
+			radarVisible
+				? {
+						label: 'Radar max',
+						value: radarLayerManager.getAnimationEndDate()
+					}
+				: undefined,
+			temperatureVisible
+				? {
+						label: 'Temperature max',
+						value: temperatureLayerManager.getAnimationEndDate()
+					}
+				: undefined,
+			windVisible
+				? {
+						label: 'Wind max',
+						value: windLayerManager.getAnimationEndDate()
+					}
+				: undefined
+		].filter((entry): entry is { label: string; value: Date | undefined } => entry !== undefined);
+
+		const formattedEntries = entries.map(({ label, value }) => ({
+			label,
+			time: formatWeatherLegendTime(value)
+		}));
+
+		if (formattedEntries.length > 0) {
+			formattedEntries.push({
+				label: 'Shared max',
+				time: formatWeatherLegendTime(latestForecastTime)
+			});
+		}
+
+		return formattedEntries;
+	};
 
 	$: isWeatherLegendVisible =
 		weatherLegendEnabled &&
@@ -245,6 +296,7 @@
 				latestForecastTime = nextForecastTime;
 				onForecastLatestTimeChange?.(nextForecastTime);
 			}
+			forecastDebugEntries = getForecastDebugEntries();
 		}, 350);
 
 		return () => {
@@ -260,6 +312,7 @@
 			map = undefined;
 			precipitationSyncReady = false;
 			latestForecastTime = undefined;
+			forecastDebugEntries = [];
 			onForecastLatestTimeChange?.(undefined);
 		};
 	});
@@ -327,6 +380,7 @@
 		}
 		playing={weatherClockPlaying}
 		layerIds={activeWeatherLayerIds}
+		forecastDebugEntries={dev ? forecastDebugEntries : []}
 		lightningLiveVisible={lightningLiveVisible}
 		onSliderInput={(value) => onWeatherClockSetTime?.(new Date(value))}
 		onNow={onWeatherClockNow}

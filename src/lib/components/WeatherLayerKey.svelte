@@ -11,6 +11,7 @@
 	export let onSliderInput: ((value: number) => void) | undefined = undefined;
 	export let onTogglePlay: (() => void) | undefined = undefined;
 	export let onNow: (() => void) | undefined = undefined;
+	export let forecastDebugEntries: Array<{ label: string; time: string }> = [];
 </script>
 
 {#if visible}
@@ -44,6 +45,17 @@
 				<span class="weather-legend-layer-pill">{layerId}</span>
 			{/each}
 		</div>
+		{#if forecastDebugEntries.length > 0}
+			<p class="weather-legend-layers-label">Forecast Debug:</p>
+			<div class="weather-legend-debug-list">
+				{#each forecastDebugEntries as entry (entry.label)}
+					<p class="weather-legend-debug-entry">
+						<span>{entry.label}</span>
+						<span>{entry.time}</span>
+					</p>
+				{/each}
+			</div>
+		{/if}
 		{#if lightningLiveVisible}
 			<p class="weather-legend-note">Lightning remains live now and is not synchronized to this clock.</p>
 		{/if}
@@ -141,6 +153,22 @@
 		font-size: 0.72rem;
 		line-height: 1.2;
 		letter-spacing: 0.01em;
+	}
+
+	.weather-legend-debug-list {
+		margin-top: 0.24rem;
+		display: grid;
+		gap: 0.18rem;
+	}
+
+	.weather-legend-debug-entry {
+		margin: 0;
+		display: flex;
+		justify-content: space-between;
+		gap: 0.75rem;
+		font-size: 0.72rem;
+		line-height: 1.35;
+		color: rgba(209, 226, 255, 0.82);
 	}
 
 	.weather-legend-note {
