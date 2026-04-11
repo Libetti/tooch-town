@@ -15,13 +15,21 @@
 	let mapElement: HTMLDivElement;
 	let map: Map | undefined;
 	let frameId: number | undefined;
-	let weatherLegendIntervalId: ReturnType<typeof setInterval> | undefined;
+	let weatherLayerInfoIntervalId: ReturnType<typeof setInterval> | undefined;
 	let precipitationSyncReady = false;
 	let activeStyle: string | StyleSpecification | undefined;
-	let maptilerAnimationTime: Date | undefined;
+	let latestForecastTime: Date | undefined;
 	let isWeatherLegendVisible = false;
 	let weatherLegendTime = 'Loading weather timeline...';
 	let activeWeatherLayerIds: string[] = [];
+	type LayerTimelineEntry = {
+		id: string;
+		label: string;
+		minLabel: string;
+		maxLabel: string;
+		progressPercent: number | undefined;
+	};
+	let layerTimelineEntries: LayerTimelineEntry[] = [];
 
 	export let styleUrl: string | StyleSpecification = getBaseMapStyle(
 		DEFAULT_BASE_LAYER_ID,
@@ -33,6 +41,12 @@
 	export let spinDegreesPerSecond = 0.45;
 	export let interactionsEnabled = false;
 	export let weatherLegendEnabled = true;
+	export let weatherClockTime: Date | undefined = undefined;
+	export let weatherClockMinTime: Date | undefined = undefined;
+	export let weatherClockMaxTime: Date | undefined = undefined;
+	export let weatherClockPlaying = false;
+	export let cmiTimelineMinTime: Date | undefined = undefined;
+	export let cmiTimelineMaxTime: Date | undefined = undefined;
 	export let weatherVisible = true;
 	export let weatherOverlay: CmiRasterOverlay | undefined = undefined;
 	export let precipitationVisible = false;
@@ -40,7 +54,13 @@
 	export let radarVisible = true;
 	export let temperatureVisible = false;
 	export let windVisible = false;
+	export let lightningLiveVisible = false;
 	export let onMapReady: ((map: Map) => void) | undefined = undefined;
+	export let onWeatherClockSetTime: ((value: Date) => void) | undefined = undefined;
+	export let onWeatherClockNow: (() => void) | undefined = undefined;
+	export let onWeatherClockTogglePlay: (() => void) | undefined = undefined;
+	export let onForecastEarliestTimeChange: ((time: Date | undefined) => void) | undefined = undefined;
+	export let onForecastLatestTimeChange: ((time: Date | undefined) => void) | undefined = undefined;
 
 	const weatherLayerManager = createWeatherRasterLayerManager({
 		sourceId: 'weather-cmi',
@@ -54,32 +74,27 @@
 	});
 	const precipitationLayerManager = createPrecipitationLayerManager({
 		layerId: 'weather-precipitation',
-		beforeLayerId: ['space-battle-layer', 'moon-orbit-layer'],
-		animationFactor: 720
+		beforeLayerId: ['space-battle-layer', 'moon-orbit-layer']
 	});
 	const pressureLayerManager = createMapTilerWeatherLayerManager({
 		layerId: 'weather-pressure',
 		layerCtor: PressureLayer,
-		beforeLayerId: ['space-battle-layer', 'moon-orbit-layer'],
-		animationFactor: 720
+		beforeLayerId: ['space-battle-layer', 'moon-orbit-layer']
 	});
 	const radarLayerManager = createMapTilerWeatherLayerManager({
 		layerId: 'weather-radar',
 		layerCtor: RadarLayer,
-		beforeLayerId: ['space-battle-layer', 'moon-orbit-layer'],
-		animationFactor: 720
+		beforeLayerId: ['space-battle-layer', 'moon-orbit-layer']
 	});
 	const temperatureLayerManager = createMapTilerWeatherLayerManager({
 		layerId: 'weather-temperature',
 		layerCtor: TemperatureLayer,
-		beforeLayerId: ['space-battle-layer', 'moon-orbit-layer'],
-		animationFactor: 720
+		beforeLayerId: ['space-battle-layer', 'moon-orbit-layer']
 	});
 	const windLayerManager = createMapTilerWeatherLayerManager({
 		layerId: 'weather-wind',
 		layerCtor: WindLayer,
-		beforeLayerId: ['space-battle-layer', 'moon-orbit-layer'],
-		animationFactor: 720
+		beforeLayerId: ['space-battle-layer', 'moon-orbit-layer']
 	});
 	const weatherLegendTimeFormatter = new Intl.DateTimeFormat(undefined, {
 		month: 'short',
@@ -89,13 +104,29 @@
 		timeZone: 'UTC',
 		timeZoneName: 'short'
 	});
-	const getActiveMapTilerAnimationTime = (): Date | undefined => {
-		if (precipitationVisible) return precipitationLayerManager.getAnimationTimeDate();
-		if (pressureVisible) return pressureLayerManager.getAnimationTimeDate();
-		if (radarVisible) return radarLayerManager.getAnimationTimeDate();
-		if (temperatureVisible) return temperatureLayerManager.getAnimationTimeDate();
-		if (windVisible) return windLayerManager.getAnimationTimeDate();
-		return undefined;
+
+	const getActiveForecastEarliestTime = (): Date | undefined => {
+		const candidates = [
+			precipitationVisible ? precipitationLayerManager.getAnimationStartDate() : undefined,
+			pressureVisible ? pressureLayerManager.getAnimationStartDate() : undefined,
+			radarVisible ? radarLayerManager.getAnimationStartDate() : undefined,
+			temperatureVisible ? temperatureLayerManager.getAnimationStartDate() : undefined,
+			windVisible ? windLayerManager.getAnimationStartDate() : undefined
+		].filter((value): value is Date => value !== undefined);
+		if (candidates.length === 0) return undefined;
+		return new Date(Math.min(...candidates.map((value) => value.getTime())));
+	};
+
+	const getActiveForecastLatestTime = (): Date | undefined => {
+		const candidates = [
+			precipitationVisible ? precipitationLayerManager.getAnimationEndDate() : undefined,
+			pressureVisible ? pressureLayerManager.getAnimationEndDate() : undefined,
+			radarVisible ? radarLayerManager.getAnimationEndDate() : undefined,
+			temperatureVisible ? temperatureLayerManager.getAnimationEndDate() : undefined,
+			windVisible ? windLayerManager.getAnimationEndDate() : undefined
+		].filter((value): value is Date => value !== undefined);
+		if (candidates.length === 0) return undefined;
+		return new Date(Math.min(...candidates.map((value) => value.getTime())));
 	};
 
 	const areDatesEqual = (left: Date | undefined, right: Date | undefined): boolean => {
@@ -107,11 +138,100 @@
 	const formatWeatherLegendTime = (value: Date | undefined): string =>
 		value ? weatherLegendTimeFormatter.format(value) : 'Loading weather timeline...';
 
+	const clampProgressPercent = (value: number): number => Math.min(100, Math.max(0, value));
+
+	const resolveLayerTimelineProgress = (
+		minTime: Date | undefined,
+		maxTime: Date | undefined
+	): number | undefined => {
+		if (!weatherClockTime || !minTime || !maxTime) return undefined;
+		const minMs = minTime.getTime();
+		const maxMs = maxTime.getTime();
+		if (maxMs <= minMs) return undefined;
+		return clampProgressPercent(
+			((weatherClockTime.getTime() - minMs) / (maxMs - minMs)) * 100
+		);
+	};
+
+	const buildLayerTimelineEntry = (
+		id: string,
+		label: string,
+		minTime: Date | undefined,
+		maxTime: Date | undefined
+	) => ({
+		id,
+		label,
+		minLabel: formatWeatherLegendTime(minTime),
+		maxLabel: formatWeatherLegendTime(maxTime),
+		progressPercent: resolveLayerTimelineProgress(minTime, maxTime)
+	});
+
+	const getLayerTimelineEntries = (): LayerTimelineEntry[] => {
+		const candidates: Array<LayerTimelineEntry | undefined> = [
+			weatherVisible
+				? buildLayerTimelineEntry(
+						'weather-cmi',
+						'CMI',
+						cmiTimelineMinTime,
+						cmiTimelineMaxTime
+					)
+				: undefined,
+			precipitationVisible
+				? buildLayerTimelineEntry(
+						'weather-precipitation',
+						'Precipitation',
+						precipitationLayerManager.getAnimationStartDate(),
+						precipitationLayerManager.getAnimationEndDate()
+					)
+				: undefined,
+			pressureVisible
+				? buildLayerTimelineEntry(
+						'weather-pressure',
+						'Pressure',
+						pressureLayerManager.getAnimationStartDate(),
+						pressureLayerManager.getAnimationEndDate()
+					)
+				: undefined,
+			radarVisible
+				? buildLayerTimelineEntry(
+						'weather-radar',
+						'Radar',
+						radarLayerManager.getAnimationStartDate(),
+						radarLayerManager.getAnimationEndDate()
+					)
+				: undefined,
+			temperatureVisible
+				? buildLayerTimelineEntry(
+						'weather-temperature',
+						'Temperature',
+						temperatureLayerManager.getAnimationStartDate(),
+						temperatureLayerManager.getAnimationEndDate()
+					)
+				: undefined,
+			windVisible
+				? buildLayerTimelineEntry(
+						'weather-wind',
+						'Wind',
+						windLayerManager.getAnimationStartDate(),
+						windLayerManager.getAnimationEndDate()
+					)
+				: undefined
+		];
+
+		return candidates.filter((entry): entry is LayerTimelineEntry => entry !== undefined);
+	};
+
 	$: isWeatherLegendVisible =
 		weatherLegendEnabled &&
-		(precipitationVisible || pressureVisible || radarVisible || temperatureVisible || windVisible);
-	$: weatherLegendTime = formatWeatherLegendTime(maptilerAnimationTime);
+		(weatherVisible ||
+			precipitationVisible ||
+			pressureVisible ||
+			radarVisible ||
+			temperatureVisible ||
+			windVisible);
+	$: weatherLegendTime = formatWeatherLegendTime(weatherClockTime);
 	$: activeWeatherLayerIds = [
+		weatherVisible ? 'weather-cmi' : null,
 		precipitationVisible ? 'weather-precipitation' : null,
 		pressureVisible ? 'weather-pressure' : null,
 		radarVisible ? 'weather-radar' : null,
@@ -145,11 +265,17 @@
 		targetMap.once('idle', () => {
 			if (map !== targetMap) return;
 			precipitationSyncReady = true;
-			precipitationLayerManager.sync(targetMap, { visible: precipitationVisible });
-			pressureLayerManager.sync(targetMap, { visible: pressureVisible });
-			radarLayerManager.sync(targetMap, { visible: radarVisible });
-			temperatureLayerManager.sync(targetMap, { visible: temperatureVisible });
-			windLayerManager.sync(targetMap, { visible: windVisible });
+			precipitationLayerManager.sync(targetMap, {
+				visible: precipitationVisible,
+				time: weatherClockTime
+			});
+			pressureLayerManager.sync(targetMap, { visible: pressureVisible, time: weatherClockTime });
+			radarLayerManager.sync(targetMap, { visible: radarVisible, time: weatherClockTime });
+			temperatureLayerManager.sync(targetMap, {
+				visible: temperatureVisible,
+				time: weatherClockTime
+			});
+			windLayerManager.sync(targetMap, { visible: windVisible, time: weatherClockTime });
 		});
 	};
 
@@ -219,15 +345,19 @@
 			frameId = requestAnimationFrame(tick);
 		});
 
-		weatherLegendIntervalId = setInterval(() => {
-			const nextAnimationTime = getActiveMapTilerAnimationTime();
-			if (areDatesEqual(maptilerAnimationTime, nextAnimationTime)) return;
-			maptilerAnimationTime = nextAnimationTime;
+		weatherLayerInfoIntervalId = setInterval(() => {
+			onForecastEarliestTimeChange?.(getActiveForecastEarliestTime());
+			const nextForecastTime = getActiveForecastLatestTime();
+			if (!areDatesEqual(latestForecastTime, nextForecastTime)) {
+				latestForecastTime = nextForecastTime;
+				onForecastLatestTimeChange?.(nextForecastTime);
+			}
+			layerTimelineEntries = getLayerTimelineEntries();
 		}, 350);
 
 		return () => {
 			if (frameId !== undefined) cancelAnimationFrame(frameId);
-			if (weatherLegendIntervalId !== undefined) clearInterval(weatherLegendIntervalId);
+			if (weatherLayerInfoIntervalId !== undefined) clearInterval(weatherLayerInfoIntervalId);
 			if (map) weatherLayerManager.clear(map);
 			if (map) precipitationLayerManager.clear(map);
 			if (map) pressureLayerManager.clear(map);
@@ -237,7 +367,10 @@
 			map?.remove();
 			map = undefined;
 			precipitationSyncReady = false;
-			maptilerAnimationTime = undefined;
+			latestForecastTime = undefined;
+			layerTimelineEntries = [];
+			onForecastEarliestTimeChange?.(undefined);
+			onForecastLatestTimeChange?.(undefined);
 		};
 	});
 
@@ -275,11 +408,11 @@
 	}
 
 	$: if (map && precipitationSyncReady) {
-		precipitationLayerManager.sync(map, { visible: precipitationVisible });
-		pressureLayerManager.sync(map, { visible: pressureVisible });
-		radarLayerManager.sync(map, { visible: radarVisible });
-		temperatureLayerManager.sync(map, { visible: temperatureVisible });
-		windLayerManager.sync(map, { visible: windVisible });
+		precipitationLayerManager.sync(map, { visible: precipitationVisible, time: weatherClockTime });
+		pressureLayerManager.sync(map, { visible: pressureVisible, time: weatherClockTime });
+		radarLayerManager.sync(map, { visible: radarVisible, time: weatherClockTime });
+		temperatureLayerManager.sync(map, { visible: temperatureVisible, time: weatherClockTime });
+		windLayerManager.sync(map, { visible: windVisible, time: weatherClockTime });
 	}
 </script>
 
@@ -293,7 +426,22 @@
 	<WeatherLayerKey
 		visible={isWeatherLegendVisible}
 		time={weatherLegendTime}
+		sliderValue={weatherClockTime?.getTime() ?? 0}
+		sliderMin={weatherClockMinTime?.getTime() ?? 0}
+		sliderMax={weatherClockMaxTime?.getTime() ?? 0}
+		sliderEnabled={
+			weatherClockTime !== undefined &&
+			weatherClockMinTime !== undefined &&
+			weatherClockMaxTime !== undefined &&
+			weatherClockMaxTime.getTime() > weatherClockMinTime.getTime()
+		}
+		playing={weatherClockPlaying}
 		layerIds={activeWeatherLayerIds}
+		layerTimelineEntries={layerTimelineEntries}
+		lightningLiveVisible={lightningLiveVisible}
+		onSliderInput={(value) => onWeatherClockSetTime?.(new Date(value))}
+		onNow={onWeatherClockNow}
+		onTogglePlay={onWeatherClockTogglePlay}
 	/>
 </div>
 
