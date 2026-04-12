@@ -48,6 +48,7 @@ const makeFramesPayload = (
 describe('createCmiRasterLayerController', () => {
 	beforeEach(() => {
 		vi.useFakeTimers();
+		vi.setSystemTime(new Date('2026-03-16T12:00:00.000Z'));
 	});
 
 	afterEach(() => {
@@ -79,6 +80,22 @@ describe('createCmiRasterLayerController', () => {
 		expect(latestImageUrl).toBe('/api/imagery/cmi/ch13/images/goes-east/f2.png');
 
 		unsubscribe();
+		controller.stop();
+	});
+
+	it('requests the full retained CMI frame window by default', async () => {
+		const fetchMock = vi
+			.spyOn(globalThis, 'fetch')
+			.mockResolvedValue(responseJson(makeFramesPayload('goes-east', [])));
+
+		const controller = createCmiRasterLayerController();
+		controller.start();
+		await flush();
+
+		expect(fetchMock).toHaveBeenCalledWith(
+			'/api/imagery/cmi/ch13/frames?satellite=goes-east&start=2026-03-14T12%3A00%3A00.000Z&end=2026-03-16T12%3A00%3A00.000Z&limit=1000&poll_hint=3600'
+		);
+
 		controller.stop();
 	});
 

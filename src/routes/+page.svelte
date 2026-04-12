@@ -132,6 +132,23 @@
 		return { min, max };
 	};
 
+	const resolveCmiLayerTime = (clockTime: Date): Date => {
+		if (!weatherLayerEnabled || !earliestCmiTime || !latestCmiTime) return clockTime;
+
+		const minMs = earliestCmiTime.getTime();
+		const maxMs = latestCmiTime.getTime();
+		if (maxMs <= minMs) return latestCmiTime;
+
+		const clockMs = clockTime.getTime();
+		if (!weatherClockPlaying) {
+			return new Date(Math.min(maxMs, Math.max(minMs, clockMs)));
+		}
+
+		const durationMs = maxMs - minMs;
+		const offsetMs = (((clockMs - minMs) % durationMs) + durationMs) % durationMs;
+		return new Date(minMs + offsetMs);
+	};
+
 	$effect(() => {
 		cmiRasterLayerController.setSatellite(selectedWeatherSatellite);
 	});
@@ -141,7 +158,7 @@
 	});
 
 	$effect(() => {
-		cmiRasterLayerController.setTime(weatherClockTime);
+		cmiRasterLayerController.setTime(resolveCmiLayerTime(weatherClockTime));
 	});
 
 	$effect(() => {
