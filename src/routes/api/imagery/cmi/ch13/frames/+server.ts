@@ -8,11 +8,18 @@ type Satellite = 'goes-east' | 'goes-west';
 const isValidSatellite = (value: string): value is Satellite =>
 	value === 'goes-east' || value === 'goes-west';
 
-const parsePositiveInteger = (raw: string | null): number | undefined => {
+const parseBoundedPositiveInteger = (raw: string | null, max: number): number | undefined => {
 	if (raw === null) return undefined;
 	const parsed = Number(raw);
-	if (!Number.isInteger(parsed) || parsed <= 0) return undefined;
+	if (!Number.isInteger(parsed) || parsed <= 0 || parsed > max) return undefined;
 	return parsed;
+};
+
+const parseTimestamp = (raw: string | null): string | undefined => {
+	if (!raw) return undefined;
+	const parsed = Date.parse(raw);
+	if (!Number.isFinite(parsed)) return undefined;
+	return new Date(parsed).toISOString();
 };
 
 type UpstreamCMIFrameModel = {
@@ -42,18 +49,34 @@ export const GET: RequestHandler = async ({ fetch, url }) => {
 		return json({ error: 'Invalid satellite value' }, { status: 400 });
 	}
 
-	const limit = parsePositiveInteger(url.searchParams.get('limit'));
+	const start = parseTimestamp(url.searchParams.get('start'));
+	if (start === undefined) {
+		return json({ error: 'Invalid start value' }, { status: 400 });
+	}
+
+	const end = parseTimestamp(url.searchParams.get('end'));
+	if (end === undefined) {
+		return json({ error: 'Invalid end value' }, { status: 400 });
+	}
+
+	if (Date.parse(start) >= Date.parse(end)) {
+		return json({ error: 'start must be before end' }, { status: 400 });
+	}
+
+	const limit = parseBoundedPositiveInteger(url.searchParams.get('limit'), 1000);
 	if (url.searchParams.has('limit') && limit === undefined) {
 		return json({ error: 'Invalid limit value' }, { status: 400 });
 	}
 
-	const pollHint = parsePositiveInteger(url.searchParams.get('poll_hint'));
+	const pollHint = parseBoundedPositiveInteger(url.searchParams.get('poll_hint'), 7200);
 	if (url.searchParams.has('poll_hint') && pollHint === undefined) {
 		return json({ error: 'Invalid poll_hint value' }, { status: 400 });
 	}
 
 	const upstreamUrl = new URL(`${apiBaseUrl}/imagery/cmi/ch13/frames`);
 	upstreamUrl.searchParams.set('satellite', satellite);
+	upstreamUrl.searchParams.set('start', start);
+	upstreamUrl.searchParams.set('end', end);
 	if (limit !== undefined) upstreamUrl.searchParams.set('limit', String(limit));
 	if (pollHint !== undefined) upstreamUrl.searchParams.set('poll_hint', String(pollHint));
 
@@ -62,8 +85,14 @@ export const GET: RequestHandler = async ({ fetch, url }) => {
 	});
 
 	if (!upstreamResponse.ok) {
+		let detail: unknown;
+		try {
+			detail = await upstreamResponse.json();
+		} catch {
+			detail = undefined;
+		}
 		return json(
-			{ error: 'Failed to fetch CMI frame metadata', status: upstreamResponse.status },
+			{ error: 'Failed to fetch CMI frame metadata', status: upstreamResponse.status, detail },
 			{ status: upstreamResponse.status }
 		);
 	}

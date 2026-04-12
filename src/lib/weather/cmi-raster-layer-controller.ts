@@ -35,6 +35,7 @@ type CmiRasterLayerControllerOptions = {
 	visible?: boolean;
 	frameLimit?: number;
 	pollHintSeconds?: number;
+	historyWindowMs?: number;
 };
 
 type CmiRasterLayerController = {
@@ -48,6 +49,9 @@ type CmiRasterLayerController = {
 	setTime: (value: Date) => void;
 };
 
+const CMI_FRAME_LIMIT = 1000;
+const CMI_POLL_HINT_SECONDS = 3600;
+const CMI_HISTORY_WINDOW_MS = 48 * 60 * 60 * 1000;
 const FALLBACK_POLL_INTERVAL_MS = 30_000;
 
 const frameSortKey = (frame: CMIFrameModel): number => {
@@ -64,8 +68,9 @@ export const createCmiRasterLayerController = ({
 	apiPath = '/api/imagery/cmi/ch13/frames',
 	satellite = 'goes-east',
 	visible = true,
-	frameLimit = 12,
-	pollHintSeconds = 10
+	frameLimit = CMI_FRAME_LIMIT,
+	pollHintSeconds = CMI_POLL_HINT_SECONDS,
+	historyWindowMs = CMI_HISTORY_WINDOW_MS
 }: CmiRasterLayerControllerOptions = {}): CmiRasterLayerController => {
 	const overlayStore = writable<CmiRasterOverlay | undefined>(undefined);
 	const earliestAvailableTimeStore = writable<Date | undefined>(undefined);
@@ -147,8 +152,12 @@ export const createCmiRasterLayerController = ({
 	};
 
 	const refreshFrames = async (): Promise<void> => {
+		const end = new Date();
+		const start = new Date(end.getTime() - historyWindowMs);
 		const params = new URLSearchParams({
 			satellite: activeSatellite,
+			start: start.toISOString(),
+			end: end.toISOString(),
 			limit: String(frameLimit),
 			poll_hint: String(pollHintSeconds)
 		});
