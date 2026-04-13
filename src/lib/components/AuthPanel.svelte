@@ -56,7 +56,8 @@
 	let loginOtp = $state('');
 	let loginOtpSent = $state(false);
 	let authMode = $state<'signup' | 'login'>('login');
-	let authMethod = $state<'phone' | 'email'>('phone');
+	const phoneAuthEnabled = false;
+	let authMethod = $state<'phone' | 'email'>('email');
 	let profileUsername = $state('');
 	let profileFirstName = $state('');
 	let profileLastName = $state('');
@@ -605,27 +606,29 @@
 							</div>
 
 							<div class="auth-method-toggle" role="tablist" aria-label="Auth method">
-								<button
-									type="button"
-									class:auth-mode-button--active={authMethod === 'phone'}
-									class="auth-mode-button auth-method-icon-button"
-									role="tab"
-									aria-selected={authMethod === 'phone'}
-									aria-label="Use phone"
-									title="Phone"
-									onclick={() => setAuthMethod('phone')}
-								>
-									<svg aria-hidden="true" viewBox="0 0 24 24" class="auth-method-icon">
-										<path
-											d="M7.2 3.6h2.1c.4 0 .8.3.9.7l.6 2.7c.1.3 0 .7-.2 1l-1.2 1.5a15 15 0 0 0 5.5 5.5l1.5-1.2c.3-.2.7-.3 1-.2l2.7.6c.4.1.7.5.7.9v2.1c0 .6-.4 1-.9 1.1-.7.1-1.4.2-2.1.2A16.8 16.8 0 0 1 5.9 6.6c0-.7.1-1.4.2-2.1.1-.5.5-.9 1.1-.9Z"
-											fill="none"
-											stroke="currentColor"
-											stroke-width="1.8"
-											stroke-linecap="round"
-											stroke-linejoin="round"
-										/>
-									</svg>
-								</button>
+								{#if phoneAuthEnabled}
+									<button
+										type="button"
+										class:auth-mode-button--active={authMethod === 'phone'}
+										class="auth-mode-button auth-method-icon-button"
+										role="tab"
+										aria-selected={authMethod === 'phone'}
+										aria-label="Use phone"
+										title="Phone"
+										onclick={() => setAuthMethod('phone')}
+									>
+										<svg aria-hidden="true" viewBox="0 0 24 24" class="auth-method-icon">
+											<path
+												d="M7.2 3.6h2.1c.4 0 .8.3.9.7l.6 2.7c.1.3 0 .7-.2 1l-1.2 1.5a15 15 0 0 0 5.5 5.5l1.5-1.2c.3-.2.7-.3 1-.2l2.7.6c.4.1.7.5.7.9v2.1c0 .6-.4 1-.9 1.1-.7.1-1.4.2-2.1.2A16.8 16.8 0 0 1 5.9 6.6c0-.7.1-1.4.2-2.1.1-.5.5-.9 1.1-.9Z"
+												fill="none"
+												stroke="currentColor"
+												stroke-width="1.8"
+												stroke-linecap="round"
+												stroke-linejoin="round"
+											/>
+										</svg>
+									</button>
+								{/if}
 								<button
 									type="button"
 									class:auth-mode-button--active={authMethod === 'email'}
@@ -885,27 +888,29 @@
 							</div>
 
 							<div class="auth-method-toggle" role="tablist" aria-label="Auth method">
-								<button
-									type="button"
-									class:auth-mode-button--active={authMethod === 'phone'}
-									class="auth-mode-button auth-method-icon-button"
-									role="tab"
-									aria-selected={authMethod === 'phone'}
-									aria-label="Use phone"
-									title="Phone"
-									onclick={() => setAuthMethod('phone')}
-								>
-									<svg aria-hidden="true" viewBox="0 0 24 24" class="auth-method-icon">
-										<path
-											d="M7.2 3.6h2.1c.4 0 .8.3.9.7l.6 2.7c.1.3 0 .7-.2 1l-1.2 1.5a15 15 0 0 0 5.5 5.5l1.5-1.2c.3-.2.7-.3 1-.2l2.7.6c.4.1.7.5.7.9v2.1c0 .6-.4 1-.9 1.1-.7.1-1.4.2-2.1.2A16.8 16.8 0 0 1 5.9 6.6c0-.7.1-1.4.2-2.1.1-.5.5-.9 1.1-.9Z"
-											fill="none"
-											stroke="currentColor"
-											stroke-width="1.8"
-											stroke-linecap="round"
-											stroke-linejoin="round"
-										/>
-									</svg>
-								</button>
+								{#if phoneAuthEnabled}
+									<button
+										type="button"
+										class:auth-mode-button--active={authMethod === 'phone'}
+										class="auth-mode-button auth-method-icon-button"
+										role="tab"
+										aria-selected={authMethod === 'phone'}
+										aria-label="Use phone"
+										title="Phone"
+										onclick={() => setAuthMethod('phone')}
+									>
+										<svg aria-hidden="true" viewBox="0 0 24 24" class="auth-method-icon">
+											<path
+												d="M7.2 3.6h2.1c.4 0 .8.3.9.7l.6 2.7c.1.3 0 .7-.2 1l-1.2 1.5a15 15 0 0 0 5.5 5.5l1.5-1.2c.3-.2.7-.3 1-.2l2.7.6c.4.1.7.5.7.9v2.1c0 .6-.4 1-.9 1.1-.7.1-1.4.2-2.1.2A16.8 16.8 0 0 1 5.9 6.6c0-.7.1-1.4.2-2.1.1-.5.5-.9 1.1-.9Z"
+												fill="none"
+												stroke="currentColor"
+												stroke-width="1.8"
+												stroke-linecap="round"
+												stroke-linejoin="round"
+											/>
+										</svg>
+									</button>
+								{/if}
 								<button
 									type="button"
 									class:auth-mode-button--active={authMethod === 'email'}
