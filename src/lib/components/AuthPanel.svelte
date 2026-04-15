@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import TurnstileChallenge from '$lib/components/TurnstileChallenge.svelte';
 	import { countryOptions, getStateOptions } from '$lib/profile/locations';
 	import {
 		authError,
@@ -10,7 +11,6 @@
 		authProfilePending,
 		authSession,
 		clearAuthFeedback,
-		getAuthUserLabel,
 		initializeSupabaseAuth,
 		requestEmailLoginOtp,
 		requestEmailSignUpOtp,
@@ -30,6 +30,10 @@
 		hasSupabaseAuthConfig: boolean;
 		expanded?: boolean;
 		onClose?: () => void;
+	};
+	type TurnstileChallengeApi = {
+		execute: () => Promise<string>;
+		reset: () => void;
 	};
 
 	let { hasSupabaseAuthConfig, expanded = false, onClose }: Props = $props();
@@ -66,6 +70,8 @@
 	let profileStateText = $state('');
 	let profileCity = $state('');
 	let lastLoadedProfileKey = $state('');
+	let signupTurnstile = $state<TurnstileChallengeApi | null>(null);
+	let loginTurnstile = $state<TurnstileChallengeApi | null>(null);
 
 	const signupStates = $derived(signupCountryCode ? getStateOptions(signupCountryCode) : []);
 	const selectedSignupCountry = $derived(
@@ -209,6 +215,32 @@
 		onClose?.();
 	};
 
+	const requestSignupTurnstileToken = async () => {
+		if (!signupTurnstile) {
+			throw new Error('Human check is not ready yet.');
+		}
+
+		try {
+			return await signupTurnstile.execute();
+		} catch (error) {
+			signupTurnstile.reset();
+			throw error;
+		}
+	};
+
+	const requestLoginTurnstileToken = async () => {
+		if (!loginTurnstile) {
+			throw new Error('Human check is not ready yet.');
+		}
+
+		try {
+			return await loginTurnstile.execute();
+		} catch (error) {
+			loginTurnstile.reset();
+			throw error;
+		}
+	};
+
 	const handleWindowKeydown = (event: KeyboardEvent) => {
 		if (!expanded || event.key !== 'Escape') return;
 		event.preventDefault();
@@ -223,10 +255,14 @@
 			if (!signupOtpSent) {
 				signupOtpSent = await requestPhoneSignUpOtp({
 					phone: signupPhone,
-					profile
+					profile,
+					getTurnstileToken: requestSignupTurnstileToken
 				});
 				if (signupOtpSent) signupOtpResent = false;
-				if (!signupOtpSent) signupOtp = '';
+				if (!signupOtpSent) {
+					signupOtp = '';
+					signupTurnstile?.reset();
+				}
 				return;
 			}
 
@@ -248,10 +284,14 @@
 				email: signupEmail,
 				password: signupPassword,
 				passwordConfirm: signupPasswordConfirm,
-				profile
+				profile,
+				getTurnstileToken: requestSignupTurnstileToken
 			});
 			if (signupOtpSent) signupOtpResent = false;
-			if (!signupOtpSent) signupOtp = '';
+			if (!signupOtpSent) {
+				signupOtp = '';
+				signupTurnstile?.reset();
+			}
 			return;
 		}
 
@@ -276,18 +316,22 @@
 			authMethod === 'phone'
 				? await requestPhoneSignUpOtp({
 						phone: signupPhone,
-						profile
+						profile,
+						getTurnstileToken: requestSignupTurnstileToken
 					})
 				: await requestEmailSignUpOtp({
 						email: signupEmail,
 						password: signupPassword,
 						passwordConfirm: signupPasswordConfirm,
-						profile
+						profile,
+						getTurnstileToken: requestSignupTurnstileToken
 					});
 
 		if (sent) {
 			signupOtp = '';
 			signupOtpResent = true;
+		} else {
+			signupTurnstile?.reset();
 		}
 	};
 
@@ -297,9 +341,13 @@
 		if (authMethod === 'phone') {
 			if (!loginOtpSent) {
 				loginOtpSent = await requestPhoneLoginOtp({
-					phone: loginPhone
+					phone: loginPhone,
+					getTurnstileToken: requestLoginTurnstileToken
 				});
-				if (!loginOtpSent) loginOtp = '';
+				if (!loginOtpSent) {
+					loginOtp = '';
+					loginTurnstile?.reset();
+				}
 				return;
 			}
 
@@ -318,11 +366,14 @@
 		if (emailLoginMode === 'password') {
 			const signedIn = await signInWithEmailPassword({
 				email: loginEmail,
-				password: loginPassword
+				password: loginPassword,
+				getTurnstileToken: requestLoginTurnstileToken
 			});
 
 			if (signedIn) {
 				clearAuthFields();
+			} else {
+				loginTurnstile?.reset();
 			}
 
 			return;
@@ -330,9 +381,13 @@
 
 		if (!loginOtpSent) {
 			loginOtpSent = await requestEmailLoginOtp({
-				email: loginEmail
+				email: loginEmail,
+				getTurnstileToken: requestLoginTurnstileToken
 			});
-			if (!loginOtpSent) loginOtp = '';
+			if (!loginOtpSent) {
+				loginOtp = '';
+				loginTurnstile?.reset();
+			}
 			return;
 		}
 
@@ -487,7 +542,7 @@
 									autocomplete="username"
 									placeholder="stormwatcher"
 									readonly={Boolean($authProfile)}
-									tabindex={Boolean($authProfile) ? -1 : 0}
+									tabindex={$authProfile ? -1 : 0}
 								/>
 								{#if $authProfile}
 									<span class="auth-readonly-icon" aria-hidden="true">
@@ -675,6 +730,8 @@
 				<div class="auth-grid">
 					{#if authMode === 'signup'}
 						<form class="auth-card auth-card--signup" onsubmit={handleSignup}>
+							<TurnstileChallenge bind:this={signupTurnstile} />
+
 							<div class="auth-card-copy">
 								<h3>
 									{authMethod === 'phone'
@@ -920,6 +977,8 @@
 						</form>
 					{:else}
 						<form class="auth-card auth-card--login" onsubmit={handleLogin}>
+							<TurnstileChallenge bind:this={loginTurnstile} />
+
 							<div class="auth-card-copy">
 								<h3>{authMethod === 'phone' ? 'Log In With Phone' : 'Log In With Email'}</h3>
 							</div>
@@ -1042,7 +1101,7 @@
 											class="auth-text-button"
 											onclick={() => setEmailLoginMode('password')}
 										>
-											Use Password
+											Use password
 										</button>
 									{:else}
 										<button
@@ -1050,7 +1109,7 @@
 											class="auth-text-button"
 											onclick={() => setEmailLoginMode('otp')}
 										>
-											Email A Code
+											Email me a code instead
 										</button>
 									{/if}
 								</div>

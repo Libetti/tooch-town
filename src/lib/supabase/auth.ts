@@ -36,6 +36,8 @@ type RequestResult<T> = {
 	error: string | null;
 };
 
+type TurnstileTokenProvider = () => Promise<string>;
+
 export const authSession = writable<Session | null>(null);
 export const authPendingFlow = writable<PendingAuthFlow>(null);
 export const authError = writable<string | null>(null);
@@ -121,6 +123,15 @@ const setSupabaseError = (error: unknown) => {
 	}
 
 	authError.set('Something went wrong while contacting Supabase.');
+};
+
+const getTurnstileTokenOrSetError = async (provider: TurnstileTokenProvider) => {
+	try {
+		return await provider();
+	} catch (error) {
+		setSupabaseError(error);
+		return null;
+	}
 };
 
 const requestJson = async <T>(
@@ -390,6 +401,7 @@ export const requestEmailSignUpOtp = async (input: {
 	password: string;
 	passwordConfirm: string;
 	profile: SignupProfileInput;
+	getTurnstileToken: TurnstileTokenProvider;
 }) => {
 	clearAuthFeedback();
 
@@ -424,13 +436,17 @@ export const requestEmailSignUpOtp = async (input: {
 	authPendingFlow.set('signup');
 
 	try {
+		const turnstileToken = await getTurnstileTokenOrSetError(input.getTurnstileToken);
+		if (turnstileToken === null) return false;
+
 		const result = await requestJson<{ ok: true }>(
 			'/api/auth/email/signup',
 			{
 				method: 'POST',
 				body: JSON.stringify({
 					email,
-					username: validation.profile.username
+					username: validation.profile.username,
+					turnstileToken
 				})
 			},
 			'Unable to send a verification code right now.'
@@ -528,6 +544,7 @@ export const verifyEmailSignUpOtp = async (input: {
 export const requestPhoneSignUpOtp = async (input: {
 	phone: string;
 	profile: SignupProfileInput;
+	getTurnstileToken: TurnstileTokenProvider;
 }) => {
 	clearAuthFeedback();
 
@@ -547,11 +564,14 @@ export const requestPhoneSignUpOtp = async (input: {
 	authPendingFlow.set('signup');
 
 	try {
+		const turnstileToken = await getTurnstileTokenOrSetError(input.getTurnstileToken);
+		if (turnstileToken === null) return false;
+
 		const result = await requestJson<{ ok: true }>(
 			'/api/auth/phone/signup/request',
 			{
 				method: 'POST',
-				body: JSON.stringify({ phone })
+				body: JSON.stringify({ phone, turnstileToken })
 			},
 			'Unable to send a verification code right now.'
 		);
@@ -625,7 +645,10 @@ export const verifyPhoneSignUpOtp = async (input: {
 	}
 };
 
-export const requestEmailLoginOtp = async (input: { email: string }) => {
+export const requestEmailLoginOtp = async (input: {
+	email: string;
+	getTurnstileToken: TurnstileTokenProvider;
+}) => {
 	clearAuthFeedback();
 
 	const email = input.email.trim();
@@ -637,11 +660,14 @@ export const requestEmailLoginOtp = async (input: { email: string }) => {
 	authPendingFlow.set('login');
 
 	try {
+		const turnstileToken = await getTurnstileTokenOrSetError(input.getTurnstileToken);
+		if (turnstileToken === null) return false;
+
 		const result = await requestJson<AuthMutationResponse>(
 			'/api/auth/email/login/otp/request',
 			{
 				method: 'POST',
-				body: JSON.stringify({ email })
+				body: JSON.stringify({ email, turnstileToken })
 			},
 			'Unable to send a verification code right now.'
 		);
@@ -658,7 +684,11 @@ export const requestEmailLoginOtp = async (input: { email: string }) => {
 	}
 };
 
-export const signInWithEmailPassword = async (input: { email: string; password: string }) => {
+export const signInWithEmailPassword = async (input: {
+	email: string;
+	password: string;
+	getTurnstileToken: TurnstileTokenProvider;
+}) => {
 	clearAuthFeedback();
 
 	const email = input.email.trim();
@@ -670,13 +700,17 @@ export const signInWithEmailPassword = async (input: { email: string; password: 
 	authPendingFlow.set('login');
 
 	try {
+		const turnstileToken = await getTurnstileTokenOrSetError(input.getTurnstileToken);
+		if (turnstileToken === null) return false;
+
 		const result = await requestJson<AuthMutationResponse>(
 			'/api/auth/email/login/password',
 			{
 				method: 'POST',
 				body: JSON.stringify({
 					email,
-					password: input.password
+					password: input.password,
+					turnstileToken
 				})
 			},
 			'Unable to sign you in right now.'
@@ -734,7 +768,10 @@ export const verifyEmailLoginOtp = async (input: { email: string; token: string 
 	}
 };
 
-export const requestPhoneLoginOtp = async (input: { phone: string }) => {
+export const requestPhoneLoginOtp = async (input: {
+	phone: string;
+	getTurnstileToken: TurnstileTokenProvider;
+}) => {
 	clearAuthFeedback();
 
 	const phone = normalizePhone(input.phone);
@@ -746,11 +783,14 @@ export const requestPhoneLoginOtp = async (input: { phone: string }) => {
 	authPendingFlow.set('login');
 
 	try {
+		const turnstileToken = await getTurnstileTokenOrSetError(input.getTurnstileToken);
+		if (turnstileToken === null) return false;
+
 		const result = await requestJson<{ ok: true }>(
 			'/api/auth/phone/login/request',
 			{
 				method: 'POST',
-				body: JSON.stringify({ phone })
+				body: JSON.stringify({ phone, turnstileToken })
 			},
 			'Unable to send a verification code right now.'
 		);

@@ -5,14 +5,16 @@ import {
 	persistSupabaseSession
 } from '$lib/server/supabase';
 import { jsonSupabaseConfigError } from '$lib/server/auth';
+import { verifyTurnstileToken } from '$lib/server/turnstile';
 import type { RequestHandler } from './$types';
 
 type EmailPasswordLoginBody = {
 	email?: string;
 	password?: string;
+	turnstileToken?: string;
 };
 
-export const POST: RequestHandler = async ({ cookies, request }) => {
+export const POST: RequestHandler = async ({ cookies, fetch, getClientAddress, request }) => {
 	if (!hasSupabaseAuthConfig) {
 		return jsonSupabaseConfigError();
 	}
@@ -30,6 +32,15 @@ export const POST: RequestHandler = async ({ cookies, request }) => {
 
 	if (!email || !password) {
 		return json({ error: 'Enter your email and password to log in.' }, { status: 400 });
+	}
+
+	const turnstileResult = await verifyTurnstileToken({
+		token: body.turnstileToken,
+		remoteIp: getClientAddress(),
+		fetcher: fetch
+	});
+	if (!turnstileResult.ok) {
+		return json({ error: turnstileResult.error }, { status: turnstileResult.status });
 	}
 
 	try {
