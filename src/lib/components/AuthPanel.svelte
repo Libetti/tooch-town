@@ -317,6 +317,18 @@
 			profile
 		});
 
+		if (signedIn === 'existing-account') {
+			loginEmail = signupEmail;
+			authMode = 'login';
+			authMethod = 'email';
+			emailLoginMode = 'password';
+			signupOtp = '';
+			signupOtpSent = false;
+			signupOtpResent = false;
+			resetSignupCaptcha();
+			return;
+		}
+
 		if (signedIn) {
 			clearAuthFields();
 		}

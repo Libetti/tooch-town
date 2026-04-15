@@ -2,6 +2,7 @@ import { json } from '@sveltejs/kit';
 import {
 	createSupabaseServerClient,
 	hasSupabaseAuthConfig,
+	loadCurrentProfileRow,
 	persistSupabaseSession
 } from '$lib/server/supabase';
 import { jsonSupabaseConfigError } from '$lib/server/auth';
@@ -72,6 +73,17 @@ export const POST: RequestHandler = async ({ cookies, request }) => {
 
 		if (sessionError) {
 			return json({ error: sessionError.message }, { status: 400 });
+		}
+
+		const existingProfile = await loadCurrentProfileRow(userClient, data.session.user.id);
+		if (existingProfile) {
+			return json(
+				{
+					error: 'An account already exists for that email. Log in instead.',
+					existingAccount: true
+				},
+				{ status: 409 }
+			);
 		}
 
 		const { error: passwordError } = await userClient.auth.updateUser({ password });

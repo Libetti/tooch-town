@@ -22,6 +22,7 @@ type AuthSnapshotResponse = {
 type AuthMutationResponse = {
 	session?: Session | null;
 	profile?: UserProfile | null;
+	existingAccount?: boolean;
 	error?: string;
 };
 
@@ -142,7 +143,7 @@ const requestJson = async <T>(
 
 		if (!response.ok) {
 			return {
-				data: null,
+				data: body as T,
 				error: body?.error ?? fallback
 			};
 		}
@@ -516,6 +517,11 @@ export const verifyEmailSignUpOtp = async (input: {
 		);
 
 		if (result.error || !result.data?.session) {
+			if (result.data?.existingAccount) {
+				authNotice.set('That email already has an account. Log in instead.');
+				return 'existing-account';
+			}
+
 			setSupabaseError(
 				result.error ?? 'Your email was verified, but we could not finish your account setup.'
 			);
