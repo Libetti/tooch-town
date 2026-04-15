@@ -27,7 +27,7 @@ export const verifyTurnstileToken = async ({
 		return {
 			ok: false,
 			status: 400,
-			error: 'Complete the human check before creating your account.'
+			error: 'Complete the human check before continuing.'
 		};
 	}
 

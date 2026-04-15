@@ -71,6 +71,7 @@
 	let profileCity = $state('');
 	let lastLoadedProfileKey = $state('');
 	let signupTurnstile = $state<TurnstileChallengeApi | null>(null);
+	let loginTurnstile = $state<TurnstileChallengeApi | null>(null);
 
 	const signupStates = $derived(signupCountryCode ? getStateOptions(signupCountryCode) : []);
 	const selectedSignupCountry = $derived(
@@ -227,6 +228,19 @@
 		}
 	};
 
+	const requestLoginTurnstileToken = async () => {
+		if (!loginTurnstile) {
+			throw new Error('Human check is not ready yet.');
+		}
+
+		try {
+			return await loginTurnstile.execute();
+		} catch (error) {
+			loginTurnstile.reset();
+			throw error;
+		}
+	};
+
 	const handleWindowKeydown = (event: KeyboardEvent) => {
 		if (!expanded || event.key !== 'Escape') return;
 		event.preventDefault();
@@ -327,9 +341,13 @@
 		if (authMethod === 'phone') {
 			if (!loginOtpSent) {
 				loginOtpSent = await requestPhoneLoginOtp({
-					phone: loginPhone
+					phone: loginPhone,
+					getTurnstileToken: requestLoginTurnstileToken
 				});
-				if (!loginOtpSent) loginOtp = '';
+				if (!loginOtpSent) {
+					loginOtp = '';
+					loginTurnstile?.reset();
+				}
 				return;
 			}
 
@@ -348,11 +366,14 @@
 		if (emailLoginMode === 'password') {
 			const signedIn = await signInWithEmailPassword({
 				email: loginEmail,
-				password: loginPassword
+				password: loginPassword,
+				getTurnstileToken: requestLoginTurnstileToken
 			});
 
 			if (signedIn) {
 				clearAuthFields();
+			} else {
+				loginTurnstile?.reset();
 			}
 
 			return;
@@ -360,9 +381,13 @@
 
 		if (!loginOtpSent) {
 			loginOtpSent = await requestEmailLoginOtp({
-				email: loginEmail
+				email: loginEmail,
+				getTurnstileToken: requestLoginTurnstileToken
 			});
-			if (!loginOtpSent) loginOtp = '';
+			if (!loginOtpSent) {
+				loginOtp = '';
+				loginTurnstile?.reset();
+			}
 			return;
 		}
 
@@ -952,6 +977,8 @@
 						</form>
 					{:else}
 						<form class="auth-card auth-card--login" onsubmit={handleLogin}>
+							<TurnstileChallenge bind:this={loginTurnstile} />
+
 							<div class="auth-card-copy">
 								<h3>{authMethod === 'phone' ? 'Log In With Phone' : 'Log In With Email'}</h3>
 							</div>
