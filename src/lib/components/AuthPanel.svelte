@@ -654,21 +654,51 @@
 								</h3>
 							</div>
 
-							<div class="auth-method-toggle" role="tablist" aria-label="Auth method">
-								{#if phoneAuthEnabled}
+							{#if !signupOtpSent}
+								<div class="auth-method-toggle" role="tablist" aria-label="Auth method">
+									{#if phoneAuthEnabled}
+										<button
+											type="button"
+											class:auth-mode-button--active={authMethod === 'phone'}
+											class="auth-mode-button auth-method-icon-button"
+											role="tab"
+											aria-selected={authMethod === 'phone'}
+											aria-label="Use phone"
+											title="Phone"
+											onclick={() => setAuthMethod('phone')}
+										>
+											<svg aria-hidden="true" viewBox="0 0 24 24" class="auth-method-icon">
+												<path
+													d="M7.2 3.6h2.1c.4 0 .8.3.9.7l.6 2.7c.1.3 0 .7-.2 1l-1.2 1.5a15 15 0 0 0 5.5 5.5l1.5-1.2c.3-.2.7-.3 1-.2l2.7.6c.4.1.7.5.7.9v2.1c0 .6-.4 1-.9 1.1-.7.1-1.4.2-2.1.2A16.8 16.8 0 0 1 5.9 6.6c0-.7.1-1.4.2-2.1.1-.5.5-.9 1.1-.9Z"
+													fill="none"
+													stroke="currentColor"
+													stroke-width="1.8"
+													stroke-linecap="round"
+													stroke-linejoin="round"
+												/>
+											</svg>
+										</button>
+									{/if}
 									<button
 										type="button"
-										class:auth-mode-button--active={authMethod === 'phone'}
+										class:auth-mode-button--active={authMethod === 'email'}
 										class="auth-mode-button auth-method-icon-button"
 										role="tab"
-										aria-selected={authMethod === 'phone'}
-										aria-label="Use phone"
-										title="Phone"
-										onclick={() => setAuthMethod('phone')}
+										aria-selected={authMethod === 'email'}
+										aria-label="Use email"
+										title="Email"
+										onclick={() => setAuthMethod('email')}
 									>
 										<svg aria-hidden="true" viewBox="0 0 24 24" class="auth-method-icon">
 											<path
-												d="M7.2 3.6h2.1c.4 0 .8.3.9.7l.6 2.7c.1.3 0 .7-.2 1l-1.2 1.5a15 15 0 0 0 5.5 5.5l1.5-1.2c.3-.2.7-.3 1-.2l2.7.6c.4.1.7.5.7.9v2.1c0 .6-.4 1-.9 1.1-.7.1-1.4.2-2.1.2A16.8 16.8 0 0 1 5.9 6.6c0-.7.1-1.4.2-2.1.1-.5.5-.9 1.1-.9Z"
+												d="M4 6.5h16A1.5 1.5 0 0 1 21.5 8v8A1.5 1.5 0 0 1 20 17.5H4A1.5 1.5 0 0 1 2.5 16V8A1.5 1.5 0 0 1 4 6.5Z"
+												fill="none"
+												stroke="currentColor"
+												stroke-width="1.8"
+												stroke-linejoin="round"
+											/>
+											<path
+												d="m4 8 8 5 8-5"
 												fill="none"
 												stroke="currentColor"
 												stroke-width="1.8"
@@ -677,189 +707,152 @@
 											/>
 										</svg>
 									</button>
-								{/if}
-								<button
-									type="button"
-									class:auth-mode-button--active={authMethod === 'email'}
-									class="auth-mode-button auth-method-icon-button"
-									role="tab"
-									aria-selected={authMethod === 'email'}
-									aria-label="Use email"
-									title="Email"
-									onclick={() => setAuthMethod('email')}
-								>
-									<svg aria-hidden="true" viewBox="0 0 24 24" class="auth-method-icon">
-										<path
-											d="M4 6.5h16A1.5 1.5 0 0 1 21.5 8v8A1.5 1.5 0 0 1 20 17.5H4A1.5 1.5 0 0 1 2.5 16V8A1.5 1.5 0 0 1 4 6.5Z"
-											fill="none"
-											stroke="currentColor"
-											stroke-width="1.8"
-											stroke-linejoin="round"
-										/>
-										<path
-											d="m4 8 8 5 8-5"
-											fill="none"
-											stroke="currentColor"
-											stroke-width="1.8"
-											stroke-linecap="round"
-											stroke-linejoin="round"
-										/>
-									</svg>
-								</button>
-							</div>
-
-							{#if authMethod === 'phone'}
-								<label class="auth-field">
-									<span>Phone</span>
-									<input
-										bind:value={signupPhone}
-										type="tel"
-										name="signup-phone"
-										autocomplete="tel"
-										placeholder="+15551234567"
-									/>
-								</label>
-
-								{#if signupOtpSent}
-									<label class="auth-field">
-										<span>Verification Code</span>
-										<input
-											bind:value={signupOtp}
-											inputmode="numeric"
-											name="signup-otp"
-											autocomplete="one-time-code"
-										/>
-									</label>
-								{/if}
-							{:else}
-								<label class="auth-field">
-									<span>Email</span>
-									<input
-										bind:value={signupEmail}
-										type="email"
-										name="signup-email"
-										autocomplete="email"
-										readonly={signupOtpSent}
-									/>
-								</label>
-
-								<label class="auth-field">
-									<span>Password</span>
-									<input
-										bind:value={signupPassword}
-										type="password"
-										name="signup-password"
-										minlength="8"
-										autocomplete="new-password"
-									/>
-								</label>
-
-								<label class="auth-field">
-									<span>Confirm Password</span>
-									<input
-										bind:value={signupPasswordConfirm}
-										type="password"
-										name="signup-password-confirm"
-										minlength="8"
-										autocomplete="new-password"
-									/>
-								</label>
-
-								{#if signupOtpSent}
-									<label class="auth-field">
-										<span>Verification Code</span>
-										<input
-											bind:value={signupOtp}
-											inputmode="numeric"
-											name="signup-email-otp"
-											autocomplete="one-time-code"
-										/>
-									</label>
-								{/if}
+								</div>
 							{/if}
 
-							<div class="auth-profile-grid">
-								<label class="auth-field">
-									<span>Username</span>
+							{#if signupOtpSent}
+								<label class="auth-field auth-field--verification">
+									<span>Verification Code</span>
 									<input
-										bind:value={signupUsername}
-										type="text"
-										name="signup-username"
-										autocomplete="username"
-										placeholder="stormwatcher"
+										bind:value={signupOtp}
+										inputmode="numeric"
+										name={authMethod === 'phone' ? 'signup-otp' : 'signup-email-otp'}
+										autocomplete="one-time-code"
 									/>
 								</label>
-
-								<div class="auth-field-pair">
+							{:else}
+								{#if authMethod === 'phone'}
 									<label class="auth-field">
-										<span>First Name</span>
+										<span>Phone</span>
 										<input
-											bind:value={signupFirstName}
-											type="text"
-											name="signup-first-name"
-											autocomplete="given-name"
+											bind:value={signupPhone}
+											type="tel"
+											name="signup-phone"
+											autocomplete="tel"
+											placeholder="+15551234567"
+										/>
+									</label>
+								{:else}
+									<label class="auth-field">
+										<span>Email</span>
+										<input
+											bind:value={signupEmail}
+											type="email"
+											name="signup-email"
+											autocomplete="email"
 										/>
 									</label>
 
 									<label class="auth-field">
-										<span>Last Name</span>
+										<span>Password</span>
 										<input
-											bind:value={signupLastName}
+											bind:value={signupPassword}
+											type="password"
+											name="signup-password"
+											minlength="8"
+											autocomplete="new-password"
+										/>
+									</label>
+
+									<label class="auth-field">
+										<span>Confirm Password</span>
+										<input
+											bind:value={signupPasswordConfirm}
+											type="password"
+											name="signup-password-confirm"
+											minlength="8"
+											autocomplete="new-password"
+										/>
+									</label>
+								{/if}
+
+								<div class="auth-profile-grid">
+									<label class="auth-field">
+										<span>Username</span>
+										<input
+											bind:value={signupUsername}
 											type="text"
-											name="signup-last-name"
-											autocomplete="family-name"
+											name="signup-username"
+											autocomplete="username"
+											placeholder="stormwatcher"
+										/>
+									</label>
+
+									<div class="auth-field-pair">
+										<label class="auth-field">
+											<span>First Name</span>
+											<input
+												bind:value={signupFirstName}
+												type="text"
+												name="signup-first-name"
+												autocomplete="given-name"
+											/>
+										</label>
+
+										<label class="auth-field">
+											<span>Last Name</span>
+											<input
+												bind:value={signupLastName}
+												type="text"
+												name="signup-last-name"
+												autocomplete="family-name"
+											/>
+										</label>
+									</div>
+
+									<label class="auth-field">
+										<span>Country</span>
+										<select
+											bind:value={signupCountryCode}
+											name="signup-country"
+											onchange={handleCountryChange}
+										>
+											<option value="">Select a country</option>
+											{#each countryOptions as country (country.isoCode)}
+												<option value={country.isoCode}>{country.name}</option>
+											{/each}
+										</select>
+									</label>
+
+									{#if signupCountryCode}
+										{#if signupStates.length > 0}
+											<label class="auth-field">
+												<span>State / Province</span>
+												<select bind:value={signupStateCode} name="signup-state">
+													<option value="">Select a state or province</option>
+													{#each signupStates as state (state.isoCode)}
+														<option value={state.isoCode}>{state.name}</option>
+													{/each}
+												</select>
+											</label>
+										{:else}
+											<label class="auth-field">
+												<span>State / Province</span>
+												<input
+													bind:value={signupStateText}
+													type="text"
+													name="signup-state-text"
+													autocomplete="address-level1"
+												/>
+											</label>
+										{/if}
+									{/if}
+
+									<label class="auth-field">
+										<span>City</span>
+										<input
+											bind:value={signupCity}
+											type="text"
+											name="signup-city"
+											autocomplete="address-level2"
 										/>
 									</label>
 								</div>
+							{/if}
 
-								<label class="auth-field">
-									<span>Country</span>
-									<select
-										bind:value={signupCountryCode}
-										name="signup-country"
-										onchange={handleCountryChange}
-									>
-										<option value="">Select a country</option>
-										{#each countryOptions as country (country.isoCode)}
-											<option value={country.isoCode}>{country.name}</option>
-										{/each}
-									</select>
-								</label>
-
-								{#if signupCountryCode}
-									{#if signupStates.length > 0}
-										<label class="auth-field">
-											<span>State / Province</span>
-											<select bind:value={signupStateCode} name="signup-state">
-												<option value="">Select a state or province</option>
-												{#each signupStates as state (state.isoCode)}
-													<option value={state.isoCode}>{state.name}</option>
-												{/each}
-											</select>
-										</label>
-									{:else}
-										<label class="auth-field">
-											<span>State / Province</span>
-											<input
-												bind:value={signupStateText}
-												type="text"
-												name="signup-state-text"
-												autocomplete="address-level1"
-											/>
-										</label>
-									{/if}
-								{/if}
-
-								<label class="auth-field">
-									<span>City</span>
-									<input
-										bind:value={signupCity}
-										type="text"
-										name="signup-city"
-										autocomplete="address-level2"
-									/>
-								</label>
-							</div>
+							{#if signupOtpSent && $authNotice}
+								<p class="auth-verification-feedback" role="status">{$authNotice}</p>
+							{/if}
 
 							<button type="submit" class="auth-submit" disabled={$authPendingFlow === 'signup'}>
 								{#if $authPendingFlow === 'signup'}
@@ -879,7 +872,7 @@
 								<p class="auth-banner auth-banner--error" role="alert">{$authError}</p>
 							{/if}
 
-							{#if $authNotice}
+							{#if !signupOtpSent && $authNotice}
 								<p class="auth-banner auth-banner--notice">{$authNotice}</p>
 							{/if}
 						</form>
@@ -1304,6 +1297,17 @@
 		gap: 0.35rem;
 		font-size: 0.88rem;
 		color: rgba(227, 238, 255, 0.88);
+	}
+
+	.auth-field--verification {
+		margin-top: 0.35rem;
+	}
+
+	.auth-verification-feedback {
+		margin: 0.15rem 0 0.2rem;
+		color: rgba(219, 255, 228, 0.92);
+		font-size: 0.86rem;
+		line-height: 1.4;
 	}
 
 	.auth-field--readonly,
