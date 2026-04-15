@@ -5,7 +5,6 @@
 		authError,
 		authNotice,
 		authPendingFlow,
-		authPendingProfileSetup,
 		authProfile,
 		authProfileLoading,
 		authProfilePending,
@@ -17,7 +16,6 @@
 		requestEmailSignUpOtp,
 		requestPhoneLoginOtp,
 		requestPhoneSignUpOtp,
-		retryPendingProfileSetup,
 		signInWithEmailPassword,
 		signOut,
 		type SignupProfileInput,
@@ -289,10 +287,6 @@
 		await signOut();
 	};
 
-	const handleRetryProfileSetup = async () => {
-		await retryPendingProfileSetup();
-	};
-
 	const handleProfileSave = async (event: SubmitEvent) => {
 		event.preventDefault();
 		const saved = await updateCurrentUserProfile(getProfileFormValue());
@@ -376,12 +370,6 @@
 						<h3>Edit Profile</h3>
 					</div>
 
-					{#if $authPendingProfileSetup}
-						<p class="auth-banner auth-banner--error" role="alert">
-							Your account exists, but your profile still needs to be saved.
-						</p>
-					{/if}
-
 					{#if profileBlockingLoad}
 						<p class="auth-banner auth-banner--notice">Loading your profile...</p>
 					{/if}
@@ -423,40 +411,42 @@
 							</div>
 						</label>
 
-						<label class="auth-field auth-field--readonly">
+						<label class:auth-field--readonly={Boolean($authProfile)} class="auth-field">
 							<span>Username</span>
 							<div class="auth-readonly-field">
 								<input
-									class="auth-input--readonly"
+									class:auth-input--readonly={Boolean($authProfile)}
 									type="text"
-									value={profileUsername}
+									bind:value={profileUsername}
 									name="profile-username"
 									autocomplete="username"
 									placeholder="stormwatcher"
-									readonly
-									tabindex="-1"
+									readonly={Boolean($authProfile)}
+									tabindex={Boolean($authProfile) ? -1 : 0}
 								/>
-								<span class="auth-readonly-icon" aria-hidden="true">
-									<svg viewBox="0 0 24 24" class="auth-lock-icon">
-										<path
-											d="M7.5 10V8.5a4.5 4.5 0 1 1 9 0V10"
-											fill="none"
-											stroke="currentColor"
-											stroke-width="1.8"
-											stroke-linecap="round"
-										/>
-										<rect
-											x="5"
-											y="10"
-											width="14"
-											height="10"
-											rx="2.5"
-											fill="none"
-											stroke="currentColor"
-											stroke-width="1.8"
-										/>
-									</svg>
-								</span>
+								{#if $authProfile}
+									<span class="auth-readonly-icon" aria-hidden="true">
+										<svg viewBox="0 0 24 24" class="auth-lock-icon">
+											<path
+												d="M7.5 10V8.5a4.5 4.5 0 1 1 9 0V10"
+												fill="none"
+												stroke="currentColor"
+												stroke-width="1.8"
+												stroke-linecap="round"
+											/>
+											<rect
+												x="5"
+												y="10"
+												width="14"
+												height="10"
+												rx="2.5"
+												fill="none"
+												stroke="currentColor"
+												stroke-width="1.8"
+											/>
+										</svg>
+									</span>
+								{/if}
 							</div>
 						</label>
 
@@ -532,16 +522,6 @@
 					</div>
 
 					<div class="auth-account-actions auth-account-actions--footer">
-						{#if $authPendingProfileSetup}
-							<button
-								type="button"
-								class="auth-submit auth-submit--secondary"
-								disabled={$authPendingFlow !== null || $authProfilePending}
-								onclick={handleRetryProfileSetup}
-							>
-								Retry Setup
-							</button>
-						{/if}
 						<button
 							type="submit"
 							class="auth-submit auth-submit--soft"
@@ -1288,7 +1268,6 @@
 	.auth-readonly-field {
 		position: relative;
 		width: 100%;
-		pointer-events: none;
 	}
 
 	.auth-readonly-field input {
