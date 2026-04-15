@@ -5,6 +5,8 @@ import type { RequestHandler } from './$types';
 
 type PhoneRequestBody = {
 	phone?: string;
+	captchaToken?: string;
+	isResend?: boolean;
 };
 
 export const POST: RequestHandler = async ({ request }) => {
@@ -21,8 +23,17 @@ export const POST: RequestHandler = async ({ request }) => {
 	}
 
 	const phone = normalizePhone(body.phone ?? '');
+	const captchaToken = body.captchaToken?.trim() ?? '';
+	const isResend = body.isResend === true;
 	if (!phone) {
 		return json({ error: 'Enter a phone number to create an account.' }, { status: 400 });
+	}
+
+	if (!isResend && !captchaToken) {
+		return json(
+			{ error: 'Complete the captcha before requesting a verification code.' },
+			{ status: 400 }
+		);
 	}
 
 	try {
@@ -30,7 +41,8 @@ export const POST: RequestHandler = async ({ request }) => {
 		const { error } = await supabase.auth.signInWithOtp({
 			phone,
 			options: {
-				shouldCreateUser: true
+				shouldCreateUser: true,
+				...(captchaToken ? { captchaToken } : {})
 			}
 		});
 

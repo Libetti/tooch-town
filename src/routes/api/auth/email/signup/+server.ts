@@ -7,6 +7,8 @@ import type { RequestHandler } from './$types';
 type EmailSignupRequestBody = {
 	email?: string;
 	username?: string;
+	captchaToken?: string;
+	isResend?: boolean;
 };
 
 const USERNAME_PATTERN = /^[A-Za-z0-9_]+$/;
@@ -28,8 +30,17 @@ export const POST: RequestHandler = async ({ request }) => {
 
 	const email = body.email?.trim() ?? '';
 	const username = body.username?.trim() ?? '';
+	const captchaToken = body.captchaToken?.trim() ?? '';
+	const isResend = body.isResend === true;
 	if (!email) {
 		return json({ error: 'Enter an email address to create an account.' }, { status: 400 });
+	}
+
+	if (!isResend && !captchaToken) {
+		return json(
+			{ error: 'Complete the captcha before requesting a verification code.' },
+			{ status: 400 }
+		);
 	}
 
 	if (!username) {
@@ -73,7 +84,8 @@ export const POST: RequestHandler = async ({ request }) => {
 		const { error } = await supabase.auth.signInWithOtp({
 			email,
 			options: {
-				shouldCreateUser: true
+				shouldCreateUser: true,
+				...(captchaToken ? { captchaToken } : {})
 			}
 		});
 

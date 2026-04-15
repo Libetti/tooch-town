@@ -1,5 +1,7 @@
 <script lang="ts">
+	import { env } from '$env/dynamic/public';
 	import { onMount } from 'svelte';
+	import HcaptchaChallenge from '$lib/components/HcaptchaChallenge.svelte';
 	import { countryOptions, getStateOptions } from '$lib/profile/locations';
 	import {
 		authError,
@@ -66,6 +68,12 @@
 	let profileStateText = $state('');
 	let profileCity = $state('');
 	let lastLoadedProfileKey = $state('');
+	let verificationCaptchaToken = $state('');
+	let verificationCaptchaResetKey = $state(0);
+	let signupCaptchaToken = $state('');
+
+	const hcaptchaSiteKey = env.PUBLIC_HCAPTCHA_SITE_KEY ?? '';
+	const captchaMissingMessage = 'Complete the captcha before requesting a verification code.';
 
 	const signupStates = $derived(signupCountryCode ? getStateOptions(signupCountryCode) : []);
 	const selectedSignupCountry = $derived(
@@ -147,6 +155,14 @@
 			$authPendingFlow !== null ||
 			(Boolean($authProfile) && !profileHasUnsavedEdits)
 	);
+	const signupNeedsCaptcha = $derived(authMode === 'signup' && !signupOtpSent);
+	const captchaIsComplete = $derived(Boolean(verificationCaptchaToken));
+	const signupSubmitDisabled = $derived(
+		$authPendingFlow === 'signup' || (signupNeedsCaptcha && !captchaIsComplete)
+	);
+	const signupResendDisabled = $derived(
+		signupOtpResent || $authPendingFlow === 'signup'
+	);
 
 	const hydrateProfileForm = () => {
 		const profile = $authProfile;
@@ -202,6 +218,32 @@
 		loginPhone = '';
 		loginOtp = '';
 		loginOtpSent = false;
+		resetSignupCaptcha();
+	};
+
+	const resetVerificationCaptcha = () => {
+		verificationCaptchaToken = '';
+		verificationCaptchaResetKey += 1;
+	};
+
+	const resetSignupCaptcha = () => {
+		signupCaptchaToken = '';
+		resetVerificationCaptcha();
+	};
+
+	const getVerificationCaptchaToken = () => {
+		if (!hcaptchaSiteKey) {
+			authError.set('Captcha is not configured yet.');
+			return null;
+		}
+
+		const token = verificationCaptchaToken.trim();
+		if (!token) {
+			authError.set(captchaMissingMessage);
+			return null;
+		}
+
+		return token;
 	};
 
 	const closePanel = () => {
@@ -221,12 +263,18 @@
 
 		if (authMethod === 'phone') {
 			if (!signupOtpSent) {
+				const captchaToken = getVerificationCaptchaToken();
+				if (!captchaToken) return;
+
 				signupOtpSent = await requestPhoneSignUpOtp({
 					phone: signupPhone,
-					profile
+					profile,
+					captchaToken
 				});
 				if (signupOtpSent) signupOtpResent = false;
+				if (signupOtpSent) signupCaptchaToken = captchaToken;
 				if (!signupOtpSent) signupOtp = '';
+				resetVerificationCaptcha();
 				return;
 			}
 
@@ -244,14 +292,20 @@
 		}
 
 		if (!signupOtpSent) {
+			const captchaToken = getVerificationCaptchaToken();
+			if (!captchaToken) return;
+
 			signupOtpSent = await requestEmailSignUpOtp({
 				email: signupEmail,
 				password: signupPassword,
 				passwordConfirm: signupPasswordConfirm,
-				profile
+				profile,
+				captchaToken
 			});
 			if (signupOtpSent) signupOtpResent = false;
+			if (signupOtpSent) signupCaptchaToken = captchaToken;
 			if (!signupOtpSent) signupOtp = '';
+			resetVerificationCaptcha();
 			return;
 		}
 
@@ -272,23 +326,29 @@
 		if (signupOtpResent || $authPendingFlow === 'signup') return;
 
 		const profile = getSignupProfile();
+
 		const sent =
 			authMethod === 'phone'
 				? await requestPhoneSignUpOtp({
 						phone: signupPhone,
-						profile
+						profile,
+						captchaToken: signupCaptchaToken,
+						isResend: true
 					})
 				: await requestEmailSignUpOtp({
 						email: signupEmail,
 						password: signupPassword,
 						passwordConfirm: signupPasswordConfirm,
-						profile
+						profile,
+						captchaToken: signupCaptchaToken,
+						isResend: true
 					});
 
 		if (sent) {
 			signupOtp = '';
 			signupOtpResent = true;
 		}
+
 	};
 
 	const handleLogin = async (event: SubmitEvent) => {
@@ -365,6 +425,7 @@
 		loginOtp = '';
 		loginOtpSent = false;
 		emailLoginMode = 'password';
+		resetSignupCaptcha();
 	};
 
 	const setAuthMethod = (method: 'phone' | 'email') => {
@@ -375,6 +436,7 @@
 		signupOtpResent = false;
 		loginOtp = '';
 		loginOtpSent = false;
+		resetSignupCaptcha();
 	};
 
 	const setEmailLoginMode = (mode: 'otp' | 'password') => {
@@ -382,6 +444,7 @@
 		clearAuthFeedback();
 		loginOtp = '';
 		loginOtpSent = false;
+		resetVerificationCaptcha();
 	};
 
 	const handleCountryChange = (event: Event) => {
@@ -879,6 +942,17 @@
 								</div>
 							{/if}
 
+							{#if signupNeedsCaptcha}
+								<div class="auth-captcha">
+									{#key verificationCaptchaResetKey}
+										<HcaptchaChallenge
+											sitekey={hcaptchaSiteKey}
+											bind:token={verificationCaptchaToken}
+										/>
+									{/key}
+								</div>
+							{/if}
+
 							{#if signupOtpSent && $authNotice}
 								<p class="auth-verification-feedback" role="status">{$authNotice}</p>
 							{/if}
@@ -888,7 +962,7 @@
 									<button
 										type="button"
 										class="auth-text-button"
-										disabled={signupOtpResent || $authPendingFlow === 'signup'}
+										disabled={signupResendDisabled}
 										onclick={handleSignupOtpResend}
 									>
 										{signupOtpResent ? 'Confirmation Code Resent' : 'Resend Confirmation Code'}
@@ -896,7 +970,7 @@
 								</div>
 							{/if}
 
-							<button type="submit" class="auth-submit" disabled={$authPendingFlow === 'signup'}>
+							<button type="submit" class="auth-submit" disabled={signupSubmitDisabled}>
 								{#if $authPendingFlow === 'signup'}
 									{signupOtpSent ? 'Verifying...' : 'Sending Code...'}
 								{:else}
@@ -1356,6 +1430,11 @@
 		display: flex;
 		justify-content: flex-end;
 		margin-top: -0.25rem;
+	}
+
+	.auth-captcha {
+		overflow: hidden;
+		max-width: 100%;
 	}
 
 	.auth-field--readonly,

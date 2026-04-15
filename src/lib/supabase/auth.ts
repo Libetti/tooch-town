@@ -390,6 +390,8 @@ export const requestEmailSignUpOtp = async (input: {
 	password: string;
 	passwordConfirm: string;
 	profile: SignupProfileInput;
+	captchaToken?: string;
+	isResend?: boolean;
 }) => {
 	clearAuthFeedback();
 
@@ -421,6 +423,11 @@ export const requestEmailSignUpOtp = async (input: {
 		return false;
 	}
 
+	if (!input.isResend && !input.captchaToken?.trim()) {
+		authError.set('Complete the captcha before requesting a verification code.');
+		return false;
+	}
+
 	authPendingFlow.set('signup');
 
 	try {
@@ -430,7 +437,9 @@ export const requestEmailSignUpOtp = async (input: {
 				method: 'POST',
 				body: JSON.stringify({
 					email,
-					username: validation.profile.username
+					username: validation.profile.username,
+					captchaToken: input.captchaToken,
+					isResend: input.isResend
 				})
 			},
 			'Unable to send a verification code right now.'
@@ -528,6 +537,8 @@ export const verifyEmailSignUpOtp = async (input: {
 export const requestPhoneSignUpOtp = async (input: {
 	phone: string;
 	profile: SignupProfileInput;
+	captchaToken?: string;
+	isResend?: boolean;
 }) => {
 	clearAuthFeedback();
 
@@ -544,6 +555,11 @@ export const requestPhoneSignUpOtp = async (input: {
 		return false;
 	}
 
+	if (!input.isResend && !input.captchaToken?.trim()) {
+		authError.set('Complete the captcha before requesting a verification code.');
+		return false;
+	}
+
 	authPendingFlow.set('signup');
 
 	try {
@@ -551,7 +567,11 @@ export const requestPhoneSignUpOtp = async (input: {
 			'/api/auth/phone/signup/request',
 			{
 				method: 'POST',
-				body: JSON.stringify({ phone })
+				body: JSON.stringify({
+					phone,
+					captchaToken: input.captchaToken,
+					isResend: input.isResend
+				})
 			},
 			'Unable to send a verification code right now.'
 		);
