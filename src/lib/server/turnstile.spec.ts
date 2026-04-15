@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 const loadVerifier = async () => {
 	vi.resetModules();
@@ -7,16 +7,11 @@ const loadVerifier = async () => {
 };
 
 describe('verifyTurnstileToken', () => {
-	afterEach(() => {
-		delete process.env.TURNSTILE_SECRET_KEY;
-	});
-
 	it('rejects a missing token before calling Cloudflare', async () => {
-		process.env.TURNSTILE_SECRET_KEY = 'secret';
 		const verifyTurnstileToken = await loadVerifier();
 		const fetcher = vi.fn();
 
-		const result = await verifyTurnstileToken({ token: '', fetcher });
+		const result = await verifyTurnstileToken({ token: '', secretKey: 'secret', fetcher });
 
 		expect(result).toEqual({
 			ok: false,
@@ -26,8 +21,39 @@ describe('verifyTurnstileToken', () => {
 		expect(fetcher).not.toHaveBeenCalled();
 	});
 
+	it('rejects an oversized token before calling Cloudflare', async () => {
+		const verifyTurnstileToken = await loadVerifier();
+		const fetcher = vi.fn();
+
+		const result = await verifyTurnstileToken({
+			token: 'x'.repeat(4097),
+			secretKey: 'secret',
+			fetcher
+		});
+
+		expect(result).toEqual({
+			ok: false,
+			status: 400,
+			error: 'Human check failed. Please try again.'
+		});
+		expect(fetcher).not.toHaveBeenCalled();
+	});
+
+	it('rejects missing server configuration before calling Cloudflare', async () => {
+		const verifyTurnstileToken = await loadVerifier();
+		const fetcher = vi.fn();
+
+		const result = await verifyTurnstileToken({ token: 'token', secretKey: '', fetcher });
+
+		expect(result).toEqual({
+			ok: false,
+			status: 503,
+			error: 'Human check is not configured right now.'
+		});
+		expect(fetcher).not.toHaveBeenCalled();
+	});
+
 	it('accepts a successful Siteverify response', async () => {
-		process.env.TURNSTILE_SECRET_KEY = 'secret';
 		const verifyTurnstileToken = await loadVerifier();
 		const fetcher = vi.fn().mockResolvedValue(
 			new Response(JSON.stringify({ success: true }), {
@@ -39,6 +65,7 @@ describe('verifyTurnstileToken', () => {
 		const result = await verifyTurnstileToken({
 			token: 'token',
 			remoteIp: '203.0.113.9',
+			secretKey: 'secret',
 			fetcher
 		});
 
@@ -51,12 +78,51 @@ describe('verifyTurnstileToken', () => {
 				headers: { 'content-type': 'application/x-www-form-urlencoded' }
 			})
 		);
+		expect(init.signal).toBeInstanceOf(AbortSignal);
 		expect(String(init.body)).toContain('response=token');
 		expect(String(init.body)).toContain('remoteip=203.0.113.9');
 	});
 
+	it('treats a non-200 Siteverify response as temporarily unavailable', async () => {
+		const verifyTurnstileToken = await loadVerifier();
+		const fetcher = vi.fn().mockResolvedValue(new Response('bad gateway', { status: 502 }));
+
+		const result = await verifyTurnstileToken({ token: 'token', secretKey: 'secret', fetcher });
+
+		expect(result).toEqual({
+			ok: false,
+			status: 503,
+			error: 'Unable to verify the human check right now.'
+		});
+		expect(fetcher).toHaveBeenCalledTimes(1);
+	});
+
+	it('times out a slow Siteverify response', async () => {
+		const verifyTurnstileToken = await loadVerifier();
+		const fetcher = vi.fn((_url: string | URL | Request, init?: RequestInit) => {
+			return new Promise<Response>((_resolve, reject) => {
+				init?.signal?.addEventListener('abort', () => reject(new Error('aborted')), {
+					once: true
+				});
+			});
+		});
+
+		const result = await verifyTurnstileToken({
+			token: 'token',
+			secretKey: 'secret',
+			fetcher,
+			timeoutMs: 1
+		});
+
+		expect(result).toEqual({
+			ok: false,
+			status: 503,
+			error: 'Unable to verify the human check right now.'
+		});
+		expect(fetcher).toHaveBeenCalledTimes(1);
+	});
+
 	it('rejects an unsuccessful Siteverify response', async () => {
-		process.env.TURNSTILE_SECRET_KEY = 'secret';
 		const verifyTurnstileToken = await loadVerifier();
 		const fetcher = vi.fn().mockResolvedValue(
 			new Response(JSON.stringify({ success: false }), {
@@ -65,7 +131,7 @@ describe('verifyTurnstileToken', () => {
 			})
 		);
 
-		const result = await verifyTurnstileToken({ token: 'token', fetcher });
+		const result = await verifyTurnstileToken({ token: 'token', secretKey: 'secret', fetcher });
 
 		expect(result).toEqual({
 			ok: false,

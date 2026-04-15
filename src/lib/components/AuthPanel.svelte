@@ -1101,7 +1101,7 @@
 											class="auth-text-button"
 											onclick={() => setEmailLoginMode('password')}
 										>
-											Use Password
+											Use password
 										</button>
 									{:else}
 										<button
@@ -1109,7 +1109,7 @@
 											class="auth-text-button"
 											onclick={() => setEmailLoginMode('otp')}
 										>
-											Email A Code
+											Email me a code instead
 										</button>
 									{/if}
 								</div>

@@ -125,6 +125,15 @@ const setSupabaseError = (error: unknown) => {
 	authError.set('Something went wrong while contacting Supabase.');
 };
 
+const getTurnstileTokenOrSetError = async (provider: TurnstileTokenProvider) => {
+	try {
+		return await provider();
+	} catch (error) {
+		setSupabaseError(error);
+		return null;
+	}
+};
+
 const requestJson = async <T>(
 	url: string,
 	options: RequestInit,
@@ -427,14 +436,8 @@ export const requestEmailSignUpOtp = async (input: {
 	authPendingFlow.set('signup');
 
 	try {
-		let turnstileToken: string;
-
-		try {
-			turnstileToken = await input.getTurnstileToken();
-		} catch (error) {
-			setSupabaseError(error);
-			return false;
-		}
+		const turnstileToken = await getTurnstileTokenOrSetError(input.getTurnstileToken);
+		if (turnstileToken === null) return false;
 
 		const result = await requestJson<{ ok: true }>(
 			'/api/auth/email/signup',
@@ -561,14 +564,8 @@ export const requestPhoneSignUpOtp = async (input: {
 	authPendingFlow.set('signup');
 
 	try {
-		let turnstileToken: string;
-
-		try {
-			turnstileToken = await input.getTurnstileToken();
-		} catch (error) {
-			setSupabaseError(error);
-			return false;
-		}
+		const turnstileToken = await getTurnstileTokenOrSetError(input.getTurnstileToken);
+		if (turnstileToken === null) return false;
 
 		const result = await requestJson<{ ok: true }>(
 			'/api/auth/phone/signup/request',
@@ -663,14 +660,8 @@ export const requestEmailLoginOtp = async (input: {
 	authPendingFlow.set('login');
 
 	try {
-		let turnstileToken: string;
-
-		try {
-			turnstileToken = await input.getTurnstileToken();
-		} catch (error) {
-			setSupabaseError(error);
-			return false;
-		}
+		const turnstileToken = await getTurnstileTokenOrSetError(input.getTurnstileToken);
+		if (turnstileToken === null) return false;
 
 		const result = await requestJson<AuthMutationResponse>(
 			'/api/auth/email/login/otp/request',
@@ -709,14 +700,8 @@ export const signInWithEmailPassword = async (input: {
 	authPendingFlow.set('login');
 
 	try {
-		let turnstileToken: string;
-
-		try {
-			turnstileToken = await input.getTurnstileToken();
-		} catch (error) {
-			setSupabaseError(error);
-			return false;
-		}
+		const turnstileToken = await getTurnstileTokenOrSetError(input.getTurnstileToken);
+		if (turnstileToken === null) return false;
 
 		const result = await requestJson<AuthMutationResponse>(
 			'/api/auth/email/login/password',
@@ -798,14 +783,8 @@ export const requestPhoneLoginOtp = async (input: {
 	authPendingFlow.set('login');
 
 	try {
-		let turnstileToken: string;
-
-		try {
-			turnstileToken = await input.getTurnstileToken();
-		} catch (error) {
-			setSupabaseError(error);
-			return false;
-		}
+		const turnstileToken = await getTurnstileTokenOrSetError(input.getTurnstileToken);
+		if (turnstileToken === null) return false;
 
 		const result = await requestJson<{ ok: true }>(
 			'/api/auth/phone/login/request',

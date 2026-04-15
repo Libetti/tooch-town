@@ -4,23 +4,27 @@ type TurnstileVerifyOptions = {
 	token?: string | null;
 	remoteIp?: string;
 	fetcher?: typeof fetch;
+	secretKey?: string | null;
+	timeoutMs?: number;
 };
 
 type TurnstileSiteverifyResponse = {
 	success?: boolean;
-	'error-codes'?: string[];
 };
 
 export type TurnstileVerifyResult = { ok: true } | { ok: false; status: number; error: string };
 
 const TURNSTILE_SITEVERIFY_URL = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
+const TURNSTILE_VERIFY_TIMEOUT_MS = 5000;
+const TURNSTILE_TOKEN_MAX_LENGTH = 4096;
 
 export const verifyTurnstileToken = async ({
 	token,
 	remoteIp,
-	fetcher = fetch
+	fetcher = fetch,
+	secretKey = env.TURNSTILE_SECRET_KEY,
+	timeoutMs = TURNSTILE_VERIFY_TIMEOUT_MS
 }: TurnstileVerifyOptions): Promise<TurnstileVerifyResult> => {
-	const secretKey = env.TURNSTILE_SECRET_KEY;
 	const trimmedToken = token?.trim() ?? '';
 
 	if (!trimmedToken) {
@@ -28,6 +32,14 @@ export const verifyTurnstileToken = async ({
 			ok: false,
 			status: 400,
 			error: 'Complete the human check before continuing.'
+		};
+	}
+
+	if (trimmedToken.length > TURNSTILE_TOKEN_MAX_LENGTH) {
+		return {
+			ok: false,
+			status: 400,
+			error: 'Human check failed. Please try again.'
 		};
 	}
 
@@ -48,13 +60,17 @@ export const verifyTurnstileToken = async ({
 		body.set('remoteip', remoteIp);
 	}
 
+	const controller = new AbortController();
+	const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
 	try {
 		const response = await fetcher(TURNSTILE_SITEVERIFY_URL, {
 			method: 'POST',
 			headers: {
 				'content-type': 'application/x-www-form-urlencoded'
 			},
-			body
+			body,
+			signal: controller.signal
 		});
 
 		if (!response.ok) {
@@ -81,5 +97,7 @@ export const verifyTurnstileToken = async ({
 			status: 503,
 			error: 'Unable to verify the human check right now.'
 		};
+	} finally {
+		clearTimeout(timeout);
 	}
 };

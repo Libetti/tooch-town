@@ -3,16 +3,16 @@
 	import { PUBLIC_TURNSTILE_SITE_KEY } from '$env/static/public';
 	import { onDestroy } from 'svelte';
 
-	type TurnstileWidgetId = string;
 	type TurnstilePendingToken = {
 		resolve: (token: string) => void;
 		reject: (error: Error) => void;
 	};
 	const TURNSTILE_SCRIPT_URL =
 		'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+	const TURNSTILE_SCRIPT_ID = 'cloudflare-turnstile-script';
 
 	let container = $state<HTMLDivElement | null>(null);
-	let widgetId: TurnstileWidgetId | null = null;
+	let widgetId: CloudflareTurnstileWidgetId | null = null;
 	let pendingToken: TurnstilePendingToken | null = null;
 
 	const rejectPendingToken = (message: string) => {
@@ -31,35 +31,40 @@
 
 		if (!window.turnstileScriptPromise) {
 			window.turnstileScriptPromise = new Promise<void>((resolve, reject) => {
-				const existingScript = document.querySelector<HTMLScriptElement>(
-					`script[src="${TURNSTILE_SCRIPT_URL}"]`
-				);
+				const handleScriptError = (script: HTMLScriptElement) => {
+					window.turnstileScriptPromise = undefined;
+					script.remove();
+					reject(new Error('Unable to load the human check.'));
+				};
+				const existingScript = document.getElementById(
+					TURNSTILE_SCRIPT_ID
+				) as HTMLScriptElement | null;
 
 				if (existingScript) {
 					existingScript.addEventListener('load', () => resolve(), { once: true });
-					existingScript.addEventListener(
-						'error',
-						() => reject(new Error('Unable to load the human check.')),
-						{ once: true }
-					);
+					existingScript.addEventListener('error', () => handleScriptError(existingScript), {
+						once: true
+					});
 					return;
 				}
 
 				const script = document.createElement('script');
+				script.id = TURNSTILE_SCRIPT_ID;
 				script.src = TURNSTILE_SCRIPT_URL;
 				script.async = true;
 				script.defer = true;
 				script.addEventListener('load', () => resolve(), { once: true });
-				script.addEventListener(
-					'error',
-					() => reject(new Error('Unable to load the human check.')),
-					{ once: true }
-				);
+				script.addEventListener('error', () => handleScriptError(script), { once: true });
 				document.head.appendChild(script);
 			});
 		}
 
-		await window.turnstileScriptPromise;
+		try {
+			await window.turnstileScriptPromise;
+		} catch (error) {
+			window.turnstileScriptPromise = undefined;
+			throw error;
+		}
 	};
 
 	const ensureWidget = async () => {
@@ -86,6 +91,10 @@
 				'response-field': false,
 				callback: (token: string) => {
 					if (!pendingToken) return;
+					if (!token) {
+						rejectPendingToken('Human check failed. Please try again.');
+						return;
+					}
 
 					pendingToken.resolve(token);
 					pendingToken = null;
@@ -107,25 +116,26 @@
 
 	export const reset = () => {
 		if (!browser) return;
+		rejectPendingToken('Human check was reset.');
 		if (!widgetId || !window.turnstile) return;
 
 		window.turnstile.reset(widgetId);
-		pendingToken = null;
 	};
 
 	export const execute = async () => {
 		const nextWidgetId = await ensureWidget();
 
-		if (!window.turnstile) {
+		const turnstile = window.turnstile;
+		if (!turnstile) {
 			throw new Error('Human check is not ready yet.');
 		}
 
 		rejectPendingToken('Human check restarted.');
-		window.turnstile.reset(nextWidgetId);
+		turnstile.reset(nextWidgetId);
 
 		return new Promise<string>((resolve, reject) => {
 			pendingToken = { resolve, reject };
-			window.turnstile?.execute(nextWidgetId);
+			turnstile.execute(nextWidgetId);
 		});
 	};
 
@@ -139,7 +149,7 @@
 	});
 </script>
 
-<div bind:this={container} class="turnstile-challenge" aria-hidden="true"></div>
+<div bind:this={container} class="turnstile-challenge"></div>
 
 <style>
 	.turnstile-challenge {
