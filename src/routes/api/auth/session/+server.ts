@@ -10,7 +10,6 @@ export const GET: RequestHandler = async ({ cookies }) => {
 			{
 				configured: true,
 				session: null,
-				profile: null,
 				error: 'Unable to load your account right now.'
 			},
 			{ status: 500 }

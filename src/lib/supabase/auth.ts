@@ -21,7 +21,6 @@ type PendingSignupProfile = ValidatedSignupProfile & {
 type AuthSnapshotResponse = {
 	configured: boolean;
 	session: Session | null;
-	profile: UserProfile | null;
 	error?: string;
 };
 
@@ -29,6 +28,12 @@ type AuthMutationResponse = {
 	session?: Session | null;
 	profile?: UserProfile | null;
 	userId?: string | null;
+	error?: string;
+};
+
+type ProfileResponse = {
+	session?: Session | null;
+	profile: UserProfile | null;
 	error?: string;
 };
 
@@ -107,10 +112,15 @@ const rememberPendingSignupProfile = (
 
 const normalizePhone = (value: string) => value.trim().replace(/[\s()-]/g, '');
 
-const setAuthSnapshot = (snapshot: { session?: Session | null; profile?: UserProfile | null }) => {
+const setAuthSnapshot = (snapshot: { session?: Session | null }) => {
+	const previousSession = get(authSession);
+	const nextSession = snapshot.session ?? null;
 	authSession.set(snapshot.session ?? null);
-	authProfile.set(snapshot.profile ?? null);
-	scheduleSessionRefresh(snapshot.session ?? null);
+	if (!nextSession || previousSession?.user?.id !== nextSession.user?.id) {
+		authProfile.set(null);
+		authPendingProfileSetup.set(false);
+	}
+	scheduleSessionRefresh(nextSession);
 };
 
 const setProfilePersistenceError = (error: string | null) => {
@@ -265,22 +275,58 @@ const loadCurrentAuthSnapshot = async () => {
 
 	if (result.error) {
 		setSupabaseError(result.error);
-		setAuthSnapshot({ session: null, profile: null });
+		setAuthSnapshot({ session: null });
 		return null;
 	}
 
 	if (!result.data) {
-		setAuthSnapshot({ session: null, profile: null });
+		setAuthSnapshot({ session: null });
 		return null;
 	}
 
 	if (!result.data.configured) {
-		setAuthSnapshot({ session: null, profile: null });
+		setAuthSnapshot({ session: null });
 		return result.data;
 	}
 
 	setAuthSnapshot(result.data);
 	return result.data;
+};
+
+const loadCurrentProfile = async () => {
+	authProfileLoading.set(true);
+
+	try {
+		const result = await requestJson<ProfileResponse>(
+			'/api/auth/profile',
+			{ method: 'GET' },
+			'Unable to load your profile right now.'
+		);
+
+		if (result.error) {
+			setSupabaseError(result.error);
+			authProfile.set(null);
+			authPendingProfileSetup.set(Boolean(get(authSession)));
+			return null;
+		}
+
+		if (!result.data) {
+			authProfile.set(null);
+			authPendingProfileSetup.set(Boolean(get(authSession)));
+			return null;
+		}
+
+		if (result.data.session) {
+			authSession.set(result.data.session);
+			scheduleSessionRefresh(result.data.session);
+		}
+
+		authProfile.set(result.data.profile ?? null);
+		authPendingProfileSetup.set(Boolean(get(authSession) && !result.data.profile));
+		return result.data.profile;
+	} finally {
+		authProfileLoading.set(false);
+	}
 };
 
 const syncPendingSignupProfile = async (session: Session | null) => {
@@ -310,32 +356,31 @@ const scheduleSessionRefresh = (session: Session | null) => {
 	const delayMs = Math.max(refreshAtMs - Date.now(), 30_000);
 
 	refreshTimer = window.setTimeout(() => {
-		void hydrateAuthState({ syncPendingProfile: false });
+		void hydrateAuthState({ loadProfile: false, syncPendingProfile: false });
 	}, delayMs);
 };
 
 const hydrateAuthState = async (
 	options: {
+		loadProfile?: boolean;
 		syncPendingProfile?: boolean;
 	} = {}
 ) => {
-	authProfileLoading.set(true);
+	const callbackSynced = await syncSessionFromUrl();
+	if (!callbackSynced) return false;
 
-	try {
-		const callbackSynced = await syncSessionFromUrl();
-		if (!callbackSynced) return false;
+	const snapshot = await loadCurrentAuthSnapshot();
+	if (!snapshot) return false;
 
-		const snapshot = await loadCurrentAuthSnapshot();
-		if (!snapshot) return false;
-
-		if (options.syncPendingProfile !== false) {
-			await syncPendingSignupProfile(snapshot.session);
-		}
-
-		return true;
-	} finally {
-		authProfileLoading.set(false);
+	if (options.syncPendingProfile !== false) {
+		await syncPendingSignupProfile(snapshot.session);
 	}
+
+	if (options.loadProfile !== false && snapshot.session) {
+		await loadCurrentProfile();
+	}
+
+	return true;
 };
 
 const saveProfileForCurrentUser = async (
@@ -369,6 +414,7 @@ const saveProfileForCurrentUser = async (
 	}
 
 	authSession.set(result.data.session ?? get(authSession));
+	scheduleSessionRefresh(result.data.session ?? get(authSession));
 	authProfile.set(result.data.profile ?? mapValidatedProfile(profile));
 	writePendingSignupProfile(null);
 	return true;
@@ -383,7 +429,7 @@ export const initializeSupabaseAuth = () => {
 	void hydrateAuthState();
 
 	window.addEventListener('focus', () => {
-		void hydrateAuthState({ syncPendingProfile: false });
+		void hydrateAuthState({ loadProfile: false, syncPendingProfile: false });
 	});
 };
 
@@ -871,7 +917,7 @@ export const signOut = async () => {
 			return false;
 		}
 
-		setAuthSnapshot({ session: null, profile: null });
+		setAuthSnapshot({ session: null });
 		return true;
 	} finally {
 		authPendingFlow.set(null);
