@@ -37,26 +37,42 @@ export const buildAuthSnapshot = async (cookies: Cookies) => {
 	if (!hasSupabaseAuthConfig) {
 		return {
 			configured: false as const,
-			session: null,
-			profile: null
+			session: null
 		};
+	}
+
+	const { session } = await loadSupabaseSession(cookies);
+	if (!session?.user) {
+		return {
+			configured: true as const,
+			session: null
+		};
+	}
+
+	return {
+		configured: true as const,
+		session
+	};
+};
+
+export const loadProfileForSession = async (
+	cookies: Cookies
+): Promise<{ session: Session | null; profile: UserProfile | null; error: string | null }> => {
+	if (!hasSupabaseAuthConfig) {
+		return { session: null, profile: null, error: 'Supabase auth is not configured.' };
 	}
 
 	const { session, client } = await loadSupabaseSession(cookies);
 	if (!session?.user || !client) {
-		return {
-			configured: true as const,
-			session: null,
-			profile: null
-		};
+		return { session: null, profile: null, error: 'Sign in before loading your profile.' };
 	}
 
 	const profileRow = await loadCurrentProfileRow(client, session.user.id);
 
 	return {
-		configured: true as const,
 		session,
-		profile: profileRow ? mapProfileRecord(profileRow) : null
+		profile: profileRow ? mapProfileRecord(profileRow) : null,
+		error: null
 	};
 };
 

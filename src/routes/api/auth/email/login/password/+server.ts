@@ -7,7 +7,7 @@ import {
 import { jsonSupabaseConfigError } from '$lib/server/auth';
 import type { RequestHandler } from './$types';
 
-type EmailLoginBody = {
+type EmailPasswordLoginBody = {
 	email?: string;
 	password?: string;
 };
@@ -17,12 +17,12 @@ export const POST: RequestHandler = async ({ cookies, request }) => {
 		return jsonSupabaseConfigError();
 	}
 
-	let body: EmailLoginBody;
+	let body: EmailPasswordLoginBody;
 
 	try {
-		body = (await request.json()) as EmailLoginBody;
+		body = (await request.json()) as EmailPasswordLoginBody;
 	} catch {
-		return json({ error: 'Invalid sign in payload.' }, { status: 400 });
+		return json({ error: 'Invalid email login payload.' }, { status: 400 });
 	}
 
 	const email = body.email?.trim() ?? '';

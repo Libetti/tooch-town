@@ -13,22 +13,21 @@ export type { SignupProfileInput, UserProfile } from '$lib/supabase/profile';
 
 export type PendingAuthFlow = 'signup' | 'login' | 'signout' | null;
 
-type PendingSignupProfile = ValidatedSignupProfile & {
-	userId: string | null;
-	savedAt: string;
-};
-
 type AuthSnapshotResponse = {
 	configured: boolean;
 	session: Session | null;
-	profile: UserProfile | null;
 	error?: string;
 };
 
 type AuthMutationResponse = {
 	session?: Session | null;
 	profile?: UserProfile | null;
-	userId?: string | null;
+	error?: string;
+};
+
+type ProfileResponse = {
+	session?: Session | null;
+	profile: UserProfile | null;
 	error?: string;
 };
 
@@ -41,18 +40,12 @@ export const authSession = writable<Session | null>(null);
 export const authPendingFlow = writable<PendingAuthFlow>(null);
 export const authError = writable<string | null>(null);
 export const authNotice = writable<string | null>(null);
-export const authPendingProfileSetup = writable(false);
 export const authProfile = writable<UserProfile | null>(null);
 export const authProfileLoading = writable(false);
 export const authProfilePending = writable(false);
 
 let initialized = false;
 let refreshTimer: number | undefined;
-const PENDING_SIGNUP_PROFILE_STORAGE_KEY = 'tooch-town.pending-signup-profile';
-
-const setPendingProfileFlag = (hasPendingProfile: boolean) => {
-	authPendingProfileSetup.set(hasPendingProfile);
-};
 
 const profilesMatch = (left: UserProfile | null, right: UserProfile) =>
 	Boolean(
@@ -65,52 +58,16 @@ const profilesMatch = (left: UserProfile | null, right: UserProfile) =>
 		left.city === right.city
 	);
 
-const readPendingSignupProfile = (): PendingSignupProfile | null => {
-	if (!browser) return null;
-
-	try {
-		const rawValue = window.localStorage.getItem(PENDING_SIGNUP_PROFILE_STORAGE_KEY);
-		if (!rawValue) return null;
-
-		const parsedValue = JSON.parse(rawValue) as PendingSignupProfile;
-		if (!parsedValue || typeof parsedValue !== 'object') return null;
-		if (typeof parsedValue.username !== 'string') return null;
-		return parsedValue;
-	} catch {
-		return null;
-	}
-};
-
-const writePendingSignupProfile = (profile: PendingSignupProfile | null) => {
-	if (!browser) return;
-
-	if (!profile) {
-		window.localStorage.removeItem(PENDING_SIGNUP_PROFILE_STORAGE_KEY);
-		setPendingProfileFlag(false);
-		return;
-	}
-
-	window.localStorage.setItem(PENDING_SIGNUP_PROFILE_STORAGE_KEY, JSON.stringify(profile));
-	setPendingProfileFlag(true);
-};
-
-const rememberPendingSignupProfile = (
-	profile: ValidatedSignupProfile,
-	options: { userId?: string | null } = {}
-) => {
-	writePendingSignupProfile({
-		...profile,
-		userId: options.userId ?? null,
-		savedAt: new Date().toISOString()
-	});
-};
-
 const normalizePhone = (value: string) => value.trim().replace(/[\s()-]/g, '');
 
-const setAuthSnapshot = (snapshot: { session?: Session | null; profile?: UserProfile | null }) => {
+const setAuthSnapshot = (snapshot: { session?: Session | null }) => {
+	const previousSession = get(authSession);
+	const nextSession = snapshot.session ?? null;
 	authSession.set(snapshot.session ?? null);
-	authProfile.set(snapshot.profile ?? null);
-	scheduleSessionRefresh(snapshot.session ?? null);
+	if (!nextSession || previousSession?.user?.id !== nextSession.user?.id) {
+		authProfile.set(null);
+	}
+	scheduleSessionRefresh(nextSession);
 };
 
 const setProfilePersistenceError = (error: string | null) => {
@@ -265,17 +222,17 @@ const loadCurrentAuthSnapshot = async () => {
 
 	if (result.error) {
 		setSupabaseError(result.error);
-		setAuthSnapshot({ session: null, profile: null });
+		setAuthSnapshot({ session: null });
 		return null;
 	}
 
 	if (!result.data) {
-		setAuthSnapshot({ session: null, profile: null });
+		setAuthSnapshot({ session: null });
 		return null;
 	}
 
 	if (!result.data.configured) {
-		setAuthSnapshot({ session: null, profile: null });
+		setAuthSnapshot({ session: null });
 		return result.data;
 	}
 
@@ -283,21 +240,37 @@ const loadCurrentAuthSnapshot = async () => {
 	return result.data;
 };
 
-const syncPendingSignupProfile = async (session: Session | null) => {
-	if (!browser) return false;
+const loadCurrentProfile = async () => {
+	authProfileLoading.set(true);
 
-	const pendingProfile = readPendingSignupProfile();
-	setPendingProfileFlag(Boolean(pendingProfile));
+	try {
+		const result = await requestJson<ProfileResponse>(
+			'/api/auth/profile',
+			{ method: 'GET' },
+			'Unable to load your profile right now.'
+		);
 
-	if (!pendingProfile || !session?.user) return false;
-	if (pendingProfile.userId && pendingProfile.userId !== session.user.id) return false;
+		if (result.error) {
+			setSupabaseError(result.error);
+			authProfile.set(null);
+			return null;
+		}
 
-	const synced = await saveProfileForCurrentUser(pendingProfile);
-	if (synced) {
-		authNotice.set('Profile setup complete.');
+		if (!result.data) {
+			authProfile.set(null);
+			return null;
+		}
+
+		if (result.data.session) {
+			authSession.set(result.data.session);
+			scheduleSessionRefresh(result.data.session);
+		}
+
+		authProfile.set(result.data.profile ?? null);
+		return result.data.profile;
+	} finally {
+		authProfileLoading.set(false);
 	}
-
-	return synced;
 };
 
 const scheduleSessionRefresh = (session: Session | null) => {
@@ -310,38 +283,35 @@ const scheduleSessionRefresh = (session: Session | null) => {
 	const delayMs = Math.max(refreshAtMs - Date.now(), 30_000);
 
 	refreshTimer = window.setTimeout(() => {
-		void hydrateAuthState({ syncPendingProfile: false });
+		void hydrateAuthState({ loadProfile: false });
 	}, delayMs);
 };
 
 const hydrateAuthState = async (
 	options: {
-		syncPendingProfile?: boolean;
+		loadProfile?: boolean;
 	} = {}
 ) => {
-	authProfileLoading.set(true);
+	const callbackSynced = await syncSessionFromUrl();
+	if (!callbackSynced) return false;
 
-	try {
-		const callbackSynced = await syncSessionFromUrl();
-		if (!callbackSynced) return false;
+	const snapshot = await loadCurrentAuthSnapshot();
+	if (!snapshot) return false;
 
-		const snapshot = await loadCurrentAuthSnapshot();
-		if (!snapshot) return false;
-
-		if (options.syncPendingProfile !== false) {
-			await syncPendingSignupProfile(snapshot.session);
-		}
-
-		return true;
-	} finally {
-		authProfileLoading.set(false);
+	if (options.loadProfile !== false && snapshot.session) {
+		await loadCurrentProfile();
 	}
+
+	return true;
 };
 
-const saveProfileForCurrentUser = async (
-	profile: ValidatedSignupProfile,
-	options: { rememberOnFailure?: boolean } = {}
-) => {
+const applySessionAndLoadProfile = async (session: Session) => {
+	authSession.set(session);
+	scheduleSessionRefresh(session);
+	await loadCurrentProfile();
+};
+
+const saveProfileForCurrentUser = async (profile: ValidatedSignupProfile) => {
 	const result = await requestJson<AuthMutationResponse>(
 		'/api/auth/profile',
 		{
@@ -361,16 +331,13 @@ const saveProfileForCurrentUser = async (
 	);
 
 	if (result.error || !result.data) {
-		if (options.rememberOnFailure) {
-			rememberPendingSignupProfile(profile, { userId: get(authSession)?.user?.id ?? null });
-		}
 		setProfilePersistenceError(result.error);
 		return false;
 	}
 
 	authSession.set(result.data.session ?? get(authSession));
+	scheduleSessionRefresh(result.data.session ?? get(authSession));
 	authProfile.set(result.data.profile ?? mapValidatedProfile(profile));
-	writePendingSignupProfile(null);
 	return true;
 };
 
@@ -378,12 +345,11 @@ export const initializeSupabaseAuth = () => {
 	if (!browser || initialized) return;
 
 	initialized = true;
-	setPendingProfileFlag(Boolean(readPendingSignupProfile()));
 
 	void hydrateAuthState();
 
 	window.addEventListener('focus', () => {
-		void hydrateAuthState({ syncPendingProfile: false });
+		void hydrateAuthState({ loadProfile: false });
 	});
 };
 
@@ -392,7 +358,7 @@ export const clearAuthFeedback = () => {
 	authNotice.set(null);
 };
 
-export const signUpWithEmail = async (input: {
+export const requestEmailSignUpOtp = async (input: {
 	email: string;
 	password: string;
 	passwordConfirm: string;
@@ -413,6 +379,11 @@ export const signUpWithEmail = async (input: {
 		return false;
 	}
 
+	if (!input.password) {
+		authError.set('Enter a password for future sign in.');
+		return false;
+	}
+
 	if (input.password.length < 8) {
 		authError.set('Use at least 8 characters for your password.');
 		return false;
@@ -426,38 +397,101 @@ export const signUpWithEmail = async (input: {
 	authPendingFlow.set('signup');
 
 	try {
-		const result = await requestJson<AuthMutationResponse>(
+		const result = await requestJson<{ ok: true }>(
 			'/api/auth/email/signup',
 			{
 				method: 'POST',
 				body: JSON.stringify({
 					email,
-					password: input.password,
-					emailRedirectTo: browser ? window.location.origin : undefined
+					username: validation.profile.username
 				})
 			},
-			'Unable to create your account right now.'
+			'Unable to send a verification code right now.'
 		);
 
-		if (result.error || !result.data) {
+		if (result.error) {
 			setSupabaseError(result.error);
 			return false;
 		}
 
-		if (result.data.session) {
-			authSession.set(result.data.session);
-			return await saveProfileForCurrentUser(validation.profile, { rememberOnFailure: true });
-		}
+		authNotice.set(
+			'Verification code sent. Enter the code from your email to create your account.'
+		);
+		return true;
+	} finally {
+		authPendingFlow.set(null);
+	}
+};
 
-		if (result.data.userId) {
-			rememberPendingSignupProfile(validation.profile, { userId: result.data.userId });
-			authNotice.set(
-				'Account created. Check your email for the confirmation link. We will finish setting up your profile after you confirm.'
+export const verifyEmailSignUpOtp = async (input: {
+	email: string;
+	token: string;
+	password: string;
+	passwordConfirm: string;
+	profile: SignupProfileInput;
+}) => {
+	clearAuthFeedback();
+
+	const email = input.email.trim();
+	const token = input.token.trim();
+	const password = input.password;
+	const validation = validateSignupProfile(input.profile);
+
+	if (!email) {
+		authError.set('Enter the email address you used to sign up.');
+		return false;
+	}
+
+	if (!token) {
+		authError.set('Enter the verification code from your email.');
+		return false;
+	}
+
+	if (!validation.profile) {
+		authError.set(validation.error);
+		return false;
+	}
+
+	if (!password) {
+		authError.set('Enter a password for future sign in.');
+		return false;
+	}
+
+	if (password.length < 8) {
+		authError.set('Use at least 8 characters for your password.');
+		return false;
+	}
+
+	if (password !== input.passwordConfirm) {
+		authError.set('Your password confirmation does not match.');
+		return false;
+	}
+
+	authPendingFlow.set('signup');
+
+	try {
+		const result = await requestJson<AuthMutationResponse>(
+			'/api/auth/email/signup/verify',
+			{
+				method: 'POST',
+				body: JSON.stringify({ email, token, password })
+			},
+			'Unable to verify your code right now.'
+		);
+
+		if (result.error || !result.data?.session) {
+			setSupabaseError(
+				result.error ?? 'Your email was verified, but we could not finish your account setup.'
 			);
-			return true;
+			return false;
 		}
 
-		authNotice.set('Account created. Check your email for the confirmation link.');
+		authSession.set(result.data.session);
+		const profileSaved = await saveProfileForCurrentUser(validation.profile);
+
+		if (!profileSaved) return false;
+
+		authNotice.set('Email confirmed. Your account is ready.');
 		return true;
 	} finally {
 		authPendingFlow.set(null);
@@ -500,7 +534,6 @@ export const requestPhoneSignUpOtp = async (input: {
 			return false;
 		}
 
-		rememberPendingSignupProfile(validation.profile);
 		authNotice.set('Verification code sent. Enter the SMS code to finish creating your account.');
 		return true;
 	} finally {
@@ -554,9 +587,7 @@ export const verifyPhoneSignUpOtp = async (input: {
 		}
 
 		authSession.set(result.data.session);
-		const profileSaved = await saveProfileForCurrentUser(validation.profile, {
-			rememberOnFailure: true
-		});
+		const profileSaved = await saveProfileForCurrentUser(validation.profile);
 
 		if (!profileSaved) return false;
 
@@ -567,7 +598,40 @@ export const verifyPhoneSignUpOtp = async (input: {
 	}
 };
 
-export const signInWithEmail = async (input: { email: string; password: string }) => {
+export const requestEmailLoginOtp = async (input: { email: string }) => {
+	clearAuthFeedback();
+
+	const email = input.email.trim();
+	if (!email) {
+		authError.set('Enter your email address to log in.');
+		return false;
+	}
+
+	authPendingFlow.set('login');
+
+	try {
+		const result = await requestJson<AuthMutationResponse>(
+			'/api/auth/email/login/otp/request',
+			{
+				method: 'POST',
+				body: JSON.stringify({ email })
+			},
+			'Unable to send a verification code right now.'
+		);
+
+		if (result.error) {
+			setSupabaseError(result.error);
+			return false;
+		}
+
+		authNotice.set('Verification code sent. Enter the code from your email to log in.');
+		return true;
+	} finally {
+		authPendingFlow.set(null);
+	}
+};
+
+export const signInWithEmailPassword = async (input: { email: string; password: string }) => {
 	clearAuthFeedback();
 
 	const email = input.email.trim();
@@ -580,7 +644,7 @@ export const signInWithEmail = async (input: { email: string; password: string }
 
 	try {
 		const result = await requestJson<AuthMutationResponse>(
-			'/api/auth/email/login',
+			'/api/auth/email/login/password',
 			{
 				method: 'POST',
 				body: JSON.stringify({
@@ -596,8 +660,47 @@ export const signInWithEmail = async (input: { email: string; password: string }
 			return false;
 		}
 
-		authSession.set(result.data.session);
-		await hydrateAuthState();
+		await applySessionAndLoadProfile(result.data.session);
+		return true;
+	} finally {
+		authPendingFlow.set(null);
+	}
+};
+
+export const verifyEmailLoginOtp = async (input: { email: string; token: string }) => {
+	clearAuthFeedback();
+
+	const email = input.email.trim();
+	const token = input.token.trim();
+
+	if (!email) {
+		authError.set('Enter the email address you used to log in.');
+		return false;
+	}
+
+	if (!token) {
+		authError.set('Enter the verification code from your email.');
+		return false;
+	}
+
+	authPendingFlow.set('login');
+
+	try {
+		const result = await requestJson<AuthMutationResponse>(
+			'/api/auth/email/login/verify',
+			{
+				method: 'POST',
+				body: JSON.stringify({ email, token })
+			},
+			'Unable to verify your code right now.'
+		);
+
+		if (result.error || !result.data?.session) {
+			setSupabaseError(result.error ?? 'Unable to sign you in right now.');
+			return false;
+		}
+
+		await applySessionAndLoadProfile(result.data.session);
 		return true;
 	} finally {
 		authPendingFlow.set(null);
@@ -670,43 +773,11 @@ export const verifyPhoneLoginOtp = async (input: { phone: string; token: string 
 			return false;
 		}
 
-		authSession.set(result.data.session);
-		await hydrateAuthState();
+		await applySessionAndLoadProfile(result.data.session);
 		return true;
 	} finally {
 		authPendingFlow.set(null);
 	}
-};
-
-export const retryPendingProfileSetup = async () => {
-	clearAuthFeedback();
-
-	const session = get(authSession);
-	if (!session) {
-		authError.set('Sign in again before retrying your profile setup.');
-		return false;
-	}
-
-	const pendingProfile = readPendingSignupProfile();
-	if (!pendingProfile) {
-		authNotice.set('Your profile is already set up.');
-		setPendingProfileFlag(false);
-		return true;
-	}
-
-	if (pendingProfile.userId && pendingProfile.userId !== session.user.id) {
-		authError.set('The saved profile draft belongs to a different account.');
-		return false;
-	}
-
-	const retried = await saveProfileForCurrentUser(pendingProfile, {
-		rememberOnFailure: true
-	});
-	if (retried) {
-		authNotice.set('Profile setup complete.');
-	}
-
-	return retried;
 };
 
 export const signOut = async () => {
@@ -727,7 +798,7 @@ export const signOut = async () => {
 			return false;
 		}
 
-		setAuthSnapshot({ session: null, profile: null });
+		setAuthSnapshot({ session: null });
 		return true;
 	} finally {
 		authPendingFlow.set(null);

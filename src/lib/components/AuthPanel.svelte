@@ -5,7 +5,6 @@
 		authError,
 		authNotice,
 		authPendingFlow,
-		authPendingProfileSetup,
 		authProfile,
 		authProfileLoading,
 		authProfilePending,
@@ -13,14 +12,16 @@
 		clearAuthFeedback,
 		getAuthUserLabel,
 		initializeSupabaseAuth,
+		requestEmailLoginOtp,
+		requestEmailSignUpOtp,
 		requestPhoneLoginOtp,
 		requestPhoneSignUpOtp,
-		retryPendingProfileSetup,
-		signInWithEmail,
+		signInWithEmailPassword,
 		signOut,
-		signUpWithEmail,
 		type SignupProfileInput,
 		updateCurrentUserProfile,
+		verifyEmailLoginOtp,
+		verifyEmailSignUpOtp,
 		verifyPhoneLoginOtp,
 		verifyPhoneSignUpOtp
 	} from '$lib/supabase/auth';
@@ -36,8 +37,6 @@
 	let signupEmail = $state('');
 	let signupPassword = $state('');
 	let signupPasswordConfirm = $state('');
-	let signupPasswordVisible = $state(false);
-	let signupPasswordConfirmVisible = $state(false);
 	let signupPhone = $state('');
 	let signupOtp = $state('');
 	let signupOtpSent = $state(false);
@@ -51,10 +50,10 @@
 
 	let loginEmail = $state('');
 	let loginPassword = $state('');
-	let loginPasswordVisible = $state(false);
 	let loginPhone = $state('');
 	let loginOtp = $state('');
 	let loginOtpSent = $state(false);
+	let emailLoginMode = $state<'otp' | 'password'>('password');
 	let authMode = $state<'signup' | 'login'>('login');
 	const phoneAuthEnabled = false;
 	let authMethod = $state<'phone' | 'email'>('email');
@@ -81,6 +80,7 @@
 	const selectedProfileState = $derived(
 		profileStates.find((state) => state.isoCode === profileStateCode) ?? null
 	);
+	const profileBlockingLoad = $derived($authProfileLoading && !$authProfile);
 
 	onMount(() => {
 		if (!hasSupabaseAuthConfig) return;
@@ -149,8 +149,6 @@
 		signupEmail = '';
 		signupPassword = '';
 		signupPasswordConfirm = '';
-		signupPasswordVisible = false;
-		signupPasswordConfirmVisible = false;
 		signupPhone = '';
 		signupOtp = '';
 		signupOtpSent = false;
@@ -163,7 +161,6 @@
 		signupCity = '';
 		loginEmail = '';
 		loginPassword = '';
-		loginPasswordVisible = false;
 		loginPhone = '';
 		loginOtp = '';
 		loginOtpSent = false;
@@ -207,8 +204,20 @@
 			return;
 		}
 
-		const signedIn = await signUpWithEmail({
+		if (!signupOtpSent) {
+			signupOtpSent = await requestEmailSignUpOtp({
+				email: signupEmail,
+				password: signupPassword,
+				passwordConfirm: signupPasswordConfirm,
+				profile
+			});
+			if (!signupOtpSent) signupOtp = '';
+			return;
+		}
+
+		const signedIn = await verifyEmailSignUpOtp({
 			email: signupEmail,
+			token: signupOtp,
 			password: signupPassword,
 			passwordConfirm: signupPasswordConfirm,
 			profile
@@ -216,9 +225,6 @@
 
 		if (signedIn) {
 			clearAuthFields();
-		} else {
-			signupPassword = '';
-			signupPasswordConfirm = '';
 		}
 	};
 
@@ -246,9 +252,30 @@
 			return;
 		}
 
-		const signedIn = await signInWithEmail({
+		if (emailLoginMode === 'password') {
+			const signedIn = await signInWithEmailPassword({
+				email: loginEmail,
+				password: loginPassword
+			});
+
+			if (signedIn) {
+				clearAuthFields();
+			}
+
+			return;
+		}
+
+		if (!loginOtpSent) {
+			loginOtpSent = await requestEmailLoginOtp({
+				email: loginEmail
+			});
+			if (!loginOtpSent) loginOtp = '';
+			return;
+		}
+
+		const signedIn = await verifyEmailLoginOtp({
 			email: loginEmail,
-			password: loginPassword
+			token: loginOtp
 		});
 
 		if (signedIn) {
@@ -258,10 +285,6 @@
 
 	const handleSignOut = async () => {
 		await signOut();
-	};
-
-	const handleRetryProfileSetup = async () => {
-		await retryPendingProfileSetup();
 	};
 
 	const handleProfileSave = async (event: SubmitEvent) => {
@@ -277,6 +300,7 @@
 		signupOtpSent = false;
 		loginOtp = '';
 		loginOtpSent = false;
+		emailLoginMode = 'password';
 	};
 
 	const setAuthMethod = (method: 'phone' | 'email') => {
@@ -284,6 +308,13 @@
 		clearAuthFeedback();
 		signupOtp = '';
 		signupOtpSent = false;
+		loginOtp = '';
+		loginOtpSent = false;
+	};
+
+	const setEmailLoginMode = (mode: 'otp' | 'password') => {
+		emailLoginMode = mode;
+		clearAuthFeedback();
 		loginOtp = '';
 		loginOtpSent = false;
 	};
@@ -300,18 +331,6 @@
 		profileCountryCode = nextCountryCode;
 		profileStateCode = '';
 		profileStateText = '';
-	};
-
-	const toggleSignupPasswordVisibility = () => {
-		signupPasswordVisible = !signupPasswordVisible;
-	};
-
-	const toggleSignupPasswordConfirmVisibility = () => {
-		signupPasswordConfirmVisible = !signupPasswordConfirmVisible;
-	};
-
-	const toggleLoginPasswordVisibility = () => {
-		loginPasswordVisible = !loginPasswordVisible;
 	};
 </script>
 
@@ -351,13 +370,7 @@
 						<h3>Edit Profile</h3>
 					</div>
 
-					{#if $authPendingProfileSetup}
-						<p class="auth-banner auth-banner--error" role="alert">
-							Your account exists, but your profile still needs to be saved.
-						</p>
-					{/if}
-
-					{#if $authProfileLoading}
+					{#if profileBlockingLoad}
 						<p class="auth-banner auth-banner--notice">Loading your profile...</p>
 					{/if}
 
@@ -398,40 +411,42 @@
 							</div>
 						</label>
 
-						<label class="auth-field auth-field--readonly">
+						<label class:auth-field--readonly={Boolean($authProfile)} class="auth-field">
 							<span>Username</span>
 							<div class="auth-readonly-field">
 								<input
-									class="auth-input--readonly"
+									class:auth-input--readonly={Boolean($authProfile)}
 									type="text"
-									value={profileUsername}
+									bind:value={profileUsername}
 									name="profile-username"
 									autocomplete="username"
 									placeholder="stormwatcher"
-									readonly
-									tabindex="-1"
+									readonly={Boolean($authProfile)}
+									tabindex={Boolean($authProfile) ? -1 : 0}
 								/>
-								<span class="auth-readonly-icon" aria-hidden="true">
-									<svg viewBox="0 0 24 24" class="auth-lock-icon">
-										<path
-											d="M7.5 10V8.5a4.5 4.5 0 1 1 9 0V10"
-											fill="none"
-											stroke="currentColor"
-											stroke-width="1.8"
-											stroke-linecap="round"
-										/>
-										<rect
-											x="5"
-											y="10"
-											width="14"
-											height="10"
-											rx="2.5"
-											fill="none"
-											stroke="currentColor"
-											stroke-width="1.8"
-										/>
-									</svg>
-								</span>
+								{#if $authProfile}
+									<span class="auth-readonly-icon" aria-hidden="true">
+										<svg viewBox="0 0 24 24" class="auth-lock-icon">
+											<path
+												d="M7.5 10V8.5a4.5 4.5 0 1 1 9 0V10"
+												fill="none"
+												stroke="currentColor"
+												stroke-width="1.8"
+												stroke-linecap="round"
+											/>
+											<rect
+												x="5"
+												y="10"
+												width="14"
+												height="10"
+												rx="2.5"
+												fill="none"
+												stroke="currentColor"
+												stroke-width="1.8"
+											/>
+										</svg>
+									</span>
+								{/if}
 							</div>
 						</label>
 
@@ -507,20 +522,10 @@
 					</div>
 
 					<div class="auth-account-actions auth-account-actions--footer">
-						{#if $authPendingProfileSetup}
-							<button
-								type="button"
-								class="auth-submit auth-submit--secondary"
-								disabled={$authPendingFlow !== null || $authProfilePending}
-								onclick={handleRetryProfileSetup}
-							>
-								Retry Setup
-							</button>
-						{/if}
 						<button
 							type="submit"
 							class="auth-submit auth-submit--soft"
-							disabled={$authProfileLoading || $authProfilePending || $authPendingFlow !== null}
+							disabled={profileBlockingLoad || $authProfilePending || $authPendingFlow !== null}
 						>
 							{$authProfilePending ? 'Saving...' : 'Save Profile'}
 						</button>
@@ -690,92 +695,43 @@
 										type="email"
 										name="signup-email"
 										autocomplete="email"
+										readonly={signupOtpSent}
 									/>
 								</label>
 
 								<label class="auth-field">
 									<span>Password</span>
-									<div class="auth-password-field">
-										<input
-											bind:value={signupPassword}
-											type={signupPasswordVisible ? 'text' : 'password'}
-											name="signup-password"
-											minlength="8"
-											autocomplete="new-password"
-										/>
-										<button
-											type="button"
-											class="auth-password-toggle"
-											aria-pressed={signupPasswordVisible}
-											aria-label={signupPasswordVisible ? 'Hide password' : 'Show password'}
-											onclick={toggleSignupPasswordVisibility}
-										>
-											<svg aria-hidden="true" viewBox="0 0 24 24" class="auth-password-icon">
-												<path
-													d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"
-													fill="none"
-													stroke="currentColor"
-													stroke-width="1.8"
-													stroke-linecap="round"
-													stroke-linejoin="round"
-												/>
-												<circle cx="12" cy="12" r="3" fill="currentColor" />
-												{#if !signupPasswordVisible}
-													<path
-														d="M4 20 20 4"
-														fill="none"
-														stroke="currentColor"
-														stroke-width="1.8"
-														stroke-linecap="round"
-													/>
-												{/if}
-											</svg>
-										</button>
-									</div>
+									<input
+										bind:value={signupPassword}
+										type="password"
+										name="signup-password"
+										minlength="8"
+										autocomplete="new-password"
+									/>
 								</label>
 
 								<label class="auth-field">
 									<span>Confirm Password</span>
-									<div class="auth-password-field">
-										<input
-											bind:value={signupPasswordConfirm}
-											type={signupPasswordConfirmVisible ? 'text' : 'password'}
-											name="signup-password-confirm"
-											minlength="8"
-											autocomplete="new-password"
-										/>
-										<button
-											type="button"
-											class="auth-password-toggle"
-											aria-pressed={signupPasswordConfirmVisible}
-											aria-label={signupPasswordConfirmVisible
-												? 'Hide confirm password'
-												: 'Show confirm password'}
-											onclick={toggleSignupPasswordConfirmVisibility}
-										>
-											<svg aria-hidden="true" viewBox="0 0 24 24" class="auth-password-icon">
-												<path
-													d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"
-													fill="none"
-													stroke="currentColor"
-													stroke-width="1.8"
-													stroke-linecap="round"
-													stroke-linejoin="round"
-												/>
-												<circle cx="12" cy="12" r="3" fill="currentColor" />
-												{#if !signupPasswordConfirmVisible}
-													<path
-														d="M4 20 20 4"
-														fill="none"
-														stroke="currentColor"
-														stroke-width="1.8"
-														stroke-linecap="round"
-													/>
-												{/if}
-											</svg>
-										</button>
-									</div>
+									<input
+										bind:value={signupPasswordConfirm}
+										type="password"
+										name="signup-password-confirm"
+										minlength="8"
+										autocomplete="new-password"
+									/>
 								</label>
+
+								{#if signupOtpSent}
+									<label class="auth-field">
+										<span>Verification Code</span>
+										<input
+											bind:value={signupOtp}
+											inputmode="numeric"
+											name="signup-email-otp"
+											autocomplete="one-time-code"
+										/>
+									</label>
+								{/if}
 							{/if}
 
 							<div class="auth-profile-grid">
@@ -869,7 +825,9 @@
 										? signupOtpSent
 											? 'Verify And Create Account'
 											: 'Send Verification Code'
-										: 'Create Account'}
+										: signupOtpSent
+											? 'Verify And Create Account'
+											: 'Send Verification Code'}
 								{/if}
 							</button>
 
@@ -972,48 +930,51 @@
 										type="email"
 										name="login-email"
 										autocomplete="email"
+										readonly={emailLoginMode === 'otp' && loginOtpSent}
 									/>
 								</label>
 
-								<label class="auth-field">
-									<span>Password</span>
-									<div class="auth-password-field">
+								{#if emailLoginMode === 'password'}
+									<label class="auth-field">
+										<span>Password</span>
 										<input
 											bind:value={loginPassword}
-											type={loginPasswordVisible ? 'text' : 'password'}
+											type="password"
 											name="login-password"
 											autocomplete="current-password"
 										/>
+									</label>
+								{:else if loginOtpSent}
+									<label class="auth-field">
+										<span>Verification Code</span>
+										<input
+											bind:value={loginOtp}
+											inputmode="numeric"
+											name="login-email-otp"
+											autocomplete="one-time-code"
+										/>
+									</label>
+								{/if}
+
+								<div class="auth-inline-actions">
+									{#if emailLoginMode === 'otp'}
 										<button
 											type="button"
-											class="auth-password-toggle"
-											aria-pressed={loginPasswordVisible}
-											aria-label={loginPasswordVisible ? 'Hide password' : 'Show password'}
-											onclick={toggleLoginPasswordVisibility}
+											class="auth-text-button"
+											onclick={() => setEmailLoginMode('password')}
 										>
-											<svg aria-hidden="true" viewBox="0 0 24 24" class="auth-password-icon">
-												<path
-													d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"
-													fill="none"
-													stroke="currentColor"
-													stroke-width="1.8"
-													stroke-linecap="round"
-													stroke-linejoin="round"
-												/>
-												<circle cx="12" cy="12" r="3" fill="currentColor" />
-												{#if !loginPasswordVisible}
-													<path
-														d="M4 20 20 4"
-														fill="none"
-														stroke="currentColor"
-														stroke-width="1.8"
-														stroke-linecap="round"
-													/>
-												{/if}
-											</svg>
+											Use Password
 										</button>
-									</div>
-								</label>
+									{:else}
+										<button
+											type="button"
+											class="auth-text-button"
+											onclick={() => setEmailLoginMode('otp')}
+										>
+											Email A Code
+										</button>
+									{/if}
+								</div>
 							{/if}
 
 							<button
@@ -1022,13 +983,21 @@
 								disabled={$authPendingFlow === 'login'}
 							>
 								{#if $authPendingFlow === 'login'}
-									{loginOtpSent ? 'Verifying...' : 'Sending Code...'}
+									{emailLoginMode === 'password'
+										? 'Logging In...'
+										: loginOtpSent
+											? 'Verifying...'
+											: 'Sending Code...'}
 								{:else}
 									{authMethod === 'phone'
 										? loginOtpSent
 											? 'Verify And Log In'
 											: 'Text Me A Code'
-										: 'Log In'}
+										: emailLoginMode === 'password'
+											? 'Log In'
+											: loginOtpSent
+												? 'Verify And Log In'
+												: 'Email A Code'}
 								{/if}
 							</button>
 
@@ -1299,7 +1268,6 @@
 	.auth-readonly-field {
 		position: relative;
 		width: 100%;
-		pointer-events: none;
 	}
 
 	.auth-readonly-field input {
@@ -1345,50 +1313,24 @@
 		gap: 0.75rem;
 	}
 
-	.auth-password-field {
-		position: relative;
-		width: 100%;
+	.auth-inline-actions {
+		display: flex;
+		justify-content: flex-end;
 	}
 
-	.auth-password-field input {
-		width: 100%;
-		box-sizing: border-box;
-		padding-right: 2.8rem;
-	}
-
-	.auth-password-toggle {
-		position: absolute;
-		top: 50%;
-		right: 0.45rem;
-		transform: translateY(-50%);
+	.auth-text-button {
 		border: 0;
 		background: transparent;
-		color: rgba(227, 238, 255, 0.76);
-		width: 2rem;
-		height: 2rem;
-		padding: 0;
+		color: rgba(255, 198, 127, 0.96);
 		font: inherit;
-		font-size: 1rem;
-		line-height: 1;
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
+		font-size: 0.84rem;
+		font-weight: 700;
+		padding: 0;
 		cursor: pointer;
 	}
 
-	.auth-password-toggle:hover {
-		color: rgba(255, 198, 127, 0.96);
-	}
-
-	.auth-password-toggle:focus-visible {
-		outline: 2px solid rgba(255, 198, 127, 0.6);
-		outline-offset: 2px;
-		border-radius: 0.5rem;
-	}
-
-	.auth-password-icon {
-		width: 1rem;
-		height: 1rem;
+	.auth-text-button:hover {
+		color: #f5f8ff;
 	}
 
 	.auth-submit {
