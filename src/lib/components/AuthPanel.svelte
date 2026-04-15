@@ -18,6 +18,7 @@
 		requestPhoneLoginOtp,
 		requestPhoneSignUpOtp,
 		retryPendingProfileSetup,
+		signInWithEmailPassword,
 		signOut,
 		type SignupProfileInput,
 		updateCurrentUserProfile,
@@ -36,6 +37,8 @@
 	let { hasSupabaseAuthConfig, expanded = false, onClose }: Props = $props();
 
 	let signupEmail = $state('');
+	let signupPassword = $state('');
+	let signupPasswordConfirm = $state('');
 	let signupPhone = $state('');
 	let signupOtp = $state('');
 	let signupOtpSent = $state(false);
@@ -48,9 +51,11 @@
 	let signupCity = $state('');
 
 	let loginEmail = $state('');
+	let loginPassword = $state('');
 	let loginPhone = $state('');
 	let loginOtp = $state('');
 	let loginOtpSent = $state(false);
+	let emailLoginMode = $state<'otp' | 'password'>('password');
 	let authMode = $state<'signup' | 'login'>('login');
 	const phoneAuthEnabled = false;
 	let authMethod = $state<'phone' | 'email'>('email');
@@ -77,6 +82,7 @@
 	const selectedProfileState = $derived(
 		profileStates.find((state) => state.isoCode === profileStateCode) ?? null
 	);
+	const profileBlockingLoad = $derived($authProfileLoading && !$authProfile);
 
 	onMount(() => {
 		if (!hasSupabaseAuthConfig) return;
@@ -143,6 +149,8 @@
 
 	const clearAuthFields = () => {
 		signupEmail = '';
+		signupPassword = '';
+		signupPasswordConfirm = '';
 		signupPhone = '';
 		signupOtp = '';
 		signupOtpSent = false;
@@ -154,6 +162,7 @@
 		signupStateText = '';
 		signupCity = '';
 		loginEmail = '';
+		loginPassword = '';
 		loginPhone = '';
 		loginOtp = '';
 		loginOtpSent = false;
@@ -200,6 +209,8 @@
 		if (!signupOtpSent) {
 			signupOtpSent = await requestEmailSignUpOtp({
 				email: signupEmail,
+				password: signupPassword,
+				passwordConfirm: signupPasswordConfirm,
 				profile
 			});
 			if (!signupOtpSent) signupOtp = '';
@@ -209,6 +220,8 @@
 		const signedIn = await verifyEmailSignUpOtp({
 			email: signupEmail,
 			token: signupOtp,
+			password: signupPassword,
+			passwordConfirm: signupPasswordConfirm,
 			profile
 		});
 
@@ -232,6 +245,19 @@
 			const signedIn = await verifyPhoneLoginOtp({
 				phone: loginPhone,
 				token: loginOtp
+			});
+
+			if (signedIn) {
+				clearAuthFields();
+			}
+
+			return;
+		}
+
+		if (emailLoginMode === 'password') {
+			const signedIn = await signInWithEmailPassword({
+				email: loginEmail,
+				password: loginPassword
 			});
 
 			if (signedIn) {
@@ -280,6 +306,7 @@
 		signupOtpSent = false;
 		loginOtp = '';
 		loginOtpSent = false;
+		emailLoginMode = 'password';
 	};
 
 	const setAuthMethod = (method: 'phone' | 'email') => {
@@ -287,6 +314,13 @@
 		clearAuthFeedback();
 		signupOtp = '';
 		signupOtpSent = false;
+		loginOtp = '';
+		loginOtpSent = false;
+	};
+
+	const setEmailLoginMode = (mode: 'otp' | 'password') => {
+		emailLoginMode = mode;
+		clearAuthFeedback();
 		loginOtp = '';
 		loginOtpSent = false;
 	};
@@ -348,7 +382,7 @@
 						</p>
 					{/if}
 
-					{#if $authProfileLoading}
+					{#if profileBlockingLoad}
 						<p class="auth-banner auth-banner--notice">Loading your profile...</p>
 					{/if}
 
@@ -511,7 +545,7 @@
 						<button
 							type="submit"
 							class="auth-submit auth-submit--soft"
-							disabled={$authProfileLoading || $authProfilePending || $authPendingFlow !== null}
+							disabled={profileBlockingLoad || $authProfilePending || $authPendingFlow !== null}
 						>
 							{$authProfilePending ? 'Saving...' : 'Save Profile'}
 						</button>
@@ -682,6 +716,28 @@
 										name="signup-email"
 										autocomplete="email"
 										readonly={signupOtpSent}
+									/>
+								</label>
+
+								<label class="auth-field">
+									<span>Password</span>
+									<input
+										bind:value={signupPassword}
+										type="password"
+										name="signup-password"
+										minlength="8"
+										autocomplete="new-password"
+									/>
+								</label>
+
+								<label class="auth-field">
+									<span>Confirm Password</span>
+									<input
+										bind:value={signupPasswordConfirm}
+										type="password"
+										name="signup-password-confirm"
+										minlength="8"
+										autocomplete="new-password"
 									/>
 								</label>
 
@@ -894,11 +950,21 @@
 										type="email"
 										name="login-email"
 										autocomplete="email"
-										readonly={loginOtpSent}
+										readonly={emailLoginMode === 'otp' && loginOtpSent}
 									/>
 								</label>
 
-								{#if loginOtpSent}
+								{#if emailLoginMode === 'password'}
+									<label class="auth-field">
+										<span>Password</span>
+										<input
+											bind:value={loginPassword}
+											type="password"
+											name="login-password"
+											autocomplete="current-password"
+										/>
+									</label>
+								{:else if loginOtpSent}
 									<label class="auth-field">
 										<span>Verification Code</span>
 										<input
@@ -909,6 +975,26 @@
 										/>
 									</label>
 								{/if}
+
+								<div class="auth-inline-actions">
+									{#if emailLoginMode === 'otp'}
+										<button
+											type="button"
+											class="auth-text-button"
+											onclick={() => setEmailLoginMode('password')}
+										>
+											Use Password
+										</button>
+									{:else}
+										<button
+											type="button"
+											class="auth-text-button"
+											onclick={() => setEmailLoginMode('otp')}
+										>
+											Email A Code
+										</button>
+									{/if}
+								</div>
 							{/if}
 
 							<button
@@ -917,15 +1003,21 @@
 								disabled={$authPendingFlow === 'login'}
 							>
 								{#if $authPendingFlow === 'login'}
-									{loginOtpSent ? 'Verifying...' : 'Sending Code...'}
+									{emailLoginMode === 'password'
+										? 'Logging In...'
+										: loginOtpSent
+											? 'Verifying...'
+											: 'Sending Code...'}
 								{:else}
 									{authMethod === 'phone'
 										? loginOtpSent
 											? 'Verify And Log In'
 											: 'Text Me A Code'
-										: loginOtpSent
-											? 'Verify And Log In'
-											: 'Email Me A Code'}
+										: emailLoginMode === 'password'
+											? 'Log In'
+											: loginOtpSent
+												? 'Verify And Log In'
+												: 'Email A Code'}
 								{/if}
 							</button>
 
@@ -1240,6 +1332,26 @@
 		display: grid;
 		grid-template-columns: repeat(2, minmax(0, 1fr));
 		gap: 0.75rem;
+	}
+
+	.auth-inline-actions {
+		display: flex;
+		justify-content: flex-end;
+	}
+
+	.auth-text-button {
+		border: 0;
+		background: transparent;
+		color: rgba(255, 198, 127, 0.96);
+		font: inherit;
+		font-size: 0.84rem;
+		font-weight: 700;
+		padding: 0;
+		cursor: pointer;
+	}
+
+	.auth-text-button:hover {
+		color: #f5f8ff;
 	}
 
 	.auth-submit {

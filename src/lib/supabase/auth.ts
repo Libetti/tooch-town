@@ -394,6 +394,8 @@ export const clearAuthFeedback = () => {
 
 export const requestEmailSignUpOtp = async (input: {
 	email: string;
+	password: string;
+	passwordConfirm: string;
 	profile: SignupProfileInput;
 }) => {
 	clearAuthFeedback();
@@ -411,6 +413,21 @@ export const requestEmailSignUpOtp = async (input: {
 		return false;
 	}
 
+	if (!input.password) {
+		authError.set('Enter a password for future sign in.');
+		return false;
+	}
+
+	if (input.password.length < 8) {
+		authError.set('Use at least 8 characters for your password.');
+		return false;
+	}
+
+	if (input.password !== input.passwordConfirm) {
+		authError.set('Your password confirmation does not match.');
+		return false;
+	}
+
 	authPendingFlow.set('signup');
 
 	try {
@@ -418,7 +435,10 @@ export const requestEmailSignUpOtp = async (input: {
 			'/api/auth/email/signup',
 			{
 				method: 'POST',
-				body: JSON.stringify({ email })
+				body: JSON.stringify({
+					email,
+					username: validation.profile.username
+				})
 			},
 			'Unable to send a verification code right now.'
 		);
@@ -440,12 +460,15 @@ export const requestEmailSignUpOtp = async (input: {
 export const verifyEmailSignUpOtp = async (input: {
 	email: string;
 	token: string;
+	password: string;
+	passwordConfirm: string;
 	profile: SignupProfileInput;
 }) => {
 	clearAuthFeedback();
 
 	const email = input.email.trim();
 	const token = input.token.trim();
+	const password = input.password;
 	const validation = validateSignupProfile(input.profile);
 
 	if (!email) {
@@ -463,6 +486,21 @@ export const verifyEmailSignUpOtp = async (input: {
 		return false;
 	}
 
+	if (!password) {
+		authError.set('Enter a password for future sign in.');
+		return false;
+	}
+
+	if (password.length < 8) {
+		authError.set('Use at least 8 characters for your password.');
+		return false;
+	}
+
+	if (password !== input.passwordConfirm) {
+		authError.set('Your password confirmation does not match.');
+		return false;
+	}
+
 	authPendingFlow.set('signup');
 
 	try {
@@ -470,7 +508,7 @@ export const verifyEmailSignUpOtp = async (input: {
 			'/api/auth/email/signup/verify',
 			{
 				method: 'POST',
-				body: JSON.stringify({ email, token })
+				body: JSON.stringify({ email, token, password })
 			},
 			'Unable to verify your code right now.'
 		);
@@ -626,6 +664,43 @@ export const requestEmailLoginOtp = async (input: { email: string }) => {
 		}
 
 		authNotice.set('Verification code sent. Enter the code from your email to log in.');
+		return true;
+	} finally {
+		authPendingFlow.set(null);
+	}
+};
+
+export const signInWithEmailPassword = async (input: { email: string; password: string }) => {
+	clearAuthFeedback();
+
+	const email = input.email.trim();
+	if (!email || !input.password) {
+		authError.set('Enter your email and password to log in.');
+		return false;
+	}
+
+	authPendingFlow.set('login');
+
+	try {
+		const result = await requestJson<AuthMutationResponse>(
+			'/api/auth/email/login',
+			{
+				method: 'POST',
+				body: JSON.stringify({
+					email,
+					password: input.password
+				})
+			},
+			'Unable to sign you in right now.'
+		);
+
+		if (result.error || !result.data?.session) {
+			setSupabaseError(result.error ?? 'Unable to sign you in right now.');
+			return false;
+		}
+
+		authSession.set(result.data.session);
+		await hydrateAuthState();
 		return true;
 	} finally {
 		authPendingFlow.set(null);

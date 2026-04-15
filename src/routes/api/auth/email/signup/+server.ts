@@ -1,17 +1,19 @@
 import { json } from '@sveltejs/kit';
-import { dev } from '$app/environment';
 import { createSupabaseServerClient, hasSupabaseAuthConfig } from '$lib/server/supabase';
 import { jsonSupabaseConfigError } from '$lib/server/auth';
+import { normalizeUsername } from '$lib/supabase/profile';
 import type { RequestHandler } from './$types';
-
-const PENDING_EMAIL_SIGNUP_COOKIE = 'tooch-town-pending-email-signup';
-const PENDING_EMAIL_SIGNUP_MAX_AGE_SECONDS = 60 * 15;
 
 type EmailSignupRequestBody = {
 	email?: string;
+	username?: string;
 };
 
-export const POST: RequestHandler = async ({ cookies, request }) => {
+const USERNAME_PATTERN = /^[A-Za-z0-9_]+$/;
+const USERNAME_MIN_LENGTH = 3;
+const USERNAME_MAX_LENGTH = 24;
+
+export const POST: RequestHandler = async ({ request }) => {
 	if (!hasSupabaseAuthConfig) {
 		return jsonSupabaseConfigError();
 	}
@@ -25,23 +27,47 @@ export const POST: RequestHandler = async ({ cookies, request }) => {
 	}
 
 	const email = body.email?.trim() ?? '';
+	const username = body.username?.trim() ?? '';
 	if (!email) {
 		return json({ error: 'Enter an email address to create an account.' }, { status: 400 });
 	}
 
+	if (!username) {
+		return json({ error: 'Choose a username to create your account.' }, { status: 400 });
+	}
+
+	if (username.length < USERNAME_MIN_LENGTH || username.length > USERNAME_MAX_LENGTH) {
+		return json(
+			{ error: `Use ${USERNAME_MIN_LENGTH}-${USERNAME_MAX_LENGTH} characters for your username.` },
+			{ status: 400 }
+		);
+	}
+
+	if (!USERNAME_PATTERN.test(username)) {
+		return json(
+			{ error: 'Usernames can only use letters, numbers, and underscores.' },
+			{ status: 400 }
+		);
+	}
+
 	try {
 		const supabase = createSupabaseServerClient();
-		const pendingSignupEmail = cookies.get(PENDING_EMAIL_SIGNUP_COOKIE);
-
-		if (pendingSignupEmail === email) {
-			const { error: resendError } = await supabase.auth.resend({
-				type: 'signup',
-				email
-			});
-
-			if (!resendError) {
-				return json({ ok: true });
+		const { data: usernameAvailable, error: usernameError } = await supabase.rpc(
+			'is_username_available',
+			{
+				username_input: normalizeUsername(username)
 			}
+		);
+
+		if (usernameError) {
+			return json(
+				{ error: 'Unable to check that username right now.' },
+				{ status: 500 }
+			);
+		}
+
+		if (!usernameAvailable) {
+			return json({ error: 'That username is already taken.' }, { status: 400 });
 		}
 
 		const { error } = await supabase.auth.signInWithOtp({
@@ -54,14 +80,6 @@ export const POST: RequestHandler = async ({ cookies, request }) => {
 		if (error) {
 			return json({ error: error.message }, { status: 400 });
 		}
-
-		cookies.set(PENDING_EMAIL_SIGNUP_COOKIE, email, {
-			path: '/',
-			httpOnly: true,
-			sameSite: 'lax',
-			secure: !dev,
-			maxAge: PENDING_EMAIL_SIGNUP_MAX_AGE_SECONDS
-		});
 
 		return json({ ok: true });
 	} catch {

@@ -7,11 +7,10 @@ import {
 import { jsonSupabaseConfigError } from '$lib/server/auth';
 import type { RequestHandler } from './$types';
 
-const PENDING_EMAIL_SIGNUP_COOKIE = 'tooch-town-pending-email-signup';
-
 type EmailSignupVerifyBody = {
 	email?: string;
 	token?: string;
+	password?: string;
 };
 
 export const POST: RequestHandler = async ({ cookies, request }) => {
@@ -29,6 +28,7 @@ export const POST: RequestHandler = async ({ cookies, request }) => {
 
 	const email = body.email?.trim() ?? '';
 	const token = body.token?.trim() ?? '';
+	const password = body.password ?? '';
 
 	if (!email) {
 		return json({ error: 'Enter the email address you used to sign up.' }, { status: 400 });
@@ -38,12 +38,20 @@ export const POST: RequestHandler = async ({ cookies, request }) => {
 		return json({ error: 'Enter the verification code from your email.' }, { status: 400 });
 	}
 
+	if (!password) {
+		return json({ error: 'Enter a password for future sign in.' }, { status: 400 });
+	}
+
+	if (password.length < 8) {
+		return json({ error: 'Use at least 8 characters for your password.' }, { status: 400 });
+	}
+
 	try {
 		const supabase = createSupabaseServerClient();
 		const { data, error } = await supabase.auth.verifyOtp({
 			email,
 			token,
-			type: 'signup'
+			type: 'email'
 		});
 
 		if (error || !data.session) {
@@ -56,8 +64,22 @@ export const POST: RequestHandler = async ({ cookies, request }) => {
 			);
 		}
 
+		const userClient = createSupabaseServerClient();
+		const { error: sessionError } = await userClient.auth.setSession({
+			access_token: data.session.access_token,
+			refresh_token: data.session.refresh_token
+		});
+
+		if (sessionError) {
+			return json({ error: sessionError.message }, { status: 400 });
+		}
+
+		const { error: passwordError } = await userClient.auth.updateUser({ password });
+		if (passwordError) {
+			return json({ error: passwordError.message }, { status: 400 });
+		}
+
 		persistSupabaseSession(cookies, data.session);
-		cookies.delete(PENDING_EMAIL_SIGNUP_COOKIE, { path: '/' });
 		return json({ session: data.session });
 	} catch {
 		return json({ error: 'Unable to verify your code right now.' }, { status: 500 });
