@@ -46,6 +46,8 @@ export const authProfilePending = writable(false);
 
 let initialized = false;
 let refreshTimer: number | undefined;
+let authNoticeClearTimer: number | undefined;
+const TEMPORARY_AUTH_NOTICE_DURATION_MS = 2500;
 
 const profilesMatch = (left: UserProfile | null, right: UserProfile) =>
 	Boolean(
@@ -74,6 +76,30 @@ const setProfilePersistenceError = (error: string | null) => {
 	authError.set(
 		error ?? 'Your account was created, but we could not finish saving your profile yet.'
 	);
+};
+
+const clearAuthNoticeTimer = () => {
+	if (!authNoticeClearTimer) return;
+
+	window.clearTimeout(authNoticeClearTimer);
+	authNoticeClearTimer = undefined;
+};
+
+const setTemporaryAuthNotice = (
+	message: string,
+	durationMs = TEMPORARY_AUTH_NOTICE_DURATION_MS
+) => {
+	clearAuthNoticeTimer();
+	authNotice.set(message);
+
+	if (!browser) return;
+
+	authNoticeClearTimer = window.setTimeout(() => {
+		authNoticeClearTimer = undefined;
+		if (get(authNotice) === message) {
+			authNotice.set(null);
+		}
+	}, durationMs);
 };
 
 const setSupabaseError = (error: unknown) => {
@@ -354,6 +380,7 @@ export const initializeSupabaseAuth = () => {
 };
 
 export const clearAuthFeedback = () => {
+	clearAuthNoticeTimer();
 	authError.set(null);
 	authNotice.set(null);
 };
@@ -838,7 +865,7 @@ export const updateCurrentUserProfile = async (input: UserProfile) => {
 		const saved = await saveProfileForCurrentUser(validation.profile);
 		if (!saved) return false;
 
-		authNotice.set('Profile saved.');
+		setTemporaryAuthNotice('Profile saved.');
 		return true;
 	} finally {
 		authProfilePending.set(false);
