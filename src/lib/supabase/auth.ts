@@ -392,10 +392,8 @@ export const clearAuthFeedback = () => {
 	authNotice.set(null);
 };
 
-export const signUpWithEmail = async (input: {
+export const requestEmailSignUpOtp = async (input: {
 	email: string;
-	password: string;
-	passwordConfirm: string;
 	profile: SignupProfileInput;
 }) => {
 	clearAuthFeedback();
@@ -413,13 +411,55 @@ export const signUpWithEmail = async (input: {
 		return false;
 	}
 
-	if (input.password.length < 8) {
-		authError.set('Use at least 8 characters for your password.');
+	authPendingFlow.set('signup');
+
+	try {
+		const result = await requestJson<{ ok: true }>(
+			'/api/auth/email/signup',
+			{
+				method: 'POST',
+				body: JSON.stringify({ email })
+			},
+			'Unable to send a verification code right now.'
+		);
+
+		if (result.error) {
+			setSupabaseError(result.error);
+			return false;
+		}
+
+		authNotice.set(
+			'Verification code sent. Enter the code from your email to create your account.'
+		);
+		return true;
+	} finally {
+		authPendingFlow.set(null);
+	}
+};
+
+export const verifyEmailSignUpOtp = async (input: {
+	email: string;
+	token: string;
+	profile: SignupProfileInput;
+}) => {
+	clearAuthFeedback();
+
+	const email = input.email.trim();
+	const token = input.token.trim();
+	const validation = validateSignupProfile(input.profile);
+
+	if (!email) {
+		authError.set('Enter the email address you used to sign up.');
 		return false;
 	}
 
-	if (input.password !== input.passwordConfirm) {
-		authError.set('Your password confirmation does not match.');
+	if (!token) {
+		authError.set('Enter the verification code from your email.');
+		return false;
+	}
+
+	if (!validation.profile) {
+		authError.set(validation.error);
 		return false;
 	}
 
@@ -427,37 +467,29 @@ export const signUpWithEmail = async (input: {
 
 	try {
 		const result = await requestJson<AuthMutationResponse>(
-			'/api/auth/email/signup',
+			'/api/auth/email/signup/verify',
 			{
 				method: 'POST',
-				body: JSON.stringify({
-					email,
-					password: input.password,
-					emailRedirectTo: browser ? window.location.origin : undefined
-				})
+				body: JSON.stringify({ email, token })
 			},
-			'Unable to create your account right now.'
+			'Unable to verify your code right now.'
 		);
 
-		if (result.error || !result.data) {
-			setSupabaseError(result.error);
+		if (result.error || !result.data?.session) {
+			setSupabaseError(
+				result.error ?? 'Your email was verified, but we could not finish your account setup.'
+			);
 			return false;
 		}
 
-		if (result.data.session) {
-			authSession.set(result.data.session);
-			return await saveProfileForCurrentUser(validation.profile, { rememberOnFailure: true });
-		}
+		authSession.set(result.data.session);
+		const profileSaved = await saveProfileForCurrentUser(validation.profile, {
+			rememberOnFailure: true
+		});
 
-		if (result.data.userId) {
-			rememberPendingSignupProfile(validation.profile, { userId: result.data.userId });
-			authNotice.set(
-				'Account created. Check your email for the confirmation link. We will finish setting up your profile after you confirm.'
-			);
-			return true;
-		}
+		if (!profileSaved) return false;
 
-		authNotice.set('Account created. Check your email for the confirmation link.');
+		authNotice.set('Email confirmed. Your account is ready.');
 		return true;
 	} finally {
 		authPendingFlow.set(null);
@@ -567,12 +599,12 @@ export const verifyPhoneSignUpOtp = async (input: {
 	}
 };
 
-export const signInWithEmail = async (input: { email: string; password: string }) => {
+export const requestEmailLoginOtp = async (input: { email: string }) => {
 	clearAuthFeedback();
 
 	const email = input.email.trim();
-	if (!email || !input.password) {
-		authError.set('Enter your email and password to log in.');
+	if (!email) {
+		authError.set('Enter your email address to log in.');
 		return false;
 	}
 
@@ -583,12 +615,49 @@ export const signInWithEmail = async (input: { email: string; password: string }
 			'/api/auth/email/login',
 			{
 				method: 'POST',
-				body: JSON.stringify({
-					email,
-					password: input.password
-				})
+				body: JSON.stringify({ email })
 			},
-			'Unable to sign you in right now.'
+			'Unable to send a verification code right now.'
+		);
+
+		if (result.error) {
+			setSupabaseError(result.error);
+			return false;
+		}
+
+		authNotice.set('Verification code sent. Enter the code from your email to log in.');
+		return true;
+	} finally {
+		authPendingFlow.set(null);
+	}
+};
+
+export const verifyEmailLoginOtp = async (input: { email: string; token: string }) => {
+	clearAuthFeedback();
+
+	const email = input.email.trim();
+	const token = input.token.trim();
+
+	if (!email) {
+		authError.set('Enter the email address you used to log in.');
+		return false;
+	}
+
+	if (!token) {
+		authError.set('Enter the verification code from your email.');
+		return false;
+	}
+
+	authPendingFlow.set('login');
+
+	try {
+		const result = await requestJson<AuthMutationResponse>(
+			'/api/auth/email/login/verify',
+			{
+				method: 'POST',
+				body: JSON.stringify({ email, token })
+			},
+			'Unable to verify your code right now.'
 		);
 
 		if (result.error || !result.data?.session) {

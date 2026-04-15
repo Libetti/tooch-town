@@ -13,14 +13,16 @@
 		clearAuthFeedback,
 		getAuthUserLabel,
 		initializeSupabaseAuth,
+		requestEmailLoginOtp,
+		requestEmailSignUpOtp,
 		requestPhoneLoginOtp,
 		requestPhoneSignUpOtp,
 		retryPendingProfileSetup,
-		signInWithEmail,
 		signOut,
-		signUpWithEmail,
 		type SignupProfileInput,
 		updateCurrentUserProfile,
+		verifyEmailLoginOtp,
+		verifyEmailSignUpOtp,
 		verifyPhoneLoginOtp,
 		verifyPhoneSignUpOtp
 	} from '$lib/supabase/auth';
@@ -34,10 +36,6 @@
 	let { hasSupabaseAuthConfig, expanded = false, onClose }: Props = $props();
 
 	let signupEmail = $state('');
-	let signupPassword = $state('');
-	let signupPasswordConfirm = $state('');
-	let signupPasswordVisible = $state(false);
-	let signupPasswordConfirmVisible = $state(false);
 	let signupPhone = $state('');
 	let signupOtp = $state('');
 	let signupOtpSent = $state(false);
@@ -50,8 +48,6 @@
 	let signupCity = $state('');
 
 	let loginEmail = $state('');
-	let loginPassword = $state('');
-	let loginPasswordVisible = $state(false);
 	let loginPhone = $state('');
 	let loginOtp = $state('');
 	let loginOtpSent = $state(false);
@@ -147,10 +143,6 @@
 
 	const clearAuthFields = () => {
 		signupEmail = '';
-		signupPassword = '';
-		signupPasswordConfirm = '';
-		signupPasswordVisible = false;
-		signupPasswordConfirmVisible = false;
 		signupPhone = '';
 		signupOtp = '';
 		signupOtpSent = false;
@@ -162,8 +154,6 @@
 		signupStateText = '';
 		signupCity = '';
 		loginEmail = '';
-		loginPassword = '';
-		loginPasswordVisible = false;
 		loginPhone = '';
 		loginOtp = '';
 		loginOtpSent = false;
@@ -207,18 +197,23 @@
 			return;
 		}
 
-		const signedIn = await signUpWithEmail({
+		if (!signupOtpSent) {
+			signupOtpSent = await requestEmailSignUpOtp({
+				email: signupEmail,
+				profile
+			});
+			if (!signupOtpSent) signupOtp = '';
+			return;
+		}
+
+		const signedIn = await verifyEmailSignUpOtp({
 			email: signupEmail,
-			password: signupPassword,
-			passwordConfirm: signupPasswordConfirm,
+			token: signupOtp,
 			profile
 		});
 
 		if (signedIn) {
 			clearAuthFields();
-		} else {
-			signupPassword = '';
-			signupPasswordConfirm = '';
 		}
 	};
 
@@ -246,9 +241,17 @@
 			return;
 		}
 
-		const signedIn = await signInWithEmail({
+		if (!loginOtpSent) {
+			loginOtpSent = await requestEmailLoginOtp({
+				email: loginEmail
+			});
+			if (!loginOtpSent) loginOtp = '';
+			return;
+		}
+
+		const signedIn = await verifyEmailLoginOtp({
 			email: loginEmail,
-			password: loginPassword
+			token: loginOtp
 		});
 
 		if (signedIn) {
@@ -300,18 +303,6 @@
 		profileCountryCode = nextCountryCode;
 		profileStateCode = '';
 		profileStateText = '';
-	};
-
-	const toggleSignupPasswordVisibility = () => {
-		signupPasswordVisible = !signupPasswordVisible;
-	};
-
-	const toggleSignupPasswordConfirmVisibility = () => {
-		signupPasswordConfirmVisible = !signupPasswordConfirmVisible;
-	};
-
-	const toggleLoginPasswordVisibility = () => {
-		loginPasswordVisible = !loginPasswordVisible;
 	};
 </script>
 
@@ -690,92 +681,21 @@
 										type="email"
 										name="signup-email"
 										autocomplete="email"
+										readonly={signupOtpSent}
 									/>
 								</label>
 
-								<label class="auth-field">
-									<span>Password</span>
-									<div class="auth-password-field">
+								{#if signupOtpSent}
+									<label class="auth-field">
+										<span>Verification Code</span>
 										<input
-											bind:value={signupPassword}
-											type={signupPasswordVisible ? 'text' : 'password'}
-											name="signup-password"
-											minlength="8"
-											autocomplete="new-password"
+											bind:value={signupOtp}
+											inputmode="numeric"
+											name="signup-email-otp"
+											autocomplete="one-time-code"
 										/>
-										<button
-											type="button"
-											class="auth-password-toggle"
-											aria-pressed={signupPasswordVisible}
-											aria-label={signupPasswordVisible ? 'Hide password' : 'Show password'}
-											onclick={toggleSignupPasswordVisibility}
-										>
-											<svg aria-hidden="true" viewBox="0 0 24 24" class="auth-password-icon">
-												<path
-													d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"
-													fill="none"
-													stroke="currentColor"
-													stroke-width="1.8"
-													stroke-linecap="round"
-													stroke-linejoin="round"
-												/>
-												<circle cx="12" cy="12" r="3" fill="currentColor" />
-												{#if !signupPasswordVisible}
-													<path
-														d="M4 20 20 4"
-														fill="none"
-														stroke="currentColor"
-														stroke-width="1.8"
-														stroke-linecap="round"
-													/>
-												{/if}
-											</svg>
-										</button>
-									</div>
-								</label>
-
-								<label class="auth-field">
-									<span>Confirm Password</span>
-									<div class="auth-password-field">
-										<input
-											bind:value={signupPasswordConfirm}
-											type={signupPasswordConfirmVisible ? 'text' : 'password'}
-											name="signup-password-confirm"
-											minlength="8"
-											autocomplete="new-password"
-										/>
-										<button
-											type="button"
-											class="auth-password-toggle"
-											aria-pressed={signupPasswordConfirmVisible}
-											aria-label={signupPasswordConfirmVisible
-												? 'Hide confirm password'
-												: 'Show confirm password'}
-											onclick={toggleSignupPasswordConfirmVisibility}
-										>
-											<svg aria-hidden="true" viewBox="0 0 24 24" class="auth-password-icon">
-												<path
-													d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"
-													fill="none"
-													stroke="currentColor"
-													stroke-width="1.8"
-													stroke-linecap="round"
-													stroke-linejoin="round"
-												/>
-												<circle cx="12" cy="12" r="3" fill="currentColor" />
-												{#if !signupPasswordConfirmVisible}
-													<path
-														d="M4 20 20 4"
-														fill="none"
-														stroke="currentColor"
-														stroke-width="1.8"
-														stroke-linecap="round"
-													/>
-												{/if}
-											</svg>
-										</button>
-									</div>
-								</label>
+									</label>
+								{/if}
 							{/if}
 
 							<div class="auth-profile-grid">
@@ -869,7 +789,9 @@
 										? signupOtpSent
 											? 'Verify And Create Account'
 											: 'Send Verification Code'
-										: 'Create Account'}
+										: signupOtpSent
+											? 'Verify And Create Account'
+											: 'Send Verification Code'}
 								{/if}
 							</button>
 
@@ -972,48 +894,21 @@
 										type="email"
 										name="login-email"
 										autocomplete="email"
+										readonly={loginOtpSent}
 									/>
 								</label>
 
-								<label class="auth-field">
-									<span>Password</span>
-									<div class="auth-password-field">
+								{#if loginOtpSent}
+									<label class="auth-field">
+										<span>Verification Code</span>
 										<input
-											bind:value={loginPassword}
-											type={loginPasswordVisible ? 'text' : 'password'}
-											name="login-password"
-											autocomplete="current-password"
+											bind:value={loginOtp}
+											inputmode="numeric"
+											name="login-email-otp"
+											autocomplete="one-time-code"
 										/>
-										<button
-											type="button"
-											class="auth-password-toggle"
-											aria-pressed={loginPasswordVisible}
-											aria-label={loginPasswordVisible ? 'Hide password' : 'Show password'}
-											onclick={toggleLoginPasswordVisibility}
-										>
-											<svg aria-hidden="true" viewBox="0 0 24 24" class="auth-password-icon">
-												<path
-													d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"
-													fill="none"
-													stroke="currentColor"
-													stroke-width="1.8"
-													stroke-linecap="round"
-													stroke-linejoin="round"
-												/>
-												<circle cx="12" cy="12" r="3" fill="currentColor" />
-												{#if !loginPasswordVisible}
-													<path
-														d="M4 20 20 4"
-														fill="none"
-														stroke="currentColor"
-														stroke-width="1.8"
-														stroke-linecap="round"
-													/>
-												{/if}
-											</svg>
-										</button>
-									</div>
-								</label>
+									</label>
+								{/if}
 							{/if}
 
 							<button
@@ -1028,7 +923,9 @@
 										? loginOtpSent
 											? 'Verify And Log In'
 											: 'Text Me A Code'
-										: 'Log In'}
+										: loginOtpSent
+											? 'Verify And Log In'
+											: 'Email Me A Code'}
 								{/if}
 							</button>
 
@@ -1343,52 +1240,6 @@
 		display: grid;
 		grid-template-columns: repeat(2, minmax(0, 1fr));
 		gap: 0.75rem;
-	}
-
-	.auth-password-field {
-		position: relative;
-		width: 100%;
-	}
-
-	.auth-password-field input {
-		width: 100%;
-		box-sizing: border-box;
-		padding-right: 2.8rem;
-	}
-
-	.auth-password-toggle {
-		position: absolute;
-		top: 50%;
-		right: 0.45rem;
-		transform: translateY(-50%);
-		border: 0;
-		background: transparent;
-		color: rgba(227, 238, 255, 0.76);
-		width: 2rem;
-		height: 2rem;
-		padding: 0;
-		font: inherit;
-		font-size: 1rem;
-		line-height: 1;
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		cursor: pointer;
-	}
-
-	.auth-password-toggle:hover {
-		color: rgba(255, 198, 127, 0.96);
-	}
-
-	.auth-password-toggle:focus-visible {
-		outline: 2px solid rgba(255, 198, 127, 0.6);
-		outline-offset: 2px;
-		border-radius: 0.5rem;
-	}
-
-	.auth-password-icon {
-		width: 1rem;
-		height: 1rem;
 	}
 
 	.auth-submit {
