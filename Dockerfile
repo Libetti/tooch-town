@@ -10,6 +10,7 @@ COPY package*.json ./
 RUN npm ci
 COPY . .
 RUN test -n "$PUBLIC_MAPTILER_KEY" || (echo "Missing PUBLIC_MAPTILER_KEY" && exit 1)
+RUN test -n "$PUBLIC_TURNSTILE_SITE_KEY" || (echo "Missing PUBLIC_TURNSTILE_SITE_KEY" && exit 1)
 RUN npm run prepare
 RUN npm run build
 RUN npm prune --production
