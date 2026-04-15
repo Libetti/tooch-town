@@ -111,6 +111,42 @@
 		city: profileCity
 	});
 
+	const normalizeProfileValue = (profile: SignupProfileInput): SignupProfileInput => ({
+		username: profile.username.trim(),
+		firstName: profile.firstName.trim(),
+		lastName: profile.lastName.trim(),
+		country: profile.country.trim(),
+		state: profile.state.trim(),
+		city: profile.city.trim()
+	});
+
+	const profileValuesMatch = (left: SignupProfileInput | null, right: SignupProfileInput) => {
+		if (!left) return false;
+
+		const normalizedLeft = normalizeProfileValue(left);
+		const normalizedRight = normalizeProfileValue(right);
+
+		return (
+			normalizedLeft.username === normalizedRight.username &&
+			normalizedLeft.firstName === normalizedRight.firstName &&
+			normalizedLeft.lastName === normalizedRight.lastName &&
+			normalizedLeft.country === normalizedRight.country &&
+			normalizedLeft.state === normalizedRight.state &&
+			normalizedLeft.city === normalizedRight.city
+		);
+	};
+
+	const currentProfileForm = $derived(getProfileFormValue());
+	const profileHasUnsavedEdits = $derived(
+		Boolean($authProfile) && !profileValuesMatch($authProfile, currentProfileForm)
+	);
+	const profileSaveDisabled = $derived(
+		profileBlockingLoad ||
+			$authProfilePending ||
+			$authPendingFlow !== null ||
+			(Boolean($authProfile) && !profileHasUnsavedEdits)
+	);
+
 	const hydrateProfileForm = () => {
 		const profile = $authProfile;
 		const nextProfileKey = JSON.stringify(profile ?? null);
@@ -519,13 +555,25 @@
 								autocomplete="address-level2"
 							/>
 						</label>
+
+						<p
+							class:auth-profile-edit-subtext--hidden={!profileHasUnsavedEdits}
+							class="auth-profile-edit-subtext"
+							aria-live="polite"
+						>
+							{profileHasUnsavedEdits ? 'You have unsaved profile edits.' : ''}
+						</p>
 					</div>
 
 					<div class="auth-account-actions auth-account-actions--footer">
+						{#if $authNotice}
+							<p class="auth-inline-notice" role="status">{$authNotice}</p>
+						{/if}
+
 						<button
 							type="submit"
-							class="auth-submit auth-submit--soft"
-							disabled={profileBlockingLoad || $authProfilePending || $authPendingFlow !== null}
+							class="auth-submit auth-submit--soft auth-submit--profile"
+							disabled={profileSaveDisabled}
 						>
 							{$authProfilePending ? 'Saving...' : 'Save Profile'}
 						</button>
@@ -533,10 +581,6 @@
 
 					{#if $authError}
 						<p class="auth-banner auth-banner--error" role="alert">{$authError}</p>
-					{/if}
-
-					{#if $authNotice}
-						<p class="auth-banner auth-banner--notice">{$authNotice}</p>
 					{/if}
 				</form>
 				<div class="auth-sidebar-action">
@@ -1207,6 +1251,18 @@
 		color: #f5f8ff;
 	}
 
+	.auth-profile-edit-subtext {
+		margin: -0.2rem 0 0;
+		color: #ffc67f;
+		font-size: 0.86rem;
+		line-height: 1.45;
+		min-height: 1.25rem;
+	}
+
+	.auth-profile-edit-subtext--hidden {
+		visibility: hidden;
+	}
+
 	.auth-card--profile {
 		margin-top: 1rem;
 		padding: 1rem;
@@ -1216,9 +1272,24 @@
 
 	.auth-account-actions {
 		display: flex;
-		flex-wrap: wrap;
+		flex-wrap: nowrap;
+		align-items: center;
 		justify-content: flex-end;
 		gap: 0.65rem;
+	}
+
+	.auth-inline-notice {
+		flex: 1 1 auto;
+		margin: 0;
+		color: rgba(219, 255, 228, 0.92);
+		font-size: 0.86rem;
+		line-height: 1.4;
+		text-align: right;
+		white-space: nowrap;
+	}
+
+	.auth-account-actions .auth-submit {
+		flex: 0 0 auto;
 	}
 
 	.auth-sidebar-action {
@@ -1401,6 +1472,10 @@
 	.auth-submit:disabled {
 		opacity: 0.7;
 		cursor: progress;
+	}
+
+	.auth-submit--profile:disabled {
+		cursor: default;
 	}
 
 	@keyframes auth-panel-fade {
