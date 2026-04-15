@@ -26,4 +26,5 @@ jobs:
                   push: true
                   build-args: |
                       PUBLIC_MAPTILER_KEY=${{ secrets.PUBLIC_MAPTILER_KEY }}
+                      PUBLIC_TURNSTILE_SITE_KEY=${{ secrets.PUBLIC_TURNSTILE_SITE_KEY }}
                   tags: libetti/tooch-town:latest
