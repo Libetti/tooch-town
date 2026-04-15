@@ -40,6 +40,7 @@
 	let signupPhone = $state('');
 	let signupOtp = $state('');
 	let signupOtpSent = $state(false);
+	let signupOtpResent = $state(false);
 	let signupUsername = $state('');
 	let signupFirstName = $state('');
 	let signupLastName = $state('');
@@ -188,6 +189,7 @@
 		signupPhone = '';
 		signupOtp = '';
 		signupOtpSent = false;
+		signupOtpResent = false;
 		signupUsername = '';
 		signupFirstName = '';
 		signupLastName = '';
@@ -223,6 +225,7 @@
 					phone: signupPhone,
 					profile
 				});
+				if (signupOtpSent) signupOtpResent = false;
 				if (!signupOtpSent) signupOtp = '';
 				return;
 			}
@@ -247,6 +250,7 @@
 				passwordConfirm: signupPasswordConfirm,
 				profile
 			});
+			if (signupOtpSent) signupOtpResent = false;
 			if (!signupOtpSent) signupOtp = '';
 			return;
 		}
@@ -261,6 +265,29 @@
 
 		if (signedIn) {
 			clearAuthFields();
+		}
+	};
+
+	const handleSignupOtpResend = async () => {
+		if (signupOtpResent || $authPendingFlow === 'signup') return;
+
+		const profile = getSignupProfile();
+		const sent =
+			authMethod === 'phone'
+				? await requestPhoneSignUpOtp({
+						phone: signupPhone,
+						profile
+					})
+				: await requestEmailSignUpOtp({
+						email: signupEmail,
+						password: signupPassword,
+						passwordConfirm: signupPasswordConfirm,
+						profile
+					});
+
+		if (sent) {
+			signupOtp = '';
+			signupOtpResent = true;
 		}
 	};
 
@@ -334,6 +361,7 @@
 		clearAuthFeedback();
 		signupOtp = '';
 		signupOtpSent = false;
+		signupOtpResent = false;
 		loginOtp = '';
 		loginOtpSent = false;
 		emailLoginMode = 'password';
@@ -344,6 +372,7 @@
 		clearAuthFeedback();
 		signupOtp = '';
 		signupOtpSent = false;
+		signupOtpResent = false;
 		loginOtp = '';
 		loginOtpSent = false;
 	};
@@ -854,6 +883,19 @@
 								<p class="auth-verification-feedback" role="status">{$authNotice}</p>
 							{/if}
 
+							{#if signupOtpSent}
+								<div class="auth-verification-actions">
+									<button
+										type="button"
+										class="auth-text-button"
+										disabled={signupOtpResent || $authPendingFlow === 'signup'}
+										onclick={handleSignupOtpResend}
+									>
+										{signupOtpResent ? 'Confirmation Code Resent' : 'Resend Confirmation Code'}
+									</button>
+								</div>
+							{/if}
+
 							<button type="submit" class="auth-submit" disabled={$authPendingFlow === 'signup'}>
 								{#if $authPendingFlow === 'signup'}
 									{signupOtpSent ? 'Verifying...' : 'Sending Code...'}
@@ -1310,6 +1352,12 @@
 		line-height: 1.4;
 	}
 
+	.auth-verification-actions {
+		display: flex;
+		justify-content: flex-end;
+		margin-top: -0.25rem;
+	}
+
 	.auth-field--readonly,
 	.auth-field--readonly span,
 	.auth-field--readonly .auth-readonly-field {
@@ -1406,6 +1454,11 @@
 
 	.auth-text-button:hover {
 		color: #f5f8ff;
+	}
+
+	.auth-text-button:disabled {
+		color: rgba(227, 238, 255, 0.56);
+		cursor: default;
 	}
 
 	.auth-submit {
