@@ -1,19 +1,21 @@
 import { json } from '@sveltejs/kit';
 import { createSupabaseServerClient, hasSupabaseAuthConfig } from '$lib/server/supabase';
 import { jsonSupabaseConfigError } from '$lib/server/auth';
+import { verifyTurnstileToken } from '$lib/server/turnstile';
 import { normalizeUsername } from '$lib/supabase/profile';
 import type { RequestHandler } from './$types';
 
 type EmailSignupRequestBody = {
 	email?: string;
 	username?: string;
+	turnstileToken?: string;
 };
 
 const USERNAME_PATTERN = /^[A-Za-z0-9_]+$/;
 const USERNAME_MIN_LENGTH = 3;
 const USERNAME_MAX_LENGTH = 24;
 
-export const POST: RequestHandler = async ({ request }) => {
+export const POST: RequestHandler = async ({ fetch, getClientAddress, request }) => {
 	if (!hasSupabaseAuthConfig) {
 		return jsonSupabaseConfigError();
 	}
@@ -50,6 +52,15 @@ export const POST: RequestHandler = async ({ request }) => {
 		);
 	}
 
+	const turnstileResult = await verifyTurnstileToken({
+		token: body.turnstileToken,
+		remoteIp: getClientAddress(),
+		fetcher: fetch
+	});
+	if (!turnstileResult.ok) {
+		return json({ error: turnstileResult.error }, { status: turnstileResult.status });
+	}
+
 	try {
 		const supabase = createSupabaseServerClient();
 		const { data: usernameAvailable, error: usernameError } = await supabase.rpc(
@@ -60,10 +71,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		);
 
 		if (usernameError) {
-			return json(
-				{ error: 'Unable to check that username right now.' },
-				{ status: 500 }
-			);
+			return json({ error: 'Unable to check that username right now.' }, { status: 500 });
 		}
 
 		if (!usernameAvailable) {

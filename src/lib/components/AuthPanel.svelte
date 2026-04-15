@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import TurnstileChallenge from '$lib/components/TurnstileChallenge.svelte';
 	import { countryOptions, getStateOptions } from '$lib/profile/locations';
 	import {
 		authError,
@@ -10,7 +11,6 @@
 		authProfilePending,
 		authSession,
 		clearAuthFeedback,
-		getAuthUserLabel,
 		initializeSupabaseAuth,
 		requestEmailLoginOtp,
 		requestEmailSignUpOtp,
@@ -30,6 +30,10 @@
 		hasSupabaseAuthConfig: boolean;
 		expanded?: boolean;
 		onClose?: () => void;
+	};
+	type TurnstileChallengeApi = {
+		execute: () => Promise<string>;
+		reset: () => void;
 	};
 
 	let { hasSupabaseAuthConfig, expanded = false, onClose }: Props = $props();
@@ -66,6 +70,7 @@
 	let profileStateText = $state('');
 	let profileCity = $state('');
 	let lastLoadedProfileKey = $state('');
+	let signupTurnstile = $state<TurnstileChallengeApi | null>(null);
 
 	const signupStates = $derived(signupCountryCode ? getStateOptions(signupCountryCode) : []);
 	const selectedSignupCountry = $derived(
@@ -209,6 +214,19 @@
 		onClose?.();
 	};
 
+	const requestSignupTurnstileToken = async () => {
+		if (!signupTurnstile) {
+			throw new Error('Human check is not ready yet.');
+		}
+
+		try {
+			return await signupTurnstile.execute();
+		} catch (error) {
+			signupTurnstile.reset();
+			throw error;
+		}
+	};
+
 	const handleWindowKeydown = (event: KeyboardEvent) => {
 		if (!expanded || event.key !== 'Escape') return;
 		event.preventDefault();
@@ -223,10 +241,14 @@
 			if (!signupOtpSent) {
 				signupOtpSent = await requestPhoneSignUpOtp({
 					phone: signupPhone,
-					profile
+					profile,
+					getTurnstileToken: requestSignupTurnstileToken
 				});
 				if (signupOtpSent) signupOtpResent = false;
-				if (!signupOtpSent) signupOtp = '';
+				if (!signupOtpSent) {
+					signupOtp = '';
+					signupTurnstile?.reset();
+				}
 				return;
 			}
 
@@ -248,10 +270,14 @@
 				email: signupEmail,
 				password: signupPassword,
 				passwordConfirm: signupPasswordConfirm,
-				profile
+				profile,
+				getTurnstileToken: requestSignupTurnstileToken
 			});
 			if (signupOtpSent) signupOtpResent = false;
-			if (!signupOtpSent) signupOtp = '';
+			if (!signupOtpSent) {
+				signupOtp = '';
+				signupTurnstile?.reset();
+			}
 			return;
 		}
 
@@ -276,18 +302,22 @@
 			authMethod === 'phone'
 				? await requestPhoneSignUpOtp({
 						phone: signupPhone,
-						profile
+						profile,
+						getTurnstileToken: requestSignupTurnstileToken
 					})
 				: await requestEmailSignUpOtp({
 						email: signupEmail,
 						password: signupPassword,
 						passwordConfirm: signupPasswordConfirm,
-						profile
+						profile,
+						getTurnstileToken: requestSignupTurnstileToken
 					});
 
 		if (sent) {
 			signupOtp = '';
 			signupOtpResent = true;
+		} else {
+			signupTurnstile?.reset();
 		}
 	};
 
@@ -487,7 +517,7 @@
 									autocomplete="username"
 									placeholder="stormwatcher"
 									readonly={Boolean($authProfile)}
-									tabindex={Boolean($authProfile) ? -1 : 0}
+									tabindex={$authProfile ? -1 : 0}
 								/>
 								{#if $authProfile}
 									<span class="auth-readonly-icon" aria-hidden="true">
@@ -675,6 +705,8 @@
 				<div class="auth-grid">
 					{#if authMode === 'signup'}
 						<form class="auth-card auth-card--signup" onsubmit={handleSignup}>
+							<TurnstileChallenge bind:this={signupTurnstile} />
+
 							<div class="auth-card-copy">
 								<h3>
 									{authMethod === 'phone'
